@@ -4,7 +4,7 @@ import { db } from './firebase';
 import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, RefreshCw, Power } from 'lucide-react';
+import { Camera, RefreshCw, Power, Trash2 } from 'lucide-react';
 
 // --- COMPONENTE GRATITA E VINCI ---
 const ScratchCard = () => {
@@ -50,7 +50,7 @@ const ScratchCard = () => {
   );
 };
 
-// --- HOME (CLIENTE) ---
+// --- HOME (LATO CLIENTE) ---
 const Home = () => {
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('ref') || 'Generico';
@@ -96,7 +96,7 @@ const Home = () => {
             <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
               <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4 text-center">GRATTA QUI PER IL DRINK:</p>
-              <ScratchCard />
+              <scratchCard />
             </div>
           </div>
         )}
@@ -108,7 +108,7 @@ const Home = () => {
 // --- SCANNER (FLUSSO CONTINUO OTTIMIZZATO) ---
 const Scanner = () => {
   const [status, setStatus] = useState("PRONTO");
-  const [overlayColor, setOverlayColor] = useState(""); // Gestisce il colore del semaforo
+  const [overlayColor, setOverlayColor] = useState(""); 
   const [cameraActive, setCameraActive] = useState(false);
   
   const isProcessingRef = useRef(false);
@@ -151,18 +151,16 @@ const Scanner = () => {
         { facingMode: "environment" },
         { fps: 20, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          // Se NON stiamo processando, allora legge il codice
           if (!isProcessingRef.current) {
             handleScan(decodedText);
           }
         }
       ).catch(() => setCameraActive(false));
     }
-    // IMPORTANTE: non stoppiamo la camera qui per evitare il nero
   }, [cameraActive]);
 
   const handleScan = async (code) => {
-    isProcessingRef.current = true; // Blocca subito letture multiple
+    isProcessingRef.current = true;
     playBeep();
     setStatus("VERIFICA...");
 
@@ -186,19 +184,17 @@ const Scanner = () => {
       setStatus("❌ ERRORE");
     }
 
-    // COOLDOWN: Dopo 2 secondi togliamo solo l'overlay, la camera NON si è mai mossa
     setTimeout(() => {
       setOverlayColor("");
       setStatus("PRONTO");
-      isProcessingRef.current = false; // Torna pronto per il prossimo scan
+      isProcessingRef.current = false;
     }, 2000);
   };
 
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase">
-      {/* HEADER */}
       <div className="w-full max-w-sm flex justify-between items-center mb-6 bg-zinc-900 p-4 border-b-4 border-[#FFEE00]">
-        <span className="font-black italic text-xl tracking-tighter">Scanner Porta</span>
+        <span className="font-black italic text-xl tracking-tighter text-white px-2">Scanner Porta</span>
         <button 
           onClick={toggleCamera} 
           className={`p-2 transition-all border-2 border-white ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
@@ -207,12 +203,9 @@ const Scanner = () => {
         </button>
       </div>
 
-      {/* AREA TELECAMERA FISSA */}
       <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden shadow-2xl">
-        {/* Il reader è sempre presente nel DOM se cameraActive è true */}
         <div id="reader" className={`w-full h-full ${!cameraActive ? 'hidden' : 'block'}`}></div>
         
-        {/* OVERLAY SEMAFORO (Si sovrappone al video senza spegnerlo) */}
         {overlayColor && (
           <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-150 ${overlayColor}`}>
             <div className="text-9xl mb-4 shadow-black drop-shadow-lg">{status.includes('OK') ? '✅' : '❌'}</div>
@@ -228,7 +221,6 @@ const Scanner = () => {
         )}
       </div>
 
-      {/* STATO SOTTO LO SCANNER */}
       <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center shadow-[6px_6px_0px_#111]">
         <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest">Sensore</p>
         <p className={`text-3xl font-black italic ${overlayColor ? 'text-white' : 'text-[#FFEE00]'}`}>
@@ -243,28 +235,54 @@ const Scanner = () => {
   );
 };
 
-// --- PR DASHBOARD ---
+// --- PR DASHBOARD (CON TASTO AZZERAMENTO) ---
 const PRDashboard = () => {
   const { prId } = useParams();
   const [count, setCount] = useState(0);
 
+  const fetchStats = async () => {
+    const snap = await getDoc(doc(db, "prs", prId));
+    if (snap.exists()) setCount(snap.data().count);
+    else setCount(0);
+  };
+
   useEffect(() => {
-    const fetchStats = async () => {
-      const snap = await getDoc(doc(db, "prs", prId));
-      if (snap.exists()) setCount(snap.data().count);
-    };
     fetchStats();
     const interval = setInterval(fetchStats, 3000);
     return () => clearInterval(interval);
   }, [prId]);
 
+  // FUNZIONE PER AZZERARE GLI INGRESSI
+  const handleReset = async () => {
+    const conferma = window.confirm(`Vuoi davvero azzerare gli ingressi per ${prId}? Questa azione non è reversibile.`);
+    if (conferma) {
+      try {
+        await setDoc(doc(db, "prs", prId), { count: 0 }, { merge: true });
+        setCount(0);
+        alert("Contatore azzerato con successo!");
+      } catch (e) {
+        alert("Errore durante l'azzeramento.");
+      }
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 text-center uppercase">
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center uppercase">
       <div className="bg-white text-black p-10 w-full max-w-sm shadow-[20px_20px_0px_#FFEE00] border-8 border-black">
-        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8">PR: {prId}</h1>
+        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8 uppercase tracking-tighter">PR: {prId}</h1>
         <div className="text-[12rem] font-black leading-none tracking-tighter mb-4">{count}</div>
-        <p className="text-2xl font-black italic opacity-30">Ingressi</p>
+        <p className="text-2xl font-black italic opacity-30 tracking-widest">Ingressi</p>
       </div>
+
+      {/* PULSANTE RESET */}
+      <button 
+        onClick={handleReset}
+        className="mt-12 bg-red-600 text-white px-8 py-4 font-black flex items-center gap-3 shadow-[8px_8px_0px_#FFF] active:translate-y-1 active:shadow-none transition-all"
+      >
+        <Trash2 size={24} /> AZZERA CONTATORE
+      </button>
+
+      <p className="mt-6 text-zinc-700 text-[10px] font-bold">Area Riservata Admin / PR</p>
     </div>
   );
 };
