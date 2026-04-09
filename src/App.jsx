@@ -50,7 +50,7 @@ const ScratchCard = () => {
   );
 };
 
-// --- HOME (LATO CLIENTE) ---
+// --- HOME (CLIENTE) ---
 const Home = () => {
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('ref') || 'Generico';
@@ -95,7 +95,7 @@ const Home = () => {
             </div>
             <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
-              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4">GRATTA PER UN DRINK:</p>
+              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4 text-center">GRATTA QUI PER IL DRINK:</p>
               <ScratchCard />
             </div>
           </div>
@@ -105,15 +105,14 @@ const Home = () => {
   );
 };
 
-// --- SCANNER (LATO STAFF - NO STOP) ---
+// --- SCANNER (FLUSSO CONTINUO OTTIMIZZATO) ---
 const Scanner = () => {
   const [status, setStatus] = useState("PRONTO");
-  const [uiProcessing, setUiProcessing] = useState(false);
+  const [overlayColor, setOverlayColor] = useState(""); // Gestisce il colore del semaforo
   const [cameraActive, setCameraActive] = useState(false);
   
-  // Riferimenti per evitare il problema della memoria di React
   const isProcessingRef = useRef(false);
-  const html5QrCode = useRef(null);
+  const html5QrCodeRef = useRef(null);
 
   const playBeep = () => {
     try {
@@ -123,7 +122,7 @@ const Scanner = () => {
       oscillator.connect(gainNode);
       gainNode.connect(audioCtx.destination);
       oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.05, audioCtx.currentTime);
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + 0.1);
     } catch(e) {}
@@ -131,9 +130,9 @@ const Scanner = () => {
 
   const toggleCamera = async () => {
     if (cameraActive) {
-      if (html5QrCode.current) {
-        await html5QrCode.current.stop();
-        html5QrCode.current = null;
+      if (html5QrCodeRef.current) {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current = null;
       }
       setCameraActive(false);
       setStatus("SPENTO");
@@ -144,26 +143,26 @@ const Scanner = () => {
   };
 
   useEffect(() => {
-    if (cameraActive && !html5QrCode.current) {
+    if (cameraActive && !html5QrCodeRef.current) {
       const scanner = new Html5Qrcode("reader");
-      html5QrCode.current = scanner;
+      html5QrCodeRef.current = scanner;
+      
       scanner.start(
         { facingMode: "environment" },
         { fps: 20, qrbox: { width: 250, height: 250 } },
         (decodedText) => {
-          // Se NON stiamo processando, allora procedi
+          // Se NON stiamo processando, allora legge il codice
           if (!isProcessingRef.current) {
             handleScan(decodedText);
           }
         }
       ).catch(() => setCameraActive(false));
     }
-    return () => { if (html5QrCode.current) html5QrCode.current.stop().catch(() => {}); };
+    // IMPORTANTE: non stoppiamo la camera qui per evitare il nero
   }, [cameraActive]);
 
   const handleScan = async (code) => {
-    isProcessingRef.current = true; // Blocco immediato (no-stop safety)
-    setUiProcessing(true);
+    isProcessingRef.current = true; // Blocca subito letture multiple
     playBeep();
     setStatus("VERIFICA...");
 
@@ -175,58 +174,71 @@ const Scanner = () => {
         await updateDoc(ticketRef, { used: true });
         const prRef = doc(db, "prs", snap.data().prId);
         await setDoc(prRef, { count: increment(1) }, { merge: true });
+        
+        setOverlayColor("bg-green-600");
         setStatus("✅ OK");
       } else {
+        setOverlayColor("bg-red-600");
         setStatus("❌ USATO");
       }
-    } catch (e) { setStatus("❌ ERRORE"); }
+    } catch (e) {
+      setOverlayColor("bg-zinc-800");
+      setStatus("❌ ERRORE");
+    }
 
-    // COOLDOWN DI 2 SECONDI
+    // COOLDOWN: Dopo 2 secondi togliamo solo l'overlay, la camera NON si è mai mossa
     setTimeout(() => {
+      setOverlayColor("");
       setStatus("PRONTO");
-      setUiProcessing(false);
-      isProcessingRef.current = false; // Torna vigile
+      isProcessingRef.current = false; // Torna pronto per il prossimo scan
     }, 2000);
   };
 
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase">
+      {/* HEADER */}
       <div className="w-full max-w-sm flex justify-between items-center mb-6 bg-zinc-900 p-4 border-b-4 border-[#FFEE00]">
         <span className="font-black italic text-xl tracking-tighter">Scanner Porta</span>
         <button 
           onClick={toggleCamera} 
-          className={`p-2 transition-all ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
+          className={`p-2 transition-all border-2 border-white ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
         >
           <Power size={24} />
         </button>
       </div>
 
-      <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden">
-        <div id="reader" className="w-full h-full"></div>
+      {/* AREA TELECAMERA FISSA */}
+      <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden shadow-2xl">
+        {/* Il reader è sempre presente nel DOM se cameraActive è true */}
+        <div id="reader" className={`w-full h-full ${!cameraActive ? 'hidden' : 'block'}`}></div>
         
-        {/* OVERLAY SEMAFORO */}
-        {uiProcessing && (
-          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100]
-            ${status.includes('OK') ? 'bg-green-600' : 'bg-red-600'}`}>
-            <div className="text-9xl mb-4">{status.includes('OK') ? '✅' : '❌'}</div>
-            <div className="font-black text-4xl italic tracking-tighter">{status}</div>
+        {/* OVERLAY SEMAFORO (Si sovrappone al video senza spegnerlo) */}
+        {overlayColor && (
+          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-150 ${overlayColor}`}>
+            <div className="text-9xl mb-4 shadow-black drop-shadow-lg">{status.includes('OK') ? '✅' : '❌'}</div>
+            <div className="font-black text-6xl italic tracking-tighter drop-shadow-md">{status}</div>
           </div>
         )}
         
-        {!cameraActive && !uiProcessing && (
+        {!cameraActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900">
-            <Camera size={48} className="text-zinc-700 mb-4" />
-            <p className="text-zinc-700 font-black text-xs">Camera Spenta</p>
+            <Camera size={64} className="text-zinc-700 mb-4 opacity-30" />
+            <p className="text-zinc-700 font-black text-sm tracking-widest opacity-30">Camera Spenta</p>
           </div>
         )}
       </div>
 
-      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center">
-        <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest">Stato</p>
-        <p className={`text-3xl font-black italic ${uiProcessing ? 'text-[#FFEE00]' : 'text-white'}`}>
+      {/* STATO SOTTO LO SCANNER */}
+      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center shadow-[6px_6px_0px_#111]">
+        <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest">Sensore</p>
+        <p className={`text-3xl font-black italic ${overlayColor ? 'text-white' : 'text-[#FFEE00]'}`}>
           {status}
         </p>
       </div>
+
+      <p className="mt-auto text-zinc-800 text-[10px] font-black tracking-[0.5em] pb-4">
+        ULTRA-SPEED SCAN v3.0
+      </p>
     </div>
   );
 };
