@@ -4,12 +4,12 @@ import { db } from './firebase';
 import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, RefreshCw, Users, Power } from 'lucide-react';
+import { Camera, RefreshCw, Power } from 'lucide-react';
 
-// --- COMPONENTE GRATITA E VINCI (Brutal Design) ---
+// --- COMPONENTE GRATITA E VINCI ---
 const ScratchCard = () => {
   const canvasRef = useRef(null);
-  const [won] = useState(Math.random() < 0.15); // 15% di probabilità
+  const [won] = useState(Math.random() < 0.15);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -71,18 +71,18 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10">
+    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10 font-sans uppercase">
       <div className="w-full max-w-sm">
-        <div className="bg-[#FFEE00] text-black p-2 mb-8 inline-block font-black text-xl uppercase italic shadow-[4px_4px_0px_#FFF]">
+        <div className="bg-[#FFEE00] text-black p-2 mb-8 inline-block font-black text-xl italic shadow-[4px_4px_0px_#FFF]">
           PASS INGRESSO
         </div>
         
         {!ticketId ? (
           <div className="flex flex-col gap-6">
-            <h2 className="text-5xl font-black uppercase leading-none italic tracking-tighter">OTTIENI IL TUO QR</h2>
+            <h2 className="text-5xl font-black leading-none italic tracking-tighter">PRENDI IL QR</h2>
             <button 
               onClick={generateTicket} 
-              className="w-full bg-white text-black py-10 font-black text-4xl uppercase shadow-[10px_10px_0px_#FFEE00] active:translate-y-1"
+              className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00] active:translate-y-1 transition-all"
             >
               {isGenerating ? "..." : "GENERA"}
             </button>
@@ -93,9 +93,9 @@ const Home = () => {
             <div className="mt-6 bg-black text-white px-6 py-2 font-black text-2xl tracking-[0.2em]">
               {ticketId}
             </div>
-            <p className="mt-2 text-black font-bold uppercase text-[10px] opacity-40 italic">PR: {prId}</p>
+            <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
-              <p className="text-black font-black uppercase text-xs mb-3 underline">Tenta la fortuna:</p>
+              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4">GRATTA PER UN DRINK:</p>
               <ScratchCard />
             </div>
           </div>
@@ -108,20 +108,25 @@ const Home = () => {
 // --- SCANNER (LATO STAFF - NO STOP) ---
 const Scanner = () => {
   const [status, setStatus] = useState("PRONTO");
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [uiProcessing, setUiProcessing] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  
+  // Riferimenti per evitare il problema della memoria di React
+  const isProcessingRef = useRef(false);
   const html5QrCode = useRef(null);
 
   const playBeep = () => {
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const oscillator = audioCtx.createOscillator();
-    const gainNode = audioCtx.createGain();
-    oscillator.connect(gainNode);
-    gainNode.connect(audioCtx.destination);
-    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
-    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
-    oscillator.start();
-    oscillator.stop(audioCtx.currentTime + 0.1);
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.1);
+    } catch(e) {}
   };
 
   const toggleCamera = async () => {
@@ -145,14 +150,20 @@ const Scanner = () => {
       scanner.start(
         { facingMode: "environment" },
         { fps: 20, qrbox: { width: 250, height: 250 } },
-        (decodedText) => { if (!isProcessing) handleScan(decodedText); }
+        (decodedText) => {
+          // Se NON stiamo processando, allora procedi
+          if (!isProcessingRef.current) {
+            handleScan(decodedText);
+          }
+        }
       ).catch(() => setCameraActive(false));
     }
     return () => { if (html5QrCode.current) html5QrCode.current.stop().catch(() => {}); };
-  }, [cameraActive, isProcessing]);
+  }, [cameraActive]);
 
   const handleScan = async (code) => {
-    setIsProcessing(true);
+    isProcessingRef.current = true; // Blocco immediato (no-stop safety)
+    setUiProcessing(true);
     playBeep();
     setStatus("VERIFICA...");
 
@@ -170,55 +181,52 @@ const Scanner = () => {
       }
     } catch (e) { setStatus("❌ ERRORE"); }
 
-    // RESET AUTOMATICO DOPO 2 SECONDI (La camera resta accesa)
+    // COOLDOWN DI 2 SECONDI
     setTimeout(() => {
       setStatus("PRONTO");
-      setIsProcessing(false);
+      setUiProcessing(false);
+      isProcessingRef.current = false; // Torna vigile
     }, 2000);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center">
+    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase">
       <div className="w-full max-w-sm flex justify-between items-center mb-6 bg-zinc-900 p-4 border-b-4 border-[#FFEE00]">
-        <span className="font-black uppercase italic text-xl tracking-tighter text-white px-2">Scanner Porta</span>
+        <span className="font-black italic text-xl tracking-tighter">Scanner Porta</span>
         <button 
           onClick={toggleCamera} 
-          className={`p-2 rounded-none font-black transition-all ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
+          className={`p-2 transition-all ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
         >
           <Power size={24} />
         </button>
       </div>
 
       <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden">
-        <div id="reader" className="w-full"></div>
+        <div id="reader" className="w-full h-full"></div>
         
-        {/* OVERLAY DI CONFERMA (Appare sopra la camera accesa) */}
-        {isProcessing && (
-          <div className={`absolute inset-0 flex flex-col items-center justify-center z-50 animate-in fade-in duration-200
+        {/* OVERLAY SEMAFORO */}
+        {uiProcessing && (
+          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100]
             ${status.includes('OK') ? 'bg-green-600' : 'bg-red-600'}`}>
             <div className="text-9xl mb-4">{status.includes('OK') ? '✅' : '❌'}</div>
-            <div className="font-black text-4xl uppercase italic tracking-tighter">{status}</div>
+            <div className="font-black text-4xl italic tracking-tighter">{status}</div>
           </div>
         )}
         
-        {!cameraActive && !isProcessing && (
+        {!cameraActive && !uiProcessing && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900">
             <Camera size={48} className="text-zinc-700 mb-4" />
-            <p className="text-zinc-700 font-black uppercase text-xs">Camera Spenta</p>
+            <p className="text-zinc-700 font-black text-xs">Camera Spenta</p>
           </div>
         )}
       </div>
 
-      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center shadow-[8px_8px_0px_#222]">
-        <p className="text-zinc-500 font-bold uppercase text-[10px] mb-1 tracking-widest">Stato Sistema</p>
-        <p className={`text-3xl font-black uppercase italic ${isProcessing ? 'text-[#FFEE00]' : 'text-white'}`}>
+      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center">
+        <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest">Stato</p>
+        <p className={`text-3xl font-black italic ${uiProcessing ? 'text-[#FFEE00]' : 'text-white'}`}>
           {status}
         </p>
       </div>
-
-      <button onClick={() => window.location.reload()} className="mt-10 text-zinc-700 uppercase text-[10px] font-black flex items-center gap-2">
-        <RefreshCw size={12}/> Forza Reset
-      </button>
     </div>
   );
 };
@@ -234,16 +242,16 @@ const PRDashboard = () => {
       if (snap.exists()) setCount(snap.data().count);
     };
     fetchStats();
-    const interval = setInterval(fetchStats, 4000);
+    const interval = setInterval(fetchStats, 3000);
     return () => clearInterval(interval);
   }, [prId]);
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 text-center">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center p-6 text-center uppercase">
       <div className="bg-white text-black p-10 w-full max-w-sm shadow-[20px_20px_0px_#FFEE00] border-8 border-black">
-        <h1 className="text-xl font-black uppercase italic border-b-4 border-black pb-2 mb-8">PR: {prId}</h1>
+        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8">PR: {prId}</h1>
         <div className="text-[12rem] font-black leading-none tracking-tighter mb-4">{count}</div>
-        <p className="text-2xl font-black uppercase italic tracking-widest opacity-30">Ingressi</p>
+        <p className="text-2xl font-black italic opacity-30">Ingressi</p>
       </div>
     </div>
   );
