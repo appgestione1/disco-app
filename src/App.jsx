@@ -3,23 +3,23 @@ import { BrowserRouter as Router, Routes, Route, useParams, useSearchParams } fr
 import { db } from './firebase';
 import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
-import { Ticket, Users, Scan, Star, Camera } from 'lucide-react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { Users, Camera, CheckCircle, XCircle } from 'lucide-react';
 
-// --- COMPONENTE GRATITA E VINCI ---
+// --- COMPONENTE GRATITA E VINCI (Contrastato) ---
 const ScratchCard = () => {
   const canvasRef = useRef(null);
-  const [won] = useState(Math.random() < 0.2); // 20% di probabilità di vincita
+  const [won] = useState(Math.random() < 0.2);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#444'; 
+    ctx.fillStyle = '#FFEE00'; // Giallo acceso
     ctx.fillRect(0, 0, 300, 150);
-    ctx.font = 'bold 20px Arial';
-    ctx.fillStyle = '#FFF';
-    ctx.fillText('GRATTA QUI PER IL DRINK', 30, 85);
+    ctx.font = 'bold 20px sans-serif';
+    ctx.fillStyle = '#000';
+    ctx.fillText('GRATTA QUI', 95, 80);
 
     const scratch = (e) => {
       const rect = canvas.getBoundingClientRect();
@@ -40,127 +40,147 @@ const ScratchCard = () => {
   }, []);
 
   return (
-    <div className="relative w-[300px] h-[150px] bg-zinc-800 flex items-center justify-center rounded-2xl overflow-hidden border-2 border-zinc-700 shadow-xl">
-      <span className="text-xl font-black text-center text-white px-4">
-        {won ? "🍹 HAI VINTO UN DRINK! MOSTRA AL BAR" : "😢 QUASI! RIPROVA DOMANI"}
+    <div className="relative w-[300px] h-[150px] bg-white flex items-center justify-center rounded-lg border-4 border-white overflow-hidden shadow-xl">
+      <span className="text-xl font-black text-black text-center px-4 uppercase italic">
+        {won ? "🍹 VINTO DRINK!" : "❌ NON VINTO"}
       </span>
       <canvas ref={canvasRef} className="absolute top-0 left-0 cursor-crosshair touch-none" width="300" height="150" />
     </div>
   );
 };
 
-// --- HOME / LOCANDINA ---
+// --- HOME (MASSIMO CONTRASTO) ---
 const Home = () => {
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('ref') || 'Generico';
   const [ticketId, setTicketId] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const generateTicket = async () => {
-    setLoading(true);
+    if (isGenerating) return;
+    setIsGenerating(true);
     const newId = Math.random().toString(36).substr(2, 9).toUpperCase();
     try {
       await setDoc(doc(db, "tickets", newId), {
         id: newId, prId, used: false, timestamp: new Date()
       });
       setTicketId(newId);
-    } catch (e) { alert("Errore connessione: " + e.message); }
-    setLoading(false);
+    } catch (e) { alert("Errore connessione."); }
+    setIsGenerating(false);
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center font-sans">
-      <div className="w-full max-w-md border-2 border-zinc-800 rounded-3xl overflow-hidden bg-zinc-900 shadow-2xl">
-        <img src="https://images.unsplash.com/photo-1514525253361-bee8a19740c1?w=800" className="w-full h-72 object-cover grayscale-[0.5]" alt="Event" />
-        <div className="p-8 text-center">
-          <h1 className="text-5xl font-black italic tracking-tighter mb-2">GALAXY NIGHT</h1>
-          <p className="text-yellow-400 font-bold tracking-widest uppercase text-sm mb-6">Sabato 12 Aprile • Special Edition</p>
-          
-          {!ticketId ? (
+    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center">
+      <div className="w-full max-w-sm mt-10">
+        {!ticketId ? (
+          <div className="text-center">
+            <div className="bg-white text-black p-4 mb-10 inline-block font-black text-2xl uppercase italic skew-x-[-10deg]">
+              INGRESSO DISCO
+            </div>
             <button 
               onClick={generateTicket} 
-              disabled={loading}
-              className="w-full bg-white text-black py-5 rounded-2xl font-black text-xl hover:bg-yellow-400 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.3)]"
+              className="w-full bg-[#FFEE00] text-black py-8 rounded-none font-black text-3xl uppercase shadow-[10px_10px_0px_#FFF]"
             >
-              {loading ? "CARICAMENTO..." : "OTTIENI QR INGRESSO"}
+              {isGenerating ? "ATTENDI..." : "PRENDI QR"}
             </button>
-          ) : (
-            <div className="flex flex-col items-center animate-in fade-in zoom-in duration-500">
-              <div className="bg-white p-4 rounded-2xl shadow-[0_0_30px_rgba(255,255,255,0.2)]">
-                <QRCodeCanvas value={ticketId} size={220} bgColor="#FFFFFF" fgColor="#000000" level="H" />
-              </div>
-              <p className="mt-4 font-mono text-zinc-400 text-lg tracking-[0.3em]">ID: {ticketId}</p>
-              <div className="mt-8">
-                <p className="text-sm font-bold text-yellow-400 mb-4 uppercase">Grattando puoi vincere un drink:</p>
-                <ScratchCard />
-              </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center bg-white p-6 rounded-none shadow-[10px_10px_0px_#FFEE00]">
+            <QRCodeCanvas value={ticketId} size={250} />
+            <p className="mt-4 font-black text-black text-2xl tracking-tighter">ID: {ticketId}</p>
+            <p className="mt-2 text-black font-bold uppercase text-xs opacity-50">PR: {prId}</p>
+            <div className="mt-8">
+              <ScratchCard />
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
-      <p className="mt-8 text-zinc-600 text-xs font-bold uppercase tracking-widest">PR Ref: {prId}</p>
     </div>
   );
 };
 
-// --- SCANNER ---
+// --- SCANNER (CAMERA POSTERIORE FORZATA + BLOCCO DOPPIO CLICK) ---
 const Scanner = () => {
-  const [status, setStatus] = useState("In attesa...");
-  const [scannerActive, setScannerActive] = useState(false);
+  const [status, setStatus] = useState("PRONTO");
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [scannerStarted, setScannerStarted] = useState(false);
+  const html5QrCode = useRef(null);
 
-  const startScanner = () => {
-    setScannerActive(true);
+  const startCamera = async () => {
+    setScannerStarted(true);
+    html5QrCode.current = new Html5Qrcode("reader");
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+    try {
+      await html5QrCode.current.start(
+        { facingMode: "environment" }, // Forza camera posteriore
+        config,
+        async (decodedText) => {
+          handleScan(decodedText);
+        }
+      );
+    } catch (err) {
+      alert("Errore fotocamera: assicurati di aver dato i permessi.");
+    }
+  };
+
+  const handleScan = async (code) => {
+    if (isProcessing) return; // Blocco se sta già lavorando
+    setIsProcessing(true);
+    setStatus("VERIFICA...");
+
+    try {
+      const ticketRef = doc(db, "tickets", code);
+      const snap = await getDoc(ticketRef);
+
+      if (snap.exists() && snap.data().used === false) {
+        // Segna come usato SUBITO nel DB
+        await updateDoc(ticketRef, { used: true });
+        
+        // Incrementa PR
+        const prRef = doc(db, "prs", snap.data().prId);
+        await setDoc(prRef, { count: increment(1) }, { merge: true });
+
+        setStatus("✅ OK - ENTRA");
+      } else {
+        setStatus("❌ GIÀ USATO / INVALIDO");
+      }
+    } catch (e) {
+      setStatus("❌ ERRORE");
+    }
+
+    // Reset automatico dopo 3 secondi
     setTimeout(() => {
-      const scanner = new Html5QrcodeScanner("reader", { 
-        fps: 15, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      });
-      scanner.render(async (decodedText) => {
-        setStatus("Verifica in corso...");
-        try {
-          const ticketRef = doc(db, "tickets", decodedText);
-          const snap = await getDoc(ticketRef);
-          if (snap.exists() && !snap.data().used) {
-            await updateDoc(ticketRef, { used: true });
-            const prRef = doc(db, "prs", snap.data().prId);
-            await setDoc(prRef, { count: increment(1) }, { merge: true });
-            setStatus("✅ OK! INGRESSO VALIDO");
-            alert("INGRESSO CONFERMATO!");
-          } else {
-            setStatus("❌ ERRORE: GIÀ USATO O NON VALIDO");
-          }
-        } catch (e) { setStatus("Errore database"); }
-      }, (err) => {});
-    }, 100);
+      setStatus("PRONTO");
+      setIsProcessing(false);
+    }, 3000);
   };
 
   return (
     <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center">
-      <h1 className="text-3xl font-black mb-8 italic">SCANNER PORTA</h1>
+      <h1 className="text-2xl font-black mb-10 italic uppercase tracking-tighter bg-white text-black px-4 py-2">Scanner Porta</h1>
       
-      {!scannerActive ? (
-        <button 
-          onClick={startScanner}
-          className="bg-zinc-800 border-2 border-white p-10 rounded-3xl flex flex-col items-center gap-4 active:scale-95"
-        >
-          <Camera size={48} />
-          <span className="font-bold">ATTIVA FOTOCAMERA</span>
+      {!scannerStarted ? (
+        <button onClick={startCamera} className="bg-[#FFEE00] text-black p-10 font-black text-xl flex items-center gap-4">
+          <Camera size={32} /> ATTIVA SCANNER
         </button>
       ) : (
-        <div className="w-full max-w-sm rounded-3xl overflow-hidden border-4 border-zinc-800 shadow-2xl bg-zinc-900">
-          <div id="reader"></div>
+        <div className="w-full max-w-sm border-8 border-white bg-white">
+          <div id="reader" style={{ width: '100%' }}></div>
         </div>
       )}
       
-      <div className={`mt-10 p-6 rounded-2xl w-full max-w-sm text-center font-black text-xl border-2 ${status.includes('✅') ? 'bg-green-600 border-green-400' : 'bg-zinc-900 border-zinc-700'}`}>
+      <div className={`mt-10 p-10 w-full max-w-sm text-center font-black text-4xl shadow-[10px_10px_0px_#FFF] 
+        ${status.includes('OK') ? 'bg-green-600 text-white' : 'bg-red-600 text-white'} 
+        ${status === 'PRONTO' ? 'bg-zinc-900 text-white' : ''}
+        ${status === 'VERIFICA...' ? 'bg-white text-black animate-pulse' : ''}`}>
         {status}
       </div>
     </div>
   );
 };
 
-// --- PR DASHBOARD ---
+// --- DASHBOARD PR ---
 const PRDashboard = () => {
   const { prId } = useParams();
   const [count, setCount] = useState(0);
@@ -171,17 +191,16 @@ const PRDashboard = () => {
       if (snap.exists()) setCount(snap.data().count);
     };
     fetch();
-    const interval = setInterval(fetch, 5000); // Aggiorna ogni 5 secondi
+    const interval = setInterval(fetch, 3000);
     return () => clearInterval(interval);
   }, [prId]);
 
   return (
-    <div className="min-h-screen bg-black text-white p-10 flex flex-col items-center justify-center">
-      <div className="border-4 border-white p-12 rounded-[3rem] text-center shadow-[0_0_50px_rgba(255,255,255,0.1)]">
-        <Users size={48} className="mx-auto mb-6 text-zinc-500" />
-        <h1 className="text-2xl font-bold uppercase tracking-tighter text-zinc-400">PR: {prId}</h1>
-        <div className="text-[10rem] font-black leading-none my-4 tracking-tighter">{count}</div>
-        <p className="text-xl font-bold text-yellow-400 uppercase tracking-[0.2em]">Ingressi Verificati</p>
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6">
+      <div className="bg-white text-black p-10 text-center w-full max-w-sm shadow-[15px_15px_0px_#FFEE00]">
+        <h1 className="text-xl font-black uppercase tracking-widest border-b-4 border-black pb-4 mb-6">PR: {prId}</h1>
+        <div className="text-9xl font-black leading-none">{count}</div>
+        <p className="text-xl font-bold uppercase mt-6 italic">Ingressi Verificati</p>
       </div>
     </div>
   );
