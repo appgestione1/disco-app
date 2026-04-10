@@ -4,49 +4,108 @@ import { db } from './firebase';
 import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, RefreshCw, Power, Trash2 } from 'lucide-react';
-import Admin from './Admin'; // Importiamo il file Admin che hai creato
+import { Camera, Power, Trash2 } from 'lucide-react';
+import Admin from './Admin'; // Assicurati che Admin.jsx esista con la 'A' maiuscola
 
-// --- COMPONENTE GRATITA E VINCI (Assicurati che inizi con la Maiuscola) ---
+// --- COMPONENTE GRATITA E VINCI (Versione Blindata per Online) ---
 const ScratchCard = () => {
   const canvasRef = useRef(null);
-  const [won] = useState(Math.random() < 0.15); // 15% probabilità
+  const isDrawingRef = useRef(false); // Stato per il disegno (mouse o touch)
+  const [won] = useState(Math.random() < 0.15); // 15% probabilità di vincita
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#FFEE00'; 
-    ctx.fillRect(0, 0, 300, 150);
-    ctx.font = 'bold 22px Arial';
-    ctx.fillStyle = '#000';
-    ctx.textAlign = 'center';
-    ctx.fillText('GRATTA QUI', 150, 85);
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    // Dimensioni fisse del canvas
+    const width = 300;
+    const height = 150;
 
-    const scratch = (e) => {
+    // Disegna lo strato grattabile giallo fluo
+    ctx.fillStyle = '#FFEE00'; 
+    ctx.fillRect(0, 0, width, height);
+    
+    // Aggiungi il testo "GRATTA QUI"
+    ctx.font = 'bold 24px Arial, sans-serif';
+    ctx.fillStyle = '#000000';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('GRATTA QUI', width / 2, height / 2);
+
+    // Funzione per ottenere la posizione corretta (mouse o touch)
+    const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
-      const x = (e.clientX || (e.touches && e.touches[0].clientX)) - rect.left;
-      const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
-      ctx.globalCompositeOperation = 'destination-out';
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+      return {
+        x: clientX - rect.left,
+        y: clientY - rect.top
+      };
+    };
+
+    // Funzione principale che cancella il giallo (gratta)
+    const scratch = (e) => {
+      if (!isDrawingRef.current && e.type !== 'mousemove') return; // Gratta solo se premuto (o mousemove per desktop)
+      
+      // BLOCCA LO SCROLL DEL TELEFONO MENTRE GRATTI
+      if (e.type === 'touchmove') {
+        if (e.cancelable) e.preventDefault();
+      }
+      
+      const { x, y } = getPos(e);
+      ctx.globalCompositeOperation = 'destination-out'; // Modalità cancellazione
       ctx.beginPath();
-      ctx.arc(x, y, 35, 0, Math.PI * 2);
+      ctx.arc(x, y, 25, 0, Math.PI * 2); // Cerchio di cancellazione
       ctx.fill();
     };
 
-    canvas.addEventListener('mousemove', scratch);
-    canvas.addEventListener('touchmove', scratch);
+    // --- Gestione Eventi MOUSE (Desktop) ---
+    const handleMouseDown = (e) => { isDrawingRef.current = true; scratch(e); };
+    const handleMouseMove = (e) => { if (isDrawingRef.current) scratch(e); };
+    const handleMouseUp = () => { isDrawingRef.current = false; };
+
+    // --- Gestione Eventi TOUCH (Mobile) ---
+    const handleTouchStart = (e) => { isDrawingRef.current = true; scratch(e); };
+    const handleTouchMove = (e) => { scratch(e); }; // scratch gestisce già preventDefault
+    const handleTouchEnd = () => { isDrawingRef.current = false; };
+
+    // Aggiungiamo i listener al canvas
+    // Desktop
+    canvas.addEventListener('mousedown', handleMouseDown);
+    canvas.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp); // Mouseup sulla finestra per sicurezza
+
+    // Mobile (passive: false è fondamentale per bloccare lo scroll)
+    canvas.addEventListener('touchstart', handleTouchStart);
+    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleTouchEnd);
+
+    // Pulizia dei listener quando il componente viene rimosso
     return () => {
-      canvas.removeEventListener('mousemove', scratch);
-      canvas.removeEventListener('touchmove', scratch);
+      canvas.removeEventListener('mousedown', handleMouseDown);
+      canvas.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+      canvas.removeEventListener('touchstart', handleTouchStart);
+      canvas.removeEventListener('touchmove', handleTouchMove);
+      canvas.removeEventListener('touchend', handleTouchEnd);
     };
   }, []);
 
   return (
-    <div className="relative w-[300px] h-[150px] bg-white flex items-center justify-center border-4 border-black overflow-hidden shadow-[8px_8px_0px_#FFEE00]">
-      <span className="text-xl font-black text-black text-center px-4 uppercase italic leading-tight">
-        {won ? "🍹 HAI VINTO UN DRINK!" : "❌ NON HAI VINTO"}
+    // touch-none impedisce al browser di gestire i tocchi (scroll, zoom) su questo div
+    <div className="relative w-[300px] h-[150px] bg-white flex items-center justify-center border-4 border-black overflow-hidden shadow-[8px_8px_0px_#FFEE00] touch-none">
+      {/* Testo sotto il gratta e vinci (risultato) */}
+      <span className="text-2xl font-black text-black text-center px-4 uppercase italic leading-none z-0">
+        {won ? "🍹 VINTO DRINK!" : "❌ NON VINTO"}
       </span>
-      <canvas ref={canvasRef} className="absolute top-0 left-0 cursor-crosshair touch-none" width="300" height="150" />
+      {/* Il Canvas giallo sopra */}
+      <canvas 
+        ref={canvasRef} 
+        className="absolute top-0 left-0 cursor-crosshair z-10 touch-none" 
+        width="300" 
+        height="150" 
+      />
     </div>
   );
 };
@@ -72,7 +131,7 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10 uppercase">
+    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10 uppercase font-sans">
       <div className="w-full max-w-sm">
         <div className="bg-[#FFEE00] text-black p-2 mb-8 inline-block font-black text-xl italic shadow-[4px_4px_0px_#FFF]">
           PASS INGRESSO
@@ -80,8 +139,8 @@ const Home = () => {
         
         {!ticketId ? (
           <div className="flex flex-col gap-6 text-center">
-            <h2 className="text-5xl font-black leading-none italic tracking-tighter text-left">OTTIENI IL TUO PASS</h2>
-            <button onClick={generateTicket} className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00]">
+            <h2 className="text-5xl font-black leading-none italic tracking-tighter text-left">OTTIENI IL TUO QR</h2>
+            <button onClick={generateTicket} className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00] active:scale-95 transition-transform">
               {isGenerating ? "..." : "GENERA"}
             </button>
           </div>
@@ -94,7 +153,7 @@ const Home = () => {
             <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
               <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4">TENTA LA FORTUNA:</p>
-              {/* CHIAMATA CORRETTA AL COMPONENTE */}
+              {/* --- CHIAMATA CORRETTA (S Maiuscola) --- */}
               <ScratchCard />
             </div>
           </div>
@@ -183,7 +242,7 @@ const Scanner = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase">
+    <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase font-sans">
       <div className="w-full max-w-sm flex justify-between items-center mb-6 bg-zinc-900 p-4 border-b-4 border-[#FFEE00]">
         <span className="font-black italic text-xl">Scanner Porta</span>
         <button onClick={toggleCamera} className={`p-2 border-2 border-white ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}>
@@ -194,9 +253,9 @@ const Scanner = () => {
       <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden">
         <div id="reader" className="w-full h-full"></div>
         {overlayColor && (
-          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] ${overlayColor}`}>
-            <div className="text-9xl mb-4">{status.includes('OK') ? '✅' : '❌'}</div>
-            <div className="font-black text-6xl italic">{status}</div>
+          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] ${overlayColor} animate-in fade-in`}>
+            <div className="text-9xl mb-4 drop-shadow-lg">{status.includes('OK') ? '✅' : '❌'}</div>
+            <div className="font-black text-6xl italic drop-shadow-md">{status}</div>
           </div>
         )}
         {!cameraActive && (
@@ -207,7 +266,7 @@ const Scanner = () => {
         )}
       </div>
 
-      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center">
+      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center shadow-[6px_6px_0px_#111]">
         <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest uppercase">Stato Sensore</p>
         <p className={`text-3xl font-black italic ${overlayColor ? 'text-white' : 'text-[#FFEE00]'}`}>{status}</p>
       </div>
@@ -233,21 +292,21 @@ const PRDashboard = () => {
   }, [prId]);
 
   const handleReset = async () => {
-    if (window.confirm("Vuoi azzerare gli ingressi?")) {
+    if (window.confirm("Vuoi azzerare gli ingressi di stasera?")) {
       await setDoc(doc(db, "prs", prId), { count: 0 }, { merge: true });
       setCount(0);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center uppercase">
+    <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center uppercase font-sans">
       <div className="bg-white text-black p-10 w-full max-w-sm shadow-[20px_20px_0px_#FFEE00] border-8 border-black">
-        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8">PR: {prId}</h1>
+        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8 uppercase">PR: {prId}</h1>
         <div className="text-[12rem] font-black leading-none tracking-tighter mb-4">{count}</div>
-        <p className="text-2xl font-black italic opacity-30">Ingressi</p>
+        <p className="text-2xl font-black italic opacity-30 tracking-widest">Ingressi</p>
       </div>
-      <button onClick={handleReset} className="mt-12 bg-red-600 text-white px-8 py-4 font-black flex items-center gap-3 shadow-[8px_8px_0px_#FFF]">
-        <Trash2 size={24} /> AZZERA
+      <button onClick={handleReset} className="mt-12 bg-red-600 text-white px-8 py-4 font-black flex items-center gap-3 shadow-[8px_8px_0px_#FFF] active:scale-95">
+        <Trash2 size={24} /> AZZERA CONTEGGIO
       </button>
     </div>
   );
