@@ -5,11 +5,12 @@ import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, RefreshCw, Power, Trash2 } from 'lucide-react';
+import Admin from './Admin'; // Importiamo il file Admin che hai creato
 
-// --- COMPONENTE GRATITA E VINCI ---
+// --- COMPONENTE GRATITA E VINCI (Assicurati che inizi con la Maiuscola) ---
 const ScratchCard = () => {
   const canvasRef = useRef(null);
-  const [won] = useState(Math.random() < 0.15);
+  const [won] = useState(Math.random() < 0.15); // 15% probabilità
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -17,7 +18,7 @@ const ScratchCard = () => {
     const ctx = canvas.getContext('2d');
     ctx.fillStyle = '#FFEE00'; 
     ctx.fillRect(0, 0, 300, 150);
-    ctx.font = 'bold 22px sans-serif';
+    ctx.font = 'bold 22px Arial';
     ctx.fillStyle = '#000';
     ctx.textAlign = 'center';
     ctx.fillText('GRATTA QUI', 150, 85);
@@ -28,7 +29,7 @@ const ScratchCard = () => {
       const y = (e.clientY || (e.touches && e.touches[0].clientY)) - rect.top;
       ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
-      ctx.arc(x, y, 30, 0, Math.PI * 2);
+      ctx.arc(x, y, 35, 0, Math.PI * 2);
       ctx.fill();
     };
 
@@ -71,19 +72,16 @@ const Home = () => {
   };
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10 font-sans uppercase">
+    <div className="min-h-screen bg-black text-white p-6 flex flex-col items-center pt-10 uppercase">
       <div className="w-full max-w-sm">
         <div className="bg-[#FFEE00] text-black p-2 mb-8 inline-block font-black text-xl italic shadow-[4px_4px_0px_#FFF]">
           PASS INGRESSO
         </div>
         
         {!ticketId ? (
-          <div className="flex flex-col gap-6">
-            <h2 className="text-5xl font-black leading-none italic tracking-tighter">PRENDI IL QR</h2>
-            <button 
-              onClick={generateTicket} 
-              className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00] active:translate-y-1 transition-all"
-            >
+          <div className="flex flex-col gap-6 text-center">
+            <h2 className="text-5xl font-black leading-none italic tracking-tighter text-left">OTTIENI IL TUO PASS</h2>
+            <button onClick={generateTicket} className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00]">
               {isGenerating ? "..." : "GENERA"}
             </button>
           </div>
@@ -95,8 +93,9 @@ const Home = () => {
             </div>
             <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
-              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4 text-center">GRATTA QUI PER IL DRINK:</p>
-              <scratchCard />
+              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4">TENTA LA FORTUNA:</p>
+              {/* CHIAMATA CORRETTA AL COMPONENTE */}
+              <ScratchCard />
             </div>
           </div>
         )}
@@ -105,7 +104,7 @@ const Home = () => {
   );
 };
 
-// --- SCANNER (FLUSSO CONTINUO OTTIMIZZATO) ---
+// --- SCANNER (LATO STAFF - NO STOP) ---
 const Scanner = () => {
   const [status, setStatus] = useState("PRONTO");
   const [overlayColor, setOverlayColor] = useState(""); 
@@ -146,17 +145,13 @@ const Scanner = () => {
     if (cameraActive && !html5QrCodeRef.current) {
       const scanner = new Html5Qrcode("reader");
       html5QrCodeRef.current = scanner;
-      
       scanner.start(
         { facingMode: "environment" },
         { fps: 20, qrbox: { width: 250, height: 250 } },
-        (decodedText) => {
-          if (!isProcessingRef.current) {
-            handleScan(decodedText);
-          }
-        }
+        (decodedText) => { if (!isProcessingRef.current) handleScan(decodedText); }
       ).catch(() => setCameraActive(false));
     }
+    return () => { if (html5QrCodeRef.current) html5QrCodeRef.current.stop().catch(() => {}); };
   }, [cameraActive]);
 
   const handleScan = async (code) => {
@@ -172,17 +167,13 @@ const Scanner = () => {
         await updateDoc(ticketRef, { used: true });
         const prRef = doc(db, "prs", snap.data().prId);
         await setDoc(prRef, { count: increment(1) }, { merge: true });
-        
         setOverlayColor("bg-green-600");
         setStatus("✅ OK");
       } else {
         setOverlayColor("bg-red-600");
         setStatus("❌ USATO");
       }
-    } catch (e) {
-      setOverlayColor("bg-zinc-800");
-      setStatus("❌ ERRORE");
-    }
+    } catch (e) { setStatus("❌ ERRORE"); }
 
     setTimeout(() => {
       setOverlayColor("");
@@ -194,48 +185,37 @@ const Scanner = () => {
   return (
     <div className="min-h-screen bg-black text-white p-4 flex flex-col items-center uppercase">
       <div className="w-full max-w-sm flex justify-between items-center mb-6 bg-zinc-900 p-4 border-b-4 border-[#FFEE00]">
-        <span className="font-black italic text-xl tracking-tighter text-white px-2">Scanner Porta</span>
-        <button 
-          onClick={toggleCamera} 
-          className={`p-2 transition-all border-2 border-white ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}
-        >
+        <span className="font-black italic text-xl">Scanner Porta</span>
+        <button onClick={toggleCamera} className={`p-2 border-2 border-white ${cameraActive ? 'bg-red-600' : 'bg-[#FFEE00] text-black'}`}>
           <Power size={24} />
         </button>
       </div>
 
-      <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden shadow-2xl">
-        <div id="reader" className={`w-full h-full ${!cameraActive ? 'hidden' : 'block'}`}></div>
-        
+      <div className="w-full max-w-sm relative aspect-square border-8 border-white bg-zinc-900 overflow-hidden">
+        <div id="reader" className="w-full h-full"></div>
         {overlayColor && (
-          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] animate-in fade-in duration-150 ${overlayColor}`}>
-            <div className="text-9xl mb-4 shadow-black drop-shadow-lg">{status.includes('OK') ? '✅' : '❌'}</div>
-            <div className="font-black text-6xl italic tracking-tighter drop-shadow-md">{status}</div>
+          <div className={`absolute inset-0 flex flex-col items-center justify-center z-[100] ${overlayColor}`}>
+            <div className="text-9xl mb-4">{status.includes('OK') ? '✅' : '❌'}</div>
+            <div className="font-black text-6xl italic">{status}</div>
           </div>
         )}
-        
         {!cameraActive && (
           <div className="absolute inset-0 flex flex-col items-center justify-center bg-zinc-900">
-            <Camera size={64} className="text-zinc-700 mb-4 opacity-30" />
-            <p className="text-zinc-700 font-black text-sm tracking-widest opacity-30">Camera Spenta</p>
+            <Camera size={48} className="text-zinc-700 mb-4 opacity-30" />
+            <p className="text-zinc-700 font-black text-xs opacity-30 tracking-widest">Camera Spenta</p>
           </div>
         )}
       </div>
 
-      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center shadow-[6px_6px_0px_#111]">
-        <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest">Sensore</p>
-        <p className={`text-3xl font-black italic ${overlayColor ? 'text-white' : 'text-[#FFEE00]'}`}>
-          {status}
-        </p>
+      <div className="mt-8 w-full max-w-sm p-6 bg-zinc-900 border-2 border-zinc-800 text-center">
+        <p className="text-zinc-500 font-bold text-[10px] mb-1 tracking-widest uppercase">Stato Sensore</p>
+        <p className={`text-3xl font-black italic ${overlayColor ? 'text-white' : 'text-[#FFEE00]'}`}>{status}</p>
       </div>
-
-      <p className="mt-auto text-zinc-800 text-[10px] font-black tracking-[0.5em] pb-4">
-        ULTRA-SPEED SCAN v3.0
-      </p>
     </div>
   );
 };
 
-// --- PR DASHBOARD (CON TASTO AZZERAMENTO) ---
+// --- PR DASHBOARD ---
 const PRDashboard = () => {
   const { prId } = useParams();
   const [count, setCount] = useState(0);
@@ -252,42 +232,28 @@ const PRDashboard = () => {
     return () => clearInterval(interval);
   }, [prId]);
 
-  // FUNZIONE PER AZZERARE GLI INGRESSI
   const handleReset = async () => {
-    const conferma = window.confirm(`Vuoi davvero azzerare gli ingressi per ${prId}? Questa azione non è reversibile.`);
-    if (conferma) {
-      try {
-        await setDoc(doc(db, "prs", prId), { count: 0 }, { merge: true });
-        setCount(0);
-        alert("Contatore azzerato con successo!");
-      } catch (e) {
-        alert("Errore durante l'azzeramento.");
-      }
+    if (window.confirm("Vuoi azzerare gli ingressi?")) {
+      await setDoc(doc(db, "prs", prId), { count: 0 }, { merge: true });
+      setCount(0);
     }
   };
 
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center uppercase">
       <div className="bg-white text-black p-10 w-full max-w-sm shadow-[20px_20px_0px_#FFEE00] border-8 border-black">
-        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8 uppercase tracking-tighter">PR: {prId}</h1>
+        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8">PR: {prId}</h1>
         <div className="text-[12rem] font-black leading-none tracking-tighter mb-4">{count}</div>
-        <p className="text-2xl font-black italic opacity-30 tracking-widest">Ingressi</p>
+        <p className="text-2xl font-black italic opacity-30">Ingressi</p>
       </div>
-
-      {/* PULSANTE RESET */}
-      <button 
-        onClick={handleReset}
-        className="mt-12 bg-red-600 text-white px-8 py-4 font-black flex items-center gap-3 shadow-[8px_8px_0px_#FFF] active:translate-y-1 active:shadow-none transition-all"
-      >
-        <Trash2 size={24} /> AZZERA CONTATORE
+      <button onClick={handleReset} className="mt-12 bg-red-600 text-white px-8 py-4 font-black flex items-center gap-3 shadow-[8px_8px_0px_#FFF]">
+        <Trash2 size={24} /> AZZERA
       </button>
-
-      <p className="mt-6 text-zinc-700 text-[10px] font-bold">Area Riservata Admin / PR</p>
     </div>
   );
 };
 
-// --- ROUTER ---
+// --- ROUTER GENERALE ---
 export default function App() {
   return (
     <Router>
@@ -295,6 +261,7 @@ export default function App() {
         <Route path="/" element={<Home />} />
         <Route path="/scanner" element={<Scanner />} />
         <Route path="/pr/:prId" element={<PRDashboard />} />
+        <Route path="/admin-segreto-stefano" element={<Admin />} />
       </Routes>
     </Router>
   );
