@@ -5,104 +5,91 @@ import { doc, getDoc, updateDoc, increment, setDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, Power, Trash2 } from 'lucide-react';
-import Admin from './Admin'; // Assicurati che Admin.jsx esista con la 'A' maiuscola
+import Admin from './Admin'; 
 
-// --- COMPONENTE GRATITA E VINCI (Versione Blindata per Online) ---
+// --- COMPONENTE GRATITA E VINCI (Versione Ultra-Stabile) ---
 const ScratchCard = () => {
   const canvasRef = useRef(null);
-  const isDrawingRef = useRef(false); // Stato per il disegno (mouse o touch)
-  const [won] = useState(Math.random() < 0.15); // 15% probabilità di vincita
+  const isDrawingRef = useRef(false);
+  const [won] = useState(Math.random() < 0.15); // 15% probabilità
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     
-    // Dimensioni fisse del canvas
-    const width = 300;
-    const height = 150;
+    // Funzione di disegno interna
+    const initCanvas = () => {
+      const width = 300;
+      const height = 150;
+      
+      // Reset e disegno strato giallo
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.fillStyle = '#FFEE00'; 
+      ctx.fillRect(0, 0, width, height);
+      
+      // Testo "GRATTA QUI"
+      ctx.font = 'bold 24px Arial, sans-serif';
+      ctx.fillStyle = '#000000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('GRATTA QUI', width / 2, height / 2);
+    };
 
-    // Disegna lo strato grattabile giallo fluo
-    ctx.fillStyle = '#FFEE00'; 
-    ctx.fillRect(0, 0, width, height);
-    
-    // Aggiungi il testo "GRATTA QUI"
-    ctx.font = 'bold 24px Arial, sans-serif';
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText('GRATTA QUI', width / 2, height / 2);
+    // Usiamo requestAnimationFrame per essere sicuri che il DOM sia pronto (Fix per Online)
+    const animId = requestAnimationFrame(initCanvas);
 
-    // Funzione per ottenere la posizione corretta (mouse o touch)
     const getPos = (e) => {
       const rect = canvas.getBoundingClientRect();
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-      return {
-        x: clientX - rect.left,
-        y: clientY - rect.top
-      };
+      return { x: clientX - rect.left, y: clientY - rect.top };
     };
 
-    // Funzione principale che cancella il giallo (gratta)
     const scratch = (e) => {
-      if (!isDrawingRef.current && e.type !== 'mousemove') return; // Gratta solo se premuto (o mousemove per desktop)
-      
-      // BLOCCA LO SCROLL DEL TELEFONO MENTRE GRATTI
-      if (e.type === 'touchmove') {
-        if (e.cancelable) e.preventDefault();
-      }
+      if (!isDrawingRef.current && e.type !== 'mousemove') return;
+      if (e.type === 'touchmove' && e.cancelable) e.preventDefault();
       
       const { x, y } = getPos(e);
-      ctx.globalCompositeOperation = 'destination-out'; // Modalità cancellazione
+      ctx.globalCompositeOperation = 'destination-out';
       ctx.beginPath();
-      ctx.arc(x, y, 25, 0, Math.PI * 2); // Cerchio di cancellazione
+      ctx.arc(x, y, 25, 0, Math.PI * 2);
       ctx.fill();
     };
 
-    // --- Gestione Eventi MOUSE (Desktop) ---
-    const handleMouseDown = (e) => { isDrawingRef.current = true; scratch(e); };
-    const handleMouseMove = (e) => { if (isDrawingRef.current) scratch(e); };
-    const handleMouseUp = () => { isDrawingRef.current = false; };
+    const handleStart = (e) => { isDrawingRef.current = true; scratch(e); };
+    const handleMove = (e) => { if (isDrawingRef.current || e.type === 'touchmove') scratch(e); };
+    const handleEnd = () => { isDrawingRef.current = false; };
 
-    // --- Gestione Eventi TOUCH (Mobile) ---
-    const handleTouchStart = (e) => { isDrawingRef.current = true; scratch(e); };
-    const handleTouchMove = (e) => { scratch(e); }; // scratch gestisce già preventDefault
-    const handleTouchEnd = () => { isDrawingRef.current = false; };
+    // Listeners
+    canvas.addEventListener('mousedown', handleStart);
+    canvas.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', handleStart);
+    canvas.addEventListener('touchmove', handleMove, { passive: false });
+    canvas.addEventListener('touchend', handleEnd);
 
-    // Aggiungiamo i listener al canvas
-    // Desktop
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp); // Mouseup sulla finestra per sicurezza
-
-    // Mobile (passive: false è fondamentale per bloccare lo scroll)
-    canvas.addEventListener('touchstart', handleTouchStart);
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd);
-
-    // Pulizia dei listener quando il componente viene rimosso
     return () => {
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
+      cancelAnimationFrame(animId);
+      canvas.removeEventListener('mousedown', handleStart);
+      canvas.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', handleEnd);
+      canvas.removeEventListener('touchstart', handleStart);
+      canvas.removeEventListener('touchmove', handleMove);
+      canvas.removeEventListener('touchend', handleEnd);
     };
   }, []);
 
   return (
-    // touch-none impedisce al browser di gestire i tocchi (scroll, zoom) su questo div
     <div className="relative w-[300px] h-[150px] bg-white flex items-center justify-center border-4 border-black overflow-hidden shadow-[8px_8px_0px_#FFEE00] touch-none">
-      {/* Testo sotto il gratta e vinci (risultato) */}
-      <span className="text-2xl font-black text-black text-center px-4 uppercase italic leading-none z-0">
+      {/* Il risultato sta sotto (z-0) */}
+      <span className="text-2xl font-black text-black text-center px-4 uppercase italic leading-none select-none">
         {won ? "🍹 VINTO DRINK!" : "❌ NON VINTO"}
       </span>
-      {/* Il Canvas giallo sopra */}
+      {/* Il Canvas sta sopra (z-10) */}
       <canvas 
         ref={canvasRef} 
-        className="absolute top-0 left-0 cursor-crosshair z-10 touch-none" 
+        className="absolute top-0 left-0 cursor-crosshair touch-none z-10" 
         width="300" 
         height="150" 
       />
@@ -139,22 +126,22 @@ const Home = () => {
         
         {!ticketId ? (
           <div className="flex flex-col gap-6 text-center">
-            <h2 className="text-5xl font-black leading-none italic tracking-tighter text-left">OTTIENI IL TUO QR</h2>
+            <h2 className="text-5xl font-black leading-none italic tracking-tighter text-left">OTTIENI IL TUO PASS</h2>
             <button onClick={generateTicket} className="w-full bg-white text-black py-10 font-black text-4xl shadow-[10px_10px_0px_#FFEE00] active:scale-95 transition-transform">
               {isGenerating ? "..." : "GENERA"}
             </button>
           </div>
         ) : (
-          <div className="flex flex-col items-center bg-white p-6 shadow-[15px_15px_0px_#FFEE00]">
+          <div className="flex flex-col items-center bg-white p-6 shadow-[15px_15px_0px_#FFEE00] animate-in fade-in zoom-in duration-300">
             <QRCodeCanvas value={ticketId} size={250} />
             <div className="mt-6 bg-black text-white px-6 py-2 font-black text-2xl tracking-[0.2em]">
               {ticketId}
             </div>
             <p className="mt-2 text-black font-bold text-[10px] opacity-40 italic">PR: {prId}</p>
             <div className="mt-10 flex flex-col items-center">
-              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4">TENTA LA FORTUNA:</p>
-              {/* --- CHIAMATA CORRETTA (S Maiuscola) --- */}
-              <ScratchCard />
+              <p className="text-black font-black text-xs mb-3 underline decoration-[#FFEE00] decoration-4 text-center">TENTA LA FORTUNA:</p>
+              {/* key={ticketId} forza il reset del componente gratta e vinci online */}
+              <ScratchCard key={ticketId} />
             </div>
           </div>
         )}
@@ -301,7 +288,7 @@ const PRDashboard = () => {
   return (
     <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-6 text-center uppercase font-sans">
       <div className="bg-white text-black p-10 w-full max-w-sm shadow-[20px_20px_0px_#FFEE00] border-8 border-black">
-        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8 uppercase">PR: {prId}</h1>
+        <h1 className="text-xl font-black italic border-b-4 border-black pb-2 mb-8 uppercase text-center">PR: {prId}</h1>
         <div className="text-[12rem] font-black leading-none tracking-tighter mb-4">{count}</div>
         <p className="text-2xl font-black italic opacity-30 tracking-widest">Ingressi</p>
       </div>
