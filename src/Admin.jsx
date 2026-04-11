@@ -32,6 +32,9 @@ const Admin = () => {
   const [payPrData, setPayPrData] = useState(null);
   const [payAmount, setPayAmount] = useState('');
 
+  // Stato per Modale Gestione Master
+  const [masterModalOpen, setMasterModalOpen] = useState(false);
+
   // Form per inserimento
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '', supervisorPay: 0, perEntryPay: 0 });
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
@@ -105,13 +108,13 @@ const Admin = () => {
       await setDoc(doc(db, "prs_registry", code), {
         name: prForm.name,
         phone: prForm.phone,
-        eventIds: [],
+        eventIds: ['', '', '', '', '', ''], // 6 Slot vuoti
         supervisorId: prForm.supervisorId || '',
         supervisorPay: Number(prForm.supervisorPay),
         perEntryPay: Number(prForm.perEntryPay),
         active: true,
         mergedInto: null,
-        acconto: 0 // Inizializza il contatore dei pagamenti
+        acconto: 0 
       });
       await setDoc(doc(db, "prs", code), { count: 0 }, { merge: true });
       setPrForm({ name: '', phone: '', supervisorId: '', supervisorPay: 0, perEntryPay: 0 });
@@ -119,18 +122,15 @@ const Admin = () => {
     } catch (e) { alert("Errore nel salvataggio"); }
   };
 
-  const handleTogglePrEvent = async (prId, eventId, isChecked, currentEventIds) => {
+  const handleUpdatePrEventSlot = async (prId, slotIndex, eventId, currentEventIds) => {
     setLoading(true);
     try {
       let newEventIds = [...(currentEventIds || [])];
-      if (isChecked) {
-        if (!newEventIds.includes(eventId)) newEventIds.push(eventId);
-      } else {
-        newEventIds = newEventIds.filter(id => id !== eventId);
-      }
+      while (newEventIds.length < 6) newEventIds.push(''); 
+      newEventIds[slotIndex] = eventId;
+      
       await updateDoc(doc(db, "prs_registry", prId), {
-        eventIds: newEventIds,
-        eventId: newEventIds.length > 0 ? newEventIds[0] : ''
+        eventIds: newEventIds
       });
       await fetchData();
     } catch (error) {
@@ -171,6 +171,24 @@ const Admin = () => {
       alert("Errore eliminazione.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  // FUNZIONE: Elimina un Alias dal MASTER
+  const handleDeleteAlias = async (aliasId) => {
+    const conferma = window.confirm(`ATTENZIONE!\nVuoi davvero eliminare in modo definitivo l'alias ${aliasId}?\nI contatti che provano a usare quel link non verranno più tracciati.`);
+    if (!conferma) return;
+    setLoading(true);
+    try {
+        await deleteDoc(doc(db, "prs_registry", aliasId));
+        await deleteDoc(doc(db, "prs", aliasId));
+        await fetchData();
+        alert("Alias eliminato definitivamente!");
+    } catch (error) {
+        console.error(error);
+        alert("Errore durante l'eliminazione dell'alias.");
+    } finally {
+        setLoading(false);
     }
   };
 
@@ -217,7 +235,6 @@ const Admin = () => {
     }
   };
 
-  // --- FUNZIONE PAGAMENTO ACCONTO PR ---
   const eseguiPagamento = async () => {
     const importo = Number(payAmount);
     if (!importo || importo <= 0) return alert("Inserisci un importo valido da pagare.");
@@ -248,19 +265,15 @@ const Admin = () => {
     }
   };
 
-  // --- NUOVA FUNZIONE: AZZERA CONTABILITA' DEL SINGOLO PR ---
   const handleAzzeraContabilita = async (pr) => {
     const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler azzerare la contabilità di ${pr.name}?\n\nGli Ingressi Totali e gli Acconti verranno riportati a ZERO. Usa questa funzione solo se hai saldato completamente i conti e vuoi farlo ripartire pulito per il prossimo periodo.`);
     if (!conferma) return;
 
     setLoading(true);
     try {
-      // Azzera il suo conteggio principale
       await setDoc(doc(db, "prs", pr.id), { count: 0 }, { merge: true });
-      // Azzera il suo acconto
       await updateDoc(doc(db, "prs_registry", pr.id), { acconto: 0 });
       
-      // Se ha inglobato altri PR (Alias), dobbiamo azzerare anche i loro contatori altrimenti riaffiorano
       if (pr.aliases && pr.aliases.length > 0) {
         for (const alias of pr.aliases) {
           await setDoc(doc(db, "prs", alias), { count: 0 }, { merge: true });
@@ -268,7 +281,7 @@ const Admin = () => {
       }
 
       await fetchData();
-      setPayPrData(null); // Chiude il popup
+      setPayPrData(null);
       alert("Contabilità azzerata con successo per il PR selezionato.");
     } catch (error) {
       console.error(error);
@@ -320,7 +333,6 @@ const Admin = () => {
     } catch (e) { console.error(e); setLoading(false); }
   };
 
-  // MODIFICATO: Non azzera più nulla nei PR (mantiene lo storico)
   const handleConcludiSerata = async (eventId) => {
     const conferma = window.confirm("ATTENZIONE!\nSei sicuro di voler concludere questa serata?\n\nL'evento verrà eliminato dalla dashboard. I conteggi totali e la contabilità dei PR NON verranno azzerati, così da mantenere lo storico per i saldi finali.");
     if (!conferma) return;
@@ -335,7 +347,6 @@ const Admin = () => {
   const activePrs = prs.filter(p => !p.mergedInto);
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
-  // Costo globale stimato calcolato al lordo (prima degli acconti)
   const totalPrCosts = activePrs.reduce((acc, p) => acc + (p.count * ((Number(p.supervisorPay) || 0) + (Number(p.perEntryPay) || 0))), 0);
 
   return (
@@ -443,21 +454,16 @@ const Admin = () => {
                   <tr className="bg-black text-white">
                     <th className="p-4 text-left border-r border-zinc-700">PR INFO & LINK</th>
                     <th className="p-4 text-left border-r border-zinc-700">SUPERVISORE</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[280px]">SERATE ASSEGNATE</th>
-                    <th className="p-4 text-center border-r border-zinc-700 text-[#FFEE00]">TOT IN</th>
-                    <th className="p-4 text-right border-r border-zinc-700">TOT COSTO</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">SERATE ASSEGNATE (SLOT)</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">IN</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">COSTO</th>
                     <th className="p-4 text-center">AZIONI</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activePrs.map(pr => {
-                    const incassoDiretto = pr.count * (Number(pr.perEntryPay) || 0);
-                    const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
-                    const bonusSupervisore = subPrs.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
-                    const guadagnoLordo = incassoDiretto + bonusSupervisore;
-                    const acconto = Number(pr.acconto) || 0;
-                    const guadagnoTotale = Math.max(0, guadagnoLordo - acconto);
                     const isMaster = pr.id === 'MASTER';
+                    const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
 
                     let supNameText = 'NESSUNO';
                     if (pr.supervisorId && !isMaster) {
@@ -476,72 +482,130 @@ const Admin = () => {
                             {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato! Invialo a " + pr.name + " per fargli usare l'app."); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
                           </div>
                         </td>
+                        
                         <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top">
                           {pr.supervisorId && !isMaster ? <><span className="block text-sm">{supNameText}</span><span className="text-[10px] text-zinc-500 opacity-80 block mt-1">Prende Bonus: €{Number(pr.supervisorPay).toFixed(2)}/IN</span></> : 'NESSUNO'}
                         </td>
-                        <td className="p-4 border-r-2 border-black align-top">
-                          <div className="h-[44px] flex items-end pb-2 mb-2 border-b-2 border-dashed border-zinc-300">
-                             <span className="text-[10px] font-black uppercase text-zinc-500">Seleziona Eventi</span>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            {events.map(ev => {
-                              const isAssigned = isMaster || pr.eventIds?.includes(ev.id) || pr.eventId === ev.id;
-                              return (
-                                <div key={ev.id} className={`h-8 flex items-center justify-between px-2 border-2 border-black rounded ${isAssigned ? 'bg-white' : 'bg-zinc-100 opacity-60'}`}>
-                                  <label className="flex items-center gap-2 text-[10px] font-bold uppercase cursor-pointer transition-colors flex-1 w-full h-full">
-                                    <input type="checkbox" className="w-3.5 h-3.5 cursor-pointer accent-black flex-shrink-0" checked={isAssigned} onChange={(e) => handleTogglePrEvent(pr.id, ev.id, e.target.checked, pr.eventIds || (pr.eventId ? [pr.eventId] : []))} disabled={loading || isMaster} />
-                                    <span className="truncate leading-none mt-0.5">{ev.title}</span>
-                                  </label>
-                                </div>
-                              )
-                            })}
-                            {events.length === 0 && <span className="text-[10px] opacity-50 font-bold uppercase">Nessun evento</span>}
-                          </div>
+                        
+                        {/* SERATE ASSEGNATE (SLOT) */}
+                        <td className="p-2 border-r-2 border-black align-top">
+                          {isMaster ? (
+                            <div className="flex flex-col gap-1 mt-1 text-center">
+                              <span className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-100 p-1 border-2 border-black">TUTTI GLI EVENTI ATTIVI</span>
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              {[0, 1, 2, 3, 4, 5].map(i => {
+                                const selectedEventId = pr.eventIds?.[i] || "";
+                                return (
+                                  <div key={i} className="h-7 flex items-center px-1 border-2 border-black rounded bg-white">
+                                    <select 
+                                      className="w-full bg-transparent text-[10px] font-bold uppercase cursor-pointer outline-none"
+                                      value={selectedEventId}
+                                      onChange={(e) => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)}
+                                      disabled={loading}
+                                    >
+                                      <option value="">-- VUOTO --</option>
+                                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                                    </select>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </td>
-                        <td className="p-4 border-r-2 border-black text-center align-top">
-                          <div className="h-[44px] flex flex-col items-center justify-end pb-2 mb-2 border-b-2 border-dashed border-zinc-300">
-                            <div className="text-3xl font-black italic leading-none">{pr.count}</div>
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            {events.map(ev => {
-                              const isAssigned = isMaster || pr.eventIds?.includes(ev.id) || pr.eventId === ev.id;
-                              const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                              return (
-                                <div key={ev.id} className="h-8 flex items-center justify-center font-black text-[12px]">
-                                   {isAssigned ? (evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-0.5 rounded-sm leading-none shadow-[2px_2px_0px_#000]">{evIns} IN</span> : <span className="text-zinc-400 leading-none">0</span>) : <span className="text-zinc-300">-</span>}
-                                </div>
-                              )
-                            })}
-                          </div>
+                        
+                        {/* TOT IN (IN LINEA CON NOME EVENTO) */}
+                        <td className="p-2 border-r-2 border-black align-top">
+                          {isMaster ? (
+                            <div className="flex flex-col gap-1 mt-1">
+                               {events.map(ev => {
+                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
+                                 return (
+                                  <div key={ev.id} className="h-7 flex items-center justify-between gap-1 w-full">
+                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={ev.title}>{ev.title}</span>
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-0.5 rounded-sm font-black text-sm leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-sm leading-none shrink-0">0</span>}
+                                  </div>
+                                 )
+                               })}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              {[0, 1, 2, 3, 4, 5].map(i => {
+                                const selectedEventId = pr.eventIds?.[i] || "";
+                                if (!selectedEventId) return <div key={i} className="h-7 flex items-center"></div>;
+                                
+                                const evObj = events.find(e => e.id === selectedEventId);
+                                const evTitle = evObj ? evObj.title : '';
+                                const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
+                                
+                                return (
+                                  <div key={i} className="h-7 flex items-center justify-between gap-1 w-full">
+                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={evTitle}>{evTitle}</span>
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-0.5 rounded-sm font-black text-sm leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-sm leading-none shrink-0">0</span>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </td>
-                        <td className="p-4 border-r-2 border-black text-right align-top">
-                          <div className="h-[44px] flex flex-col items-end justify-end pb-2 mb-2 border-b-2 border-dashed border-zinc-300">
-                            <span className="text-xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
-                            {acconto > 0 && <span className="text-[9px] text-zinc-500 mt-1 leading-none uppercase">Già Pagati: €{acconto.toFixed(2)}</span>}
-                          </div>
-                          <div className="flex flex-col gap-2">
-                            {events.map(ev => {
-                              const isAssigned = isMaster || pr.eventIds?.includes(ev.id) || pr.eventId === ev.id;
-                              const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                              const directTotalEv = evIns * (Number(pr.perEntryPay) || 0);
-                              const bonusSupervisoreEv = subPrs.reduce((sum, sub) => {
-                                const subEvIns = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                                return sum + (subEvIns * (Number(sub.supervisorPay) || 0));
-                              }, 0);
-                              const guadagnoTotaleEv = directTotalEv + bonusSupervisoreEv;
-                              return (
-                                <div key={ev.id} className="h-8 flex items-center justify-end font-black text-[12px]">
-                                   {isAssigned ? (guadagnoTotaleEv > 0 ? <span className="text-red-600 leading-none">€{guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-zinc-400 leading-none">€0.00</span>) : <span className="text-zinc-300">-</span>}
-                                </div>
-                              )
-                            })}
-                          </div>
+                        
+                        {/* TOT COSTO (IN LINEA CON NOME EVENTO) */}
+                        <td className="p-2 border-r-2 border-black align-top">
+                          {isMaster ? (
+                            <div className="flex flex-col gap-1 mt-1">
+                               {events.map(ev => {
+                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
+                                 const directTotalEv = evIns * (Number(pr.perEntryPay) || 0);
+                                 const bonusSupervisoreEv = subPrs.reduce((sum, sub) => {
+                                   const subEvIns = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
+                                   return sum + (subEvIns * (Number(sub.supervisorPay) || 0));
+                                 }, 0);
+                                 const guadagnoTotaleEv = directTotalEv + bonusSupervisoreEv;
+                                 
+                                 return (
+                                  <div key={ev.id} className="h-7 flex items-center justify-between gap-1 w-full">
+                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={ev.title}>{ev.title}</span>
+                                     {guadagnoTotaleEv > 0 ? <span className="text-black font-black text-sm leading-none shrink-0">€{guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-sm leading-none shrink-0">€0.00</span>}
+                                  </div>
+                                 )
+                               })}
+                            </div>
+                          ) : (
+                            <div className="flex flex-col gap-1">
+                              {[0, 1, 2, 3, 4, 5].map(i => {
+                                const selectedEventId = pr.eventIds?.[i] || "";
+                                if (!selectedEventId) return <div key={i} className="h-7 flex items-center"></div>;
+                                
+                                const evObj = events.find(e => e.id === selectedEventId);
+                                const evTitle = evObj ? evObj.title : '';
+                                const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
+                                const directTotalEv = evIns * (Number(pr.perEntryPay) || 0);
+                                const bonusSupervisoreEv = subPrs.reduce((sum, sub) => {
+                                  const subEvIns = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
+                                  return sum + (subEvIns * (Number(sub.supervisorPay) || 0));
+                                }, 0);
+                                const guadagnoTotaleEv = directTotalEv + bonusSupervisoreEv;
+                                
+                                return (
+                                  <div key={i} className="h-7 flex items-center justify-between gap-1 w-full">
+                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={evTitle}>{evTitle}</span>
+                                     {guadagnoTotaleEv > 0 ? <span className="text-black font-black text-sm leading-none shrink-0">€{guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-sm leading-none shrink-0">€0.00</span>}
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
                         </td>
+                        
+                        {/* AZIONI */}
                         <td className="p-4 text-center align-top">
-                          <div className="flex flex-col gap-2 items-center">
-                            {!isMaster && (
+                          <div className="flex flex-col gap-2 items-center mt-1">
+                            {isMaster ? (
+                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">MODIFICA</button>
+                            ) : (
                                 <>
-                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">PAGA</button>
+                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">VEDI E PAGA</button>
                                 <button onClick={() => openReplaceModal(pr)} className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 hover:bg-blue-50 transition-colors uppercase w-full">Sostituisci</button>
                                 </>
                             )}
@@ -628,7 +692,6 @@ const Admin = () => {
                      const supObj = prs.find(s => s.id === p.supervisorId);
                      supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : p.supervisorId;
                    }
-                   if (prEvCount === 0 && bonusSupervisore === 0 && p.id !== 'MASTER') return null;
                    
                    return (
                      <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-100">
@@ -651,7 +714,7 @@ const Admin = () => {
         </div>
       )}
 
-      {/* POPUP PAGAMENTO PR CON PULSANTE DI AZZERAMENTO */}
+      {/* POPUP PAGAMENTO PR */}
       {payPrData && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-md shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
@@ -709,7 +772,6 @@ const Admin = () => {
                     {loading ? 'ELABORAZIONE...' : daPagare <= 0 ? 'NESSUN DEBITO' : 'CONFERMA PAGAMENTO'}
                   </button>
 
-                  {/* NUOVO PULSANTE: AZZERA CONTABILITA' MANUALE */}
                   <div className="mt-4 pt-4 border-t-2 border-dashed border-zinc-300">
                     <p className="text-[10px] font-black uppercase text-zinc-500 mb-2 text-center">Operazioni di fine stagione / Chiusura conti</p>
                     <button 
@@ -723,6 +785,57 @@ const Admin = () => {
                 </div>
               )
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP GESTIONE MASTER (ALIAS) */}
+      {masterModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
+              <div>
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Gestione Avanzata</p>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Profilo Master</h2>
+              </div>
+              <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            </div>
+
+            <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">Alias Inglobati (Vecchi PR)</h3>
+            
+            {prs.filter(p => p.mergedInto === 'MASTER').length === 0 ? (
+                <p className="text-sm font-bold text-zinc-500 italic mb-6">Nessun alias presente nel Profilo Master.</p>
+            ) : (
+                <div className="flex flex-col gap-3 mb-6">
+                    {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
+                        <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <p className="font-black uppercase">{alias.name} <span className="text-[10px] text-zinc-500">({alias.id})</span></p>
+                                <p className="text-[10px] font-bold text-zinc-500">Ingressi Totali Storici: {alias.count}</p>
+                            </div>
+                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
+                                <button 
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(`Ciao! Il tuo vecchio pass per la lista non è più attivo. Clicca su questo nuovo link per aggiornarlo subito ed entrare in lista Master: ${window.location.origin}/?ref=MASTER`);
+                                        alert("Messaggio con link di aggiornamento copiato negli appunti!");
+                                    }}
+                                    className="bg-blue-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
+                                >
+                                    Copia Link Aggiornamento
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteAlias(alias.id)}
+                                    className="bg-red-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
+                                >
+                                    Elimina Definitivamente
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            
+            <button onClick={() => setMasterModalOpen(false)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFEE00]">CHIUDI PANNELLO</button>
           </div>
         </div>
       )}
@@ -754,7 +867,7 @@ const Admin = () => {
                     <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Scegli PR di Destinazione *</label>
                     <select className="w-full p-3 border-2 border-black mb-4 font-black uppercase focus:border-[#FFEE00] outline-none bg-white" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
                        <option value="">-- SELEZIONA PR --</option>
-                       {activePrs.filter(p => p.id !== replacePrData.id).map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
+                       {activePrs.filter(p => p.id !== replacePrData.id && p.id !== 'MASTER').map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
                     </select>
                   </div>
                   <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} disabled={loading} className="w-full bg-red-600 text-white font-black p-4 uppercase active:scale-95 transition-transform mt-4 border-2 border-black shadow-[4px_4px_0px_#000]">{loading ? '...' : 'INGLOBA ORA'}</button>
