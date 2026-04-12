@@ -328,18 +328,32 @@ const Admin = () => {
     } catch (e) { console.error(e); setLoading(false); }
   };
 
+  // --- FUNZIONE MODIFICATA: PULISCE GLI SLOT SENZA TOCCARE L'ESTRATTO CONTO ---
   const handleConcludiSerata = async (eventId) => {
-    const conferma = window.confirm("ATTENZIONE!\nSei sicuro di voler concludere questa serata?\n\nL'evento verrà eliminato dalla dashboard. I conteggi totali e la contabilità dei PR NON verranno azzerati, così da mantenere lo storico per i saldi finali.");
+    const conferma = window.confirm("ATTENZIONE!\nSei sicuro di voler concludere questa serata?\n\nL'evento verrà eliminato e gli slot assegnati ai PR torneranno vuoti (azzerando IN e COSTO visibili in tabella).\n\nIl totale dei soldi generati, invece, resterà INATTACCATO e visibile in 'VEDI E PAGA'.");
     if (!conferma) return;
+    
     setLoading(true);
     try {
+      // 1. Svuota gli slot dei PR che avevano questo evento assegnato
+      const prsToUpdate = prs.filter(p => p.eventIds && p.eventIds.includes(eventId));
+      for (const pr of prsToUpdate) {
+        const newEventIds = pr.eventIds.map(id => id === eventId ? '' : id); // Sostituisce l'ID con stringa vuota
+        await updateDoc(doc(db, "prs_registry", pr.id), { eventIds: newEventIds });
+      }
+
+      // 2. Elimina definitivamente l'evento
       await deleteDoc(doc(db, "events", eventId));
+      
       await fetchData();
-      alert("Serata conclusa con successo!");
-    } catch (e) { alert("Errore chiusura serata."); } finally { setLoading(false); }
+      alert("Serata conclusa con successo! Slot azzerati, storico contabile intatto.");
+    } catch (e) { 
+      alert("Errore chiusura serata."); 
+    } finally { 
+      setLoading(false); 
+    }
   };
 
-  // NUOVA FUNZIONE: Salva la nuova Password Segreta dell'Admin
   const handleSavePassword = async () => {
     if (!newAdminPassword) return alert("Inserisci una password valida.");
     setLoading(true);
@@ -531,7 +545,7 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* IN (IN LINEA CON NOME EVENTO E FONT GRANDE NERO) */}
+                        {/* IN (IN LINEA CON NOME EVENTO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -566,7 +580,7 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* COSTO (IN LINEA CON NOME EVENTO E FONT GRANDE NERO) */}
+                        {/* COSTO (IN LINEA CON NOME EVENTO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -664,7 +678,7 @@ const Admin = () => {
                      <p className="font-bold text-zinc-400 mb-3 text-[10px] tracking-widest">{ev.date}</p>
                      {ev.description && <p className="text-xs font-bold text-zinc-800 bg-zinc-100 p-2 border border-zinc-300 h-24 overflow-y-auto whitespace-pre-wrap mb-3">{ev.description}</p>}
                    </div>
-                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all"><Trash2 size={20}/> CONCLUDI SERATA (SALVA CONTATORI)</button>
+                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all"><Trash2 size={20}/> CONCLUDI SERATA E LIBERA SLOT PR</button>
                  </div>
                ))}
              </div>
@@ -731,6 +745,7 @@ const Admin = () => {
                      const supObj = prs.find(s => s.id === p.supervisorId);
                      supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : p.supervisorId;
                    }
+                   if (prEvCount === 0 && bonusSupervisore === 0 && p.id !== 'MASTER') return null;
                    
                    return (
                      <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-100">
