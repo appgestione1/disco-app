@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase'; 
 import { 
   collection, getDocs, updateDoc, 
-  deleteDoc, doc, setDoc, query, orderBy 
+  deleteDoc, doc, setDoc, query, orderBy, getDoc 
 } from 'firebase/firestore';
 import { 
   Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock
 } from 'lucide-react';
 
 const Admin = () => {
@@ -21,19 +21,17 @@ const Admin = () => {
 
   // Stati per Modali (Popup)
   const [selectedEventForModal, setSelectedEventForModal] = useState(null);
-  
-  // Stati per Modale Sostituzione PR
   const [replacePrData, setReplacePrData] = useState(null);
   const [replaceName, setReplaceName] = useState('');
   const [replacePhone, setReplacePhone] = useState('');
   const [replaceTargetId, setReplaceTargetId] = useState('');
-
-  // Stati per Modale Pagamento Acconto PR
   const [payPrData, setPayPrData] = useState(null);
   const [payAmount, setPayAmount] = useState('');
-
-  // Stato per Modale Gestione Master
   const [masterModalOpen, setMasterModalOpen] = useState(false);
+  
+  // Stato Modale Password Admin
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [newAdminPassword, setNewAdminPassword] = useState('');
 
   // Form per inserimento
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '', supervisorPay: 0, perEntryPay: 0 });
@@ -46,7 +44,6 @@ const Admin = () => {
     fetchData();
   }, []);
 
-  // Generatore automatico del Codice PR progressivo
   useEffect(() => {
     if (prs && prs.length > 0) {
       const prNumbers = prs
@@ -71,7 +68,6 @@ const Admin = () => {
       const liveCounts = {};
       livePrSnap.docs.forEach(d => liveCounts[d.id] = d.data().count || 0);
 
-      // Pre-processamento: Calcolo Inglobamenti (Alias)
       let rawPrs = prRegistrySnap.docs.map(d => ({
         id: d.id,
         ...d.data(),
@@ -108,7 +104,7 @@ const Admin = () => {
       await setDoc(doc(db, "prs_registry", code), {
         name: prForm.name,
         phone: prForm.phone,
-        eventIds: ['', '', '', '', '', ''], // 6 Slot vuoti
+        eventIds: ['', '', '', '', '', ''], 
         supervisorId: prForm.supervisorId || '',
         supervisorPay: Number(prForm.supervisorPay),
         perEntryPay: Number(prForm.perEntryPay),
@@ -174,7 +170,6 @@ const Admin = () => {
     }
   };
 
-  // FUNZIONE: Elimina un Alias dal MASTER
   const handleDeleteAlias = async (aliasId) => {
     const conferma = window.confirm(`ATTENZIONE!\nVuoi davvero eliminare in modo definitivo l'alias ${aliasId}?\nI contatti che provano a usare quel link non verranno più tracciati.`);
     if (!conferma) return;
@@ -344,6 +339,22 @@ const Admin = () => {
     } catch (e) { alert("Errore chiusura serata."); } finally { setLoading(false); }
   };
 
+  // NUOVA FUNZIONE: Salva la nuova Password Segreta dell'Admin
+  const handleSavePassword = async () => {
+    if (!newAdminPassword) return alert("Inserisci una password valida.");
+    setLoading(true);
+    try {
+      await setDoc(doc(db, "settings", "admin"), { password: newAdminPassword }, { merge: true });
+      alert("Password modificata con successo!");
+      setNewAdminPassword('');
+      setPasswordModalOpen(false);
+    } catch (error) {
+      alert("Errore salvataggio password.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const activePrs = prs.filter(p => !p.mergedInto);
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
@@ -358,9 +369,14 @@ const Admin = () => {
           <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
           <p className="text-[10px] font-bold text-[#FFEE00] tracking-[0.3em]">VERSION 5.0 LIVE</p>
         </div>
-        <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
-          <RefreshCw size={24} />
-        </button>
+        <div className="flex gap-4">
+          <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
+            <Lock size={24} />
+          </button>
+          <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
+            <RefreshCw size={24} />
+          </button>
+        </div>
       </div>
 
       {/* NAVIGAZIONE TABS */}
@@ -487,7 +503,7 @@ const Admin = () => {
                           {pr.supervisorId && !isMaster ? <><span className="block text-sm">{supNameText}</span><span className="text-[10px] text-zinc-500 opacity-80 block mt-1">Prende Bonus: €{Number(pr.supervisorPay).toFixed(2)}/IN</span></> : 'NESSUNO'}
                         </td>
                         
-                        {/* SERATE ASSEGNATE (SLOT) */}
+                        {/* SERATE ASSEGNATE (SLOT) COMPATTATE */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1 text-center">
@@ -515,7 +531,7 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* TOT IN (IN LINEA CON NOME EVENTO) */}
+                        {/* IN (IN LINEA CON NOME EVENTO E FONT GRANDE NERO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -550,7 +566,7 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* TOT COSTO (IN LINEA CON NOME EVENTO) */}
+                        {/* COSTO (IN LINEA CON NOME EVENTO E FONT GRANDE NERO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -663,6 +679,29 @@ const Admin = () => {
           </div>
         )}
       </div>
+
+      {/* POPUP MODIFICA PASSWORD ADMIN */}
+      {passwordModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-zinc-900 border-4 border-[#FFEE00] p-6 w-full max-w-sm shadow-[10px_10px_0px_#FFEE00]">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-zinc-800 pb-4">
+              <div>
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Sicurezza</p>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1 text-white">Cambia Password</h2>
+              </div>
+              <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            </div>
+            <input 
+              type="text" 
+              placeholder="NUOVA PASSWORD" 
+              className="w-full p-4 bg-black border border-zinc-700 text-white font-bold uppercase mb-6 focus:border-[#FFEE00] outline-none text-center"
+              value={newAdminPassword}
+              onChange={(e) => setNewAdminPassword(e.target.value)}
+            />
+            <button onClick={handleSavePassword} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFF]">{loading ? '...' : 'SALVA PASSWORD'}</button>
+          </div>
+        </div>
+      )}
 
       {/* POPUP DETTAGLIO EVENTO */}
       {selectedEventForModal && (
