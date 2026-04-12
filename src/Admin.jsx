@@ -315,10 +315,16 @@ const Admin = () => {
 
   const orphanedTickets = tickets.filter(t => {
     if (t.clearedFromMaster) return false; 
+    if (t.used !== true) return false; 
+
     const evExists = events.some(e => e.id === t.eventId);
     if (!evExists) return false; 
+
     const pr = activePrs.find(p => p.id === t.prId || p.aliases?.includes(t.prId));
-    if (!pr || pr.id === 'MASTER') return false; 
+    
+    if (!pr) return true; 
+
+    if (pr.id === 'MASTER') return false; 
     return !pr.eventIds?.includes(t.eventId);
   });
 
@@ -538,7 +544,7 @@ const Admin = () => {
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">SUPERVISORE</th>
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
                     <th className="p-4 text-center border-r border-zinc-700 min-w-[80px]">IN</th>
-                    <th className="p-4 text-right border-r border-zinc-700 min-w-[100px]">COSTO</th>
+                    <th className="p-4 text-right border-r border-zinc-700 min-w-[100px]">TOTALE</th>
                     <th className="p-4 text-center min-w-[150px]">AZIONI</th>
                   </tr>
                 </thead>
@@ -565,6 +571,7 @@ const Admin = () => {
                           {pr.phone && <p className="text-xs font-bold opacity-50 flex items-center gap-1 mt-1"><Phone size={10}/> {pr.phone}</p>}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <span className={`text-[10px] font-black italic px-2 py-1 rounded ${isMaster ? 'bg-[#FFEE00] text-black' : 'bg-black text-[#FFEE00]'}`}>ID: {pr.id}</span>
+                            {isMaster && <span className="text-[10px] font-black italic bg-green-600 text-white px-2 py-1 rounded shadow-[2px_2px_0px_#000]">TUTTI GLI EVENTI</span>}
                             {pr.aliases && pr.aliases.length > 0 && <span className="text-[10px] font-black italic bg-purple-600 text-white px-2 py-1 rounded shadow-[2px_2px_0px_#000]">ALIAS: {pr.aliases.join(', ')}</span>}
                             {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato! Invialo a " + pr.name + " per fargli usare l'app."); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
                           </div>
@@ -588,10 +595,7 @@ const Admin = () => {
                         
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
-                            <div className="flex flex-col gap-1 mt-1">
-                              <div className="mb-2">
-                                <span className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-100 px-2 py-1 border-2 border-black">TUTTI GLI EVENTI ATTIVI</span>
-                              </div>
+                            <div className="flex flex-col gap-1">
                               {events.map(ev => (
                                 <div key={ev.id} className="h-[26px] flex items-center">
                                   <span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]" title={ev.title}>{ev.title}</span>
@@ -599,7 +603,7 @@ const Admin = () => {
                               ))}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-col gap-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
                                 const currentPay = pr.eventPays?.[i] || "";
@@ -630,19 +634,18 @@ const Admin = () => {
                         
                         <td className="p-2 border-r-2 border-black align-top text-center">
                           {isMaster ? (
-                            <div className="flex flex-col gap-1 mt-1">
-                               <div className="mb-2 h-[22px]"></div>
+                            <div className="flex flex-col gap-1">
                                {events.map(ev => {
                                  const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
                                  return (
                                   <div key={ev.id} className="h-[26px] flex items-center justify-center w-full">
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-1.5 py-0.5 rounded-sm font-black text-[10px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">0</span>}
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">0</span>}
                                   </div>
                                  )
                                })}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-col gap-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
                                 if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-center"></div>;
@@ -650,7 +653,7 @@ const Admin = () => {
                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
                                 return (
                                   <div key={i} className="h-[26px] flex items-center justify-center w-full">
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-1.5 py-0.5 rounded-sm font-black text-[10px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">0</span>}
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">0</span>}
                                   </div>
                                 )
                               })}
@@ -660,19 +663,18 @@ const Admin = () => {
                         
                         <td className="p-2 border-r-2 border-black align-top text-right">
                           {isMaster ? (
-                            <div className="flex flex-col gap-1 mt-1">
-                               <div className="mb-2 h-[22px]"></div>
+                            <div className="flex flex-col gap-1">
                                {events.map(ev => {
                                  const finEv = calculatePrFinancialsForEvent(pr, ev.id);
                                  return (
                                   <div key={ev.id} className="h-[26px] flex items-center justify-end w-full">
-                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[10px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">€0.00</span>}
+                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[14px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">€0.00</span>}
                                   </div>
                                  )
                                })}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1 mt-1">
+                            <div className="flex flex-col gap-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
                                 if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-end"></div>;
@@ -680,7 +682,7 @@ const Admin = () => {
                                 const finEv = calculatePrFinancialsForEvent(pr, selectedEventId);
                                 return (
                                   <div key={i} className="h-[26px] flex items-center justify-end w-full">
-                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[10px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">€0.00</span>}
+                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[14px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">€0.00</span>}
                                   </div>
                                 )
                               })}
@@ -690,15 +692,15 @@ const Admin = () => {
                         
                         <td className="p-4 text-center align-top bg-zinc-50">
                           <div className="flex flex-col items-center">
-                            <span className="text-xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
-                            {acconto > 0 && <span className="text-[9px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
+                            <span className="text-2xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
+                            {acconto > 0 && <span className="text-[10px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
                           </div>
                           
                           <div className="flex flex-col gap-2 items-center mt-3">
                             {isMaster ? (
                                 <>
                                 <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none flex items-center justify-center gap-1">
-                                  <Calculator size={12}/> BILANCIO E ORFANI {orphanedTickets.length > 0 && <span className="bg-[#FFEE00] text-black rounded-full px-1.5 ml-1">{orphanedTickets.length}</span>}
+                                  <Calculator size={12}/> CONTEGGI {orphanedTickets.length > 0 && <span className="bg-[#FFEE00] text-black rounded-full px-1.5 ml-1">{orphanedTickets.length}</span>}
                                 </button>
                                 <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">MODIFICA ALIAS</button>
                                 </>
@@ -890,30 +892,51 @@ const Admin = () => {
             {/* SEZIONE 2: LISTA ORFANI E PREZZARIO */}
             <div className="mb-8">
               <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4">2. Consolidamento Orfani In Sospeso</h3>
-              <p className="text-[10px] font-bold text-zinc-500 mb-4 uppercase">QR Code generati da link di PR che non sono stati assegnati alla serata in questione. Assegna un valore economico a questi ingressi e aggiungili al bilancio Master.</p>
+              <p className="text-[10px] font-bold text-zinc-500 mb-4 uppercase">QR Code generati da link di PR che non sono stati assegnati alla serata in questione, o da PR eliminati. Assegna un valore economico a questi ingressi e aggiungili al bilancio Master.</p>
               
               {orphanedTickets.length === 0 ? (
                   <div className="border-2 border-black p-6 bg-zinc-50 text-center">
                     <p className="text-sm font-bold text-zinc-500 italic">Nessun ticket orfano in sospeso.</p>
                   </div>
               ) : (
-                  <div className="border-4 border-black p-4 bg-zinc-50 flex flex-col gap-4">
+                  <div className="border-4 border-black p-4 bg-zinc-50 flex flex-col gap-6">
                       {Object.entries(orphansByEvent).map(([eventId, tks]) => {
                         const evTitle = events.find(e => e.id === eventId)?.title || 'Evento Ignoto';
+                        const eventTotal = tks.length * (Number(orphanValues[eventId]) || 0);
+
                         return (
-                          <div key={eventId} className="flex flex-col md:flex-row items-center justify-between gap-4 border-b-2 border-dashed border-zinc-300 pb-4 last:border-0 last:pb-0">
-                              <div className="flex-1 text-center md:text-left">
-                                <p className="font-black uppercase text-sm leading-tight">{evTitle}</p>
-                                <p className="text-[10px] font-bold text-zinc-500">QR Orfani Rilevati: <span className="text-black font-black bg-[#FFEE00] px-1 rounded">{tks.length} IN</span></p>
+                          <div key={eventId} className="flex flex-col gap-3 border-b-2 border-dashed border-zinc-300 pb-4 last:border-0 last:pb-0">
+                              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                                  <div className="flex-1 text-center md:text-left">
+                                    <p className="font-black uppercase text-sm leading-tight">{evTitle}</p>
+                                    <p className="text-[10px] font-bold text-zinc-500">QR Orfani Rilevati: <span className="text-black font-black bg-[#FFEE00] px-1 rounded">{tks.length} IN</span></p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <label className="text-[10px] font-black uppercase text-zinc-500 whitespace-nowrap">Valore € / IN:</label>
+                                    <input 
+                                      type="number" min="0" step="0.50" placeholder="Es. 15.00" 
+                                      className="w-20 p-2 border-2 border-black font-black text-center focus:border-[#FFEE00] outline-none"
+                                      value={orphanValues[eventId] || ''}
+                                      onChange={e => setOrphanValues({...orphanValues, [eventId]: e.target.value})}
+                                    />
+                                  </div>
                               </div>
-                              <div className="flex items-center gap-2">
-                                <label className="text-[10px] font-black uppercase text-zinc-500 whitespace-nowrap">Valore € / IN:</label>
-                                <input 
-                                  type="number" min="0" step="0.50" placeholder="Es. 15.00" 
-                                  className="w-20 p-2 border-2 border-black font-black text-center focus:border-[#FFEE00] outline-none"
-                                  value={orphanValues[eventId] || ''}
-                                  onChange={e => setOrphanValues({...orphanValues, [eventId]: e.target.value})}
-                                />
+                              
+                              <div className="bg-white border-2 border-black p-2 max-h-40 overflow-y-auto flex flex-col gap-1">
+                                  <div className="flex justify-between border-b-2 border-black pb-1 mb-1">
+                                    <span className="text-[9px] font-black text-zinc-500 uppercase">Cliente</span>
+                                    <span className="text-[9px] font-black text-zinc-500 uppercase">PR di Origine</span>
+                                  </div>
+                                  {tks.map(t => (
+                                      <div key={t.id} className="flex justify-between items-center hover:bg-zinc-100 px-1">
+                                          <span className="text-xs font-bold uppercase truncate max-w-[60%]">{t.customerName || 'Sconosciuto'}</span>
+                                          <span className="text-[10px] font-bold text-red-600 uppercase truncate max-w-[35%]">{t.prId}</span>
+                                      </div>
+                                  ))}
+                              </div>
+
+                              <div className="text-right">
+                                <span className="text-xs font-black uppercase bg-black text-white px-2 py-1">Totale Evento: €{eventTotal.toFixed(2)}</span>
                               </div>
                           </div>
                         )
