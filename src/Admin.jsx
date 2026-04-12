@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { 
   Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator
 } from 'lucide-react';
 
 const Admin = () => {
@@ -28,7 +28,12 @@ const Admin = () => {
   const [payPrData, setPayPrData] = useState(null);
   const [payAmount, setPayAmount] = useState('');
   const [masterModalOpen, setMasterModalOpen] = useState(false);
+  const [profitsModalOpen, setProfitsModalOpen] = useState(false);
   
+  // Stati Contabilità Master
+  const [masterPayAmount, setMasterPayAmount] = useState('');
+  const [orphanValues, setOrphanValues] = useState({}); // { eventId: value }
+
   // Stato Modale Password Admin
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
@@ -38,7 +43,6 @@ const Admin = () => {
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
-  const [sponsorForm, setSponsorForm] = useState({ name: '', prize: '', winChance: 15 });
 
   useEffect(() => {
     fetchData();
@@ -88,7 +92,7 @@ const Admin = () => {
       setPrs(rawPrs);
 
       const tktSnap = await getDocs(collection(db, "tickets"));
-      setTickets(tktSnap.docs.map(d => d.data()));
+      setTickets(tktSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
       const spSnap = await getDocs(collection(db, "sponsors"));
       setSponsors(spSnap.docs.map(d => ({ id: d.id, ...d.data() })));
@@ -130,7 +134,6 @@ const Admin = () => {
       });
       await fetchData();
     } catch (error) {
-      console.error(error);
       alert("Errore aggiornamento serata.");
     } finally {
       setLoading(false);
@@ -155,7 +158,9 @@ const Admin = () => {
           perEntryPay: 0,
           active: true,
           mergedInto: null,
-          acconto: 0
+          acconto: 0,
+          historicalOrphanCount: 0,
+          historicalOrphanProfit: 0
         });
         await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
       }
@@ -171,16 +176,15 @@ const Admin = () => {
   };
 
   const handleDeleteAlias = async (aliasId) => {
-    const conferma = window.confirm(`ATTENZIONE!\nVuoi davvero eliminare in modo definitivo l'alias ${aliasId}?\nI contatti che provano a usare quel link non verranno più tracciati.`);
+    const conferma = window.confirm(`ATTENZIONE!\nVuoi davvero eliminare in modo definitivo l'alias ${aliasId}?`);
     if (!conferma) return;
     setLoading(true);
     try {
         await deleteDoc(doc(db, "prs_registry", aliasId));
         await deleteDoc(doc(db, "prs", aliasId));
         await fetchData();
-        alert("Alias eliminato definitivamente!");
+        alert("Alias eliminato!");
     } catch (error) {
-        console.error(error);
         alert("Errore durante l'eliminazione dell'alias.");
     } finally {
         setLoading(false);
@@ -253,7 +257,6 @@ const Admin = () => {
       setPayPrData(null);
       alert("Pagamento registrato e sottratto con successo!");
     } catch (error) {
-      console.error(error);
       alert("Errore durante la registrazione del pagamento.");
     } finally {
       setLoading(false);
@@ -277,9 +280,8 @@ const Admin = () => {
 
       await fetchData();
       setPayPrData(null);
-      alert("Contabilità azzerata con successo per il PR selezionato.");
+      alert("Contabilità azzerata con successo.");
     } catch (error) {
-      console.error(error);
       alert("Errore durante l'azzeramento della contabilità.");
     } finally {
       setLoading(false);
@@ -328,30 +330,155 @@ const Admin = () => {
     } catch (e) { console.error(e); setLoading(false); }
   };
 
-  // --- FUNZIONE MODIFICATA: PULISCE GLI SLOT SENZA TOCCARE L'ESTRATTO CONTO ---
+  // --- LOGICA MASTER E TICKET ORFANI ---
+  const activePrs = prs.filter(p => !p.mergedInto);
+  
+  const orphanedTickets = tickets.filter(t => {
+    if (t.clearedFromMaster) return false; 
+    const evExists = events.some(e => e.id === t.eventId);
+    if (!evExists) return false; 
+
+    const pr = activePrs.find(p => p.id === t.prId || p.aliases?.includes(t.prId));
+    if (!pr || pr.id === 'MASTER') return false; 
+
+    const isAssigned = pr.eventIds?.includes(t.eventId);
+    return !isAssigned;
+  });
+
+  const orphansByEvent = orphanedTickets.reduce((acc, t) => {
+    if (!acc[t.eventId]) acc[t.eventId] = [];
+    acc[t.eventId].push(t);
+    return acc;
+  }, {});
+
+  const handleClearOrphans = async () => {
+    if (orphanedTickets.length === 0) return;
+    setLoading(true);
+    try {
+      const masterRef = doc(db, "prs_registry", "MASTER");
+      const masterSnap = await getDoc(masterRef);
+      const currentOrphans = Number(masterSnap.data()?.historicalOrphanCount) || 0;
+      const currentProfit = Number(masterSnap.data()?.historicalOrphanProfit) || 0;
+
+      let additionalProfit = 0;
+      for (const eventId in orphansByEvent) {
+         const count = orphansByEvent[eventId].length;
+         const val = Number(orphanValues[eventId]) || 0;
+         additionalProfit += (count * val);
+      }
+
+      await updateDoc(masterRef, { 
+        historicalOrphanCount: currentOrphans + orphanedTickets.length,
+        historicalOrphanProfit: currentProfit + additionalProfit
+      }, { merge: true });
+      
+      for (const t of orphanedTickets) {
+        if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
+      }
+      
+      setOrphanValues({});
+      await fetchData();
+      alert("Ticket orfani consolidati con successo nel bilancio Master!");
+    } catch (e) {
+      alert("Errore durante il consolidamento dei ticket orfani.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleConcludiSerata = async (eventId) => {
-    const conferma = window.confirm("ATTENZIONE!\nSei sicuro di voler concludere questa serata?\n\nL'evento verrà eliminato e gli slot assegnati ai PR torneranno vuoti (azzerando IN e COSTO visibili in tabella).\n\nIl totale dei soldi generati, invece, resterà INATTACCATO e visibile in 'VEDI E PAGA'.");
+    const eventTitle = events.find(e => e.id === eventId)?.title || "questo evento";
+    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler concludere ${eventTitle}?\n\nGli slot verranno svuotati. Se ci sono ticket orfani per questa serata, ti verrà chiesto di assegnargli un valore prima della chiusura.`);
     if (!conferma) return;
     
     setLoading(true);
     try {
-      // 1. Svuota gli slot dei PR che avevano questo evento assegnato
+      // Controllo orfani pendenti per questo evento
+      const eventOrphans = orphanedTickets.filter(t => t.eventId === eventId);
+      if (eventOrphans.length > 0) {
+        const valStr = window.prompt(`Ci sono ${eventOrphans.length} ticket orfani per questa serata.\n\nQuanto hai guadagnato (in €) per singolo ingresso orfano? (Es. 15.00)`, "0");
+        const val = Number(valStr) || 0;
+        const profitToAdd = eventOrphans.length * val;
+
+        const masterRef = doc(db, "prs_registry", "MASTER");
+        const masterSnap = await getDoc(masterRef);
+        const currentOrphans = Number(masterSnap.data()?.historicalOrphanCount) || 0;
+        const currentProfit = Number(masterSnap.data()?.historicalOrphanProfit) || 0;
+
+        await updateDoc(masterRef, { 
+          historicalOrphanCount: currentOrphans + eventOrphans.length,
+          historicalOrphanProfit: currentProfit + profitToAdd
+        }, { merge: true });
+
+        for (const t of eventOrphans) {
+          if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
+        }
+      }
+
+      // Svuota slot
       const prsToUpdate = prs.filter(p => p.eventIds && p.eventIds.includes(eventId));
       for (const pr of prsToUpdate) {
-        const newEventIds = pr.eventIds.map(id => id === eventId ? '' : id); // Sostituisce l'ID con stringa vuota
+        const newEventIds = pr.eventIds.map(id => id === eventId ? '' : id); 
         await updateDoc(doc(db, "prs_registry", pr.id), { eventIds: newEventIds });
       }
 
-      // 2. Elimina definitivamente l'evento
+      // Elimina evento
       await deleteDoc(doc(db, "events", eventId));
       
       await fetchData();
-      alert("Serata conclusa con successo! Slot azzerati, storico contabile intatto.");
+      alert("Serata conclusa e bilancio aggiornato!");
     } catch (e) { 
       alert("Errore chiusura serata."); 
     } finally { 
       setLoading(false); 
     }
+  };
+
+  // --- PAGAMENTO E AZZERAMENTO SPECIFICO MASTER ---
+  const masterPr = prs.find(p => p.id === 'MASTER');
+  const incassoDirettoMaster = (masterPr?.count || 0) * (Number(masterPr?.perEntryPay) || 0);
+  const subPrsMaster = activePrs.filter(sub => sub.supervisorId === 'MASTER' || masterPr?.aliases?.includes(sub.supervisorId));
+  const bonusSupervisoreMaster = subPrsMaster.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
+  const historicalOrphanProfit = Number(masterPr?.historicalOrphanProfit) || 0;
+  const historicalOrphanCount = Number(masterPr?.historicalOrphanCount) || 0;
+
+  const guadagnoLordoMaster = incassoDirettoMaster + bonusSupervisoreMaster + historicalOrphanProfit;
+  const accontoAttualeMaster = Number(masterPr?.acconto) || 0;
+  const daPagareMaster = Math.max(0, guadagnoLordoMaster - accontoAttualeMaster);
+
+  const eseguiPagamentoMaster = async () => {
+    const importo = Number(masterPayAmount);
+    if (!importo || importo <= 0) return alert("Inserisci un prelievo valido.");
+    if (importo > daPagareMaster) return alert("Il prelievo supera la giacenza in cassa!");
+
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "prs_registry", "MASTER"), {
+        acconto: accontoAttualeMaster + importo
+      });
+      await fetchData();
+      setMasterPayAmount('');
+      alert("Prelievo registrato con successo!");
+    } catch (e) {
+      alert("Errore registrazione prelievo.");
+    } finally { setLoading(false); }
+  };
+
+  const handleAzzeraContabilitaMaster = async () => {
+    const conferma = window.confirm("ATTENZIONE!\nVuoi chiudere definitivamente la contabilità stagionale del MASTER?\n\nTutti i profitti, ingressi e orfani storici torneranno a ZERO.");
+    if (!conferma) return;
+    setLoading(true);
+    try {
+      await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
+      await updateDoc(doc(db, "prs_registry", "MASTER"), { 
+        acconto: 0,
+        historicalOrphanCount: 0,
+        historicalOrphanProfit: 0
+      });
+      await fetchData();
+      setProfitsModalOpen(false);
+      alert("Contabilità Master azzerata per la nuova stagione.");
+    } catch (e) { alert("Errore azzeramento Master."); } finally { setLoading(false); }
   };
 
   const handleSavePassword = async () => {
@@ -364,12 +491,9 @@ const Admin = () => {
       setPasswordModalOpen(false);
     } catch (error) {
       alert("Errore salvataggio password.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  const activePrs = prs.filter(p => !p.mergedInto);
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
   const totalPrCosts = activePrs.reduce((acc, p) => acc + (p.count * ((Number(p.supervisorPay) || 0) + (Number(p.perEntryPay) || 0))), 0);
@@ -501,6 +625,20 @@ const Admin = () => {
                       supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
                     }
 
+                    // CALCOLI SPECIFICI MASTER O PR
+                    let guadagnoLordo = 0;
+                    let acconto = Number(pr.acconto) || 0;
+                    
+                    if (isMaster) {
+                      guadagnoLordo = guadagnoLordoMaster; 
+                    } else {
+                      const incassoDiretto = pr.count * (Number(pr.perEntryPay) || 0);
+                      const bonusSupervisore = subPrs.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
+                      guadagnoLordo = incassoDiretto + bonusSupervisore;
+                    }
+                    
+                    const guadagnoTotale = Math.max(0, guadagnoLordo - acconto);
+
                     return (
                       <tr key={pr.id} className="border-b-2 border-black hover:bg-[#FFEE00]/10">
                         <td className="p-4 border-r-2 border-black align-top">
@@ -517,7 +655,6 @@ const Admin = () => {
                           {pr.supervisorId && !isMaster ? <><span className="block text-sm">{supNameText}</span><span className="text-[10px] text-zinc-500 opacity-80 block mt-1">Prende Bonus: €{Number(pr.supervisorPay).toFixed(2)}/IN</span></> : 'NESSUNO'}
                         </td>
                         
-                        {/* SERATE ASSEGNATE (SLOT) COMPATTATE */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1 text-center">
@@ -545,7 +682,6 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* IN (IN LINEA CON NOME EVENTO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -580,7 +716,6 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* COSTO (IN LINEA CON NOME EVENTO) */}
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
@@ -628,11 +763,15 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        {/* AZIONI */}
                         <td className="p-4 text-center align-top">
                           <div className="flex flex-col gap-2 items-center mt-1">
                             {isMaster ? (
-                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">MODIFICA</button>
+                                <>
+                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none flex items-center justify-center gap-1">
+                                  <Calculator size={12}/> BILANCIO E ORFANI {orphanedTickets.length > 0 && <span className="bg-[#FFEE00] text-black rounded-full px-1.5 ml-1">{orphanedTickets.length}</span>}
+                                </button>
+                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">MODIFICA ALIAS</button>
+                                </>
                             ) : (
                                 <>
                                 <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">VEDI E PAGA</button>
@@ -678,7 +817,7 @@ const Admin = () => {
                      <p className="font-bold text-zinc-400 mb-3 text-[10px] tracking-widest">{ev.date}</p>
                      {ev.description && <p className="text-xs font-bold text-zinc-800 bg-zinc-100 p-2 border border-zinc-300 h-24 overflow-y-auto whitespace-pre-wrap mb-3">{ev.description}</p>}
                    </div>
-                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all"><Trash2 size={20}/> CONCLUDI SERATA E LIBERA SLOT PR</button>
+                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all"><Trash2 size={20}/> CONCLUDI SERATA E LIBERA SLOT</button>
                  </div>
                ))}
              </div>
@@ -768,6 +907,113 @@ const Admin = () => {
         </div>
       )}
 
+      {/* POPUP BILANCIO E ORFANI (MASTER) */}
+      {profitsModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
+            
+            {/* Header */}
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
+              <div>
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Amministrazione</p>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1 flex items-center gap-2"><Wallet size={24}/> Bilancio Master</h2>
+              </div>
+              <button onClick={() => setProfitsModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            </div>
+
+            {/* SEZIONE 1: ESTRATTO CONTO E CASSA */}
+            <div className="mb-8 border-4 border-black p-5 bg-zinc-50">
+              <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">1. Estratto Conto Generale</h3>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
+                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Liste Dirette Master</span>
+                    <span className="font-black">€{incassoDirettoMaster.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
+                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Bonus Rete (Sub-PR)</span>
+                    <span className="font-black text-green-600">€{bonusSupervisoreMaster.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-end mb-4 border-b-2 border-dashed border-zinc-300 pb-1">
+                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Orfani Consolidati ({historicalOrphanCount} IN)</span>
+                    <span className="font-black text-blue-600">€{historicalOrphanProfit.toFixed(2)}</span>
+                  </div>
+
+                  <div className="bg-black text-white p-3 mb-2 flex justify-between items-center">
+                    <span className="text-xs font-black uppercase text-[#FFEE00]">Tot. Generato</span>
+                    <span className="text-xl font-black italic">€{guadagnoLordoMaster.toFixed(2)}</span>
+                  </div>
+                  <div className="bg-red-50 text-red-600 p-3 border-2 border-red-600 flex justify-between items-center">
+                    <span className="text-xs font-black uppercase">Prelievi Effettuati</span>
+                    <span className="text-xl font-black italic">- €{accontoAttualeMaster.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div className="bg-white border-4 border-black p-4 flex flex-col justify-center text-center shadow-[4px_4px_0px_#000]">
+                  <p className="text-[10px] font-black uppercase text-zinc-500 mb-1">Residuo Cassa Master</p>
+                  <p className="text-4xl font-black italic text-green-600 mb-4">€{daPagareMaster.toFixed(2)}</p>
+                  
+                  <input 
+                      type="number" min="0.01" step="0.01" max={daPagareMaster} placeholder="Importo Prelievo" 
+                      className="w-full p-2 border-2 border-black font-black uppercase text-center focus:border-[#FFEE00] outline-none mb-2" 
+                      value={masterPayAmount} onChange={e => setMasterPayAmount(e.target.value)} 
+                  />
+                  <button onClick={eseguiPagamentoMaster} disabled={loading || daPagareMaster <= 0} className="bg-black text-[#FFEE00] font-black p-2 uppercase active:scale-95 transition-transform w-full">REGISTRA PRELIEVO</button>
+                </div>
+              </div>
+            </div>
+
+            {/* SEZIONE 2: LISTA ORFANI E PREZZARIO */}
+            <div className="mb-8">
+              <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4">2. Consolidamento Orfani In Sospeso</h3>
+              <p className="text-[10px] font-bold text-zinc-500 mb-4 uppercase">QR Code generati da link di PR che non sono stati assegnati alla serata in questione. Assegna un valore economico a questi ingressi e aggiungili al bilancio Master.</p>
+              
+              {orphanedTickets.length === 0 ? (
+                  <div className="border-2 border-black p-6 bg-zinc-50 text-center">
+                    <p className="text-sm font-bold text-zinc-500 italic">Nessun ticket orfano in sospeso.</p>
+                  </div>
+              ) : (
+                  <div className="border-4 border-black p-4 bg-zinc-50 flex flex-col gap-4">
+                      {Object.entries(orphansByEvent).map(([eventId, tks]) => {
+                        const evTitle = events.find(e => e.id === eventId)?.title || 'Evento Ignoto';
+                        return (
+                          <div key={eventId} className="flex flex-col md:flex-row items-center justify-between gap-4 border-b-2 border-dashed border-zinc-300 pb-4 last:border-0 last:pb-0">
+                              <div className="flex-1 text-center md:text-left">
+                                <p className="font-black uppercase text-sm leading-tight">{evTitle}</p>
+                                <p className="text-[10px] font-bold text-zinc-500">QR Orfani Rilevati: <span className="text-black font-black bg-[#FFEE00] px-1 rounded">{tks.length} IN</span></p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <label className="text-[10px] font-black uppercase text-zinc-500 whitespace-nowrap">Valore € / IN:</label>
+                                <input 
+                                  type="number" min="0" step="0.50" placeholder="Es. 15" 
+                                  className="w-20 p-2 border-2 border-black font-black text-center focus:border-[#FFEE00] outline-none"
+                                  value={orphanValues[eventId] || ''}
+                                  onChange={e => setOrphanValues({...orphanValues, [eventId]: e.target.value})}
+                                />
+                              </div>
+                          </div>
+                        )
+                      })}
+                      <button onClick={handleClearOrphans} disabled={loading} className="w-full mt-2 bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#000] active:scale-95 transition-transform">
+                        {loading ? '...' : 'INCASSA E CONSOLIDA NEL BILANCIO'}
+                      </button>
+                  </div>
+              )}
+            </div>
+
+            {/* SEZIONE 3: AZZERAMENTO STAGIONALE */}
+            <div className="border-t-4 border-black pt-6">
+              <p className="text-[10px] font-black uppercase text-zinc-500 mb-2 text-center">Operazioni di fine stagione</p>
+              <button onClick={handleAzzeraContabilitaMaster} disabled={loading} className="w-full font-black p-4 uppercase transition-transform border-2 border-red-600 text-red-600 hover:bg-red-50 active:scale-95">
+                CHIUDI ED AZZERA CONTABILITÀ MASTER
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* POPUP PAGAMENTO PR */}
       {payPrData && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
@@ -775,14 +1021,10 @@ const Admin = () => {
             <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
               <div>
                 <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Registra Acconto</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">
-                  Paga: {payPrData.name}
-                </h2>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Paga: {payPrData.name}</h2>
                 <p className="text-xs font-black bg-black text-[#FFEE00] px-2 py-1 inline-block mt-2">ID: {payPrData.id}</p>
               </div>
-              <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all">
-                <X size={24} />
-              </button>
+              <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
             </div>
 
             {(() => {
@@ -806,90 +1048,20 @@ const Admin = () => {
 
                   <div className="flex flex-col">
                     <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Importo del Pagamento (€)</label>
-                    <input 
-                      type="number" 
-                      min="0.01" 
-                      step="0.01" 
-                      max={daPagare}
-                      placeholder="Es. 50.00" 
-                      className="w-full p-4 border-2 border-black font-black uppercase text-xl focus:border-[#FFEE00] outline-none" 
-                      value={payAmount} 
-                      onChange={e => setPayAmount(e.target.value)} 
-                    />
+                    <input type="number" min="0.01" step="0.01" max={daPagare} placeholder="Es. 50.00" className="w-full p-4 border-2 border-black font-black uppercase text-xl focus:border-[#FFEE00] outline-none" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
                   </div>
 
-                  <button 
-                    onClick={eseguiPagamento} 
-                    disabled={loading || daPagare <= 0} 
-                    className={`w-full font-black p-4 uppercase transition-transform mt-2 border-2 border-black shadow-[4px_4px_0px_#000] ${daPagare <= 0 ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed' : 'bg-[#FFEE00] text-black active:scale-95'}`}
-                  >
+                  <button onClick={eseguiPagamento} disabled={loading || daPagare <= 0} className={`w-full font-black p-4 uppercase transition-transform mt-2 border-2 border-black shadow-[4px_4px_0px_#000] ${daPagare <= 0 ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed' : 'bg-[#FFEE00] text-black active:scale-95'}`}>
                     {loading ? 'ELABORAZIONE...' : daPagare <= 0 ? 'NESSUN DEBITO' : 'CONFERMA PAGAMENTO'}
                   </button>
 
                   <div className="mt-4 pt-4 border-t-2 border-dashed border-zinc-300">
                     <p className="text-[10px] font-black uppercase text-zinc-500 mb-2 text-center">Operazioni di fine stagione / Chiusura conti</p>
-                    <button 
-                      onClick={() => handleAzzeraContabilita(payPrData)} 
-                      disabled={loading} 
-                      className="w-full font-black text-xs p-3 uppercase transition-transform border-2 border-red-600 text-red-600 hover:bg-red-50 active:scale-95"
-                    >
-                      AZZERA CONTABILITÀ PR
-                    </button>
+                    <button onClick={() => handleAzzeraContabilita(payPrData)} disabled={loading} className="w-full font-black text-xs p-3 uppercase transition-transform border-2 border-red-600 text-red-600 hover:bg-red-50 active:scale-95">AZZERA CONTABILITÀ PR</button>
                   </div>
                 </div>
               )
             })()}
-          </div>
-        </div>
-      )}
-
-      {/* POPUP GESTIONE MASTER (ALIAS) */}
-      {masterModalOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div>
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Gestione Avanzata</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Profilo Master</h2>
-              </div>
-              <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
-            </div>
-
-            <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">Alias Inglobati (Vecchi PR)</h3>
-            
-            {prs.filter(p => p.mergedInto === 'MASTER').length === 0 ? (
-                <p className="text-sm font-bold text-zinc-500 italic mb-6">Nessun alias presente nel Profilo Master.</p>
-            ) : (
-                <div className="flex flex-col gap-3 mb-6">
-                    {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
-                        <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div>
-                                <p className="font-black uppercase">{alias.name} <span className="text-[10px] text-zinc-500">({alias.id})</span></p>
-                                <p className="text-[10px] font-bold text-zinc-500">Ingressi Totali Storici: {alias.count}</p>
-                            </div>
-                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-                                <button 
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(`Ciao! Il tuo vecchio pass per la lista non è più attivo. Clicca su questo nuovo link per aggiornarlo subito ed entrare in lista Master: ${window.location.origin}/?ref=MASTER`);
-                                        alert("Messaggio con link di aggiornamento copiato negli appunti!");
-                                    }}
-                                    className="bg-blue-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
-                                >
-                                    Copia Link Aggiornamento
-                                </button>
-                                <button 
-                                    onClick={() => handleDeleteAlias(alias.id)}
-                                    className="bg-red-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
-                                >
-                                    Elimina Definitivamente
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-            
-            <button onClick={() => setMasterModalOpen(false)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFEE00]">CHIUDI PANNELLO</button>
           </div>
         </div>
       )}
