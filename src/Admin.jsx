@@ -9,17 +9,33 @@ import {
   Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator
 } from 'lucide-react';
 
+// --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
+const InlinePayInput = ({ initialValue, onSave, placeholder }) => {
+  const [val, setVal] = useState(initialValue || '');
+  useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
+  return (
+    <div className="flex items-center border-2 border-black bg-white w-[72px] h-full">
+      <span className="px-1.5 text-[10px] font-black text-zinc-500 bg-zinc-100 border-r-2 border-black h-full flex items-center justify-center">€</span>
+      <input 
+        type="number" min="0" step="0.01" placeholder={placeholder}
+        className="w-full h-full p-0 font-black text-[10px] text-center focus:outline-none bg-transparent"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        onBlur={() => onSave(val)}
+      />
+    </div>
+  );
+};
+
 const Admin = () => {
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(false);
   
-  // Dati dal DB
   const [events, setEvents] = useState([]);
   const [prs, setPrs] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [sponsors, setSponsors] = useState([]);
 
-  // Stati per Modali (Popup)
   const [selectedEventForModal, setSelectedEventForModal] = useState(null);
   const [replacePrData, setReplacePrData] = useState(null);
   const [replaceName, setReplaceName] = useState('');
@@ -30,23 +46,18 @@ const Admin = () => {
   const [masterModalOpen, setMasterModalOpen] = useState(false);
   const [profitsModalOpen, setProfitsModalOpen] = useState(false);
   
-  // Stati Contabilità Master
   const [masterPayAmount, setMasterPayAmount] = useState('');
-  const [orphanValues, setOrphanValues] = useState({}); // { eventId: value }
+  const [orphanValues, setOrphanValues] = useState({});
 
-  // Stato Modale Password Admin
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
 
-  // Form per inserimento
-  const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '', supervisorPay: 0, perEntryPay: 0 });
+  const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
     if (prs && prs.length > 0) {
@@ -101,6 +112,48 @@ const Admin = () => {
     setLoading(false);
   };
 
+  const activePrs = prs.filter(p => !p.mergedInto);
+
+  const calculatePrFinancials = (pr) => {
+    let directTotal = 0;
+    let supervisorBonus = 0;
+
+    const myTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.used === true);
+    myTickets.forEach(t => {
+        const slotIndex = pr.eventIds?.indexOf(t.eventId);
+        const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
+        directTotal += rate;
+    });
+
+    const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
+    subPrs.forEach(sub => {
+        const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true);
+        const bonusRate = Number(sub.supervisorPay) || 0;
+        supervisorBonus += (subTickets.length * bonusRate);
+    });
+
+    return { directTotal, supervisorBonus, guadagnoLordo: directTotal + supervisorBonus };
+  };
+
+  const calculatePrFinancialsForEvent = (pr, eventId) => {
+    let directTotalEv = 0;
+    let supervisorBonusEv = 0;
+
+    const myEvTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true);
+    const slotIndex = pr.eventIds?.indexOf(eventId);
+    const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
+    directTotalEv = myEvTickets.length * rate;
+
+    const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
+    subPrs.forEach(sub => {
+        const subEvTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true);
+        const bonusRate = Number(sub.supervisorPay) || 0;
+        supervisorBonusEv += (subEvTickets.length * bonusRate);
+    });
+
+    return { evIns: myEvTickets.length, directTotalEv, supervisorBonusEv, guadagnoTotaleEv: directTotalEv + supervisorBonusEv };
+  };
+
   const handleAddPr = async (e) => {
     e.preventDefault();
     try {
@@ -109,15 +162,15 @@ const Admin = () => {
         name: prForm.name,
         phone: prForm.phone,
         eventIds: ['', '', '', '', '', ''], 
+        eventPays: [0, 0, 0, 0, 0, 0],
         supervisorId: prForm.supervisorId || '',
-        supervisorPay: Number(prForm.supervisorPay),
-        perEntryPay: Number(prForm.perEntryPay),
+        supervisorPay: 0,
         active: true,
         mergedInto: null,
         acconto: 0 
       });
       await setDoc(doc(db, "prs", code), { count: 0 }, { merge: true });
-      setPrForm({ name: '', phone: '', supervisorId: '', supervisorPay: 0, perEntryPay: 0 });
+      setPrForm({ name: '', phone: '', supervisorId: '' });
       fetchData();
     } catch (e) { alert("Errore nel salvataggio"); }
   };
@@ -128,51 +181,45 @@ const Admin = () => {
       let newEventIds = [...(currentEventIds || [])];
       while (newEventIds.length < 6) newEventIds.push(''); 
       newEventIds[slotIndex] = eventId;
-      
-      await updateDoc(doc(db, "prs_registry", prId), {
-        eventIds: newEventIds
-      });
+      await updateDoc(doc(db, "prs_registry", prId), { eventIds: newEventIds });
       await fetchData();
-    } catch (error) {
-      alert("Errore aggiornamento serata.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { alert("Errore aggiornamento serata."); } finally { setLoading(false); }
+  };
+
+  const handleUpdateEventPay = async (prId, slotIndex, val, currentEventPays) => {
+    try {
+        const newPays = [...(currentEventPays || [0,0,0,0,0,0])];
+        newPays[slotIndex] = Number(val);
+        await updateDoc(doc(db, "prs_registry", prId), { eventPays: newPays });
+        await fetchData();
+    } catch (error) { console.error("Errore salvataggio provvigione."); }
+  };
+
+  const handleUpdateSupervisorPay = async (prId, val) => {
+    try {
+        await updateDoc(doc(db, "prs_registry", prId), { supervisorPay: Number(val) });
+        await fetchData();
+    } catch (error) { console.error("Errore salvataggio bonus."); }
   };
 
   const handleDeletePr = async (pr) => {
     if (pr.id === 'MASTER') return alert("Il Profilo MASTER non può essere eliminato!");
     const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler eliminare ${pr.name}?\n\nI suoi dati verranno trasferiti al "PROFILO MASTER".`);
     if (!conferma) return;
-    
     setLoading(true);
     try {
       const masterExists = prs.find(p => p.id === 'MASTER');
       if (!masterExists) {
         await setDoc(doc(db, "prs_registry", "MASTER"), {
-          name: "PROFILO MASTER",
-          phone: "",
-          eventIds: [], 
-          supervisorId: "",
-          supervisorPay: 0,
-          perEntryPay: 0,
-          active: true,
-          mergedInto: null,
-          acconto: 0,
-          historicalOrphanCount: 0,
-          historicalOrphanProfit: 0
+          name: "PROFILO MASTER", phone: "", eventIds: [], supervisorId: "",
+          active: true, mergedInto: null, acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0
         });
         await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
       }
-
       await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: "MASTER" });
       await fetchData();
       alert("Collaboratore rimosso. Dati passati al Profilo MASTER.");
-    } catch (error) {
-      alert("Errore eliminazione.");
-    } finally {
-      setLoading(false);
-    }
+    } catch (error) { alert("Errore eliminazione."); } finally { setLoading(false); }
   };
 
   const handleDeleteAlias = async (aliasId) => {
@@ -183,39 +230,21 @@ const Admin = () => {
         await deleteDoc(doc(db, "prs_registry", aliasId));
         await deleteDoc(doc(db, "prs", aliasId));
         await fetchData();
-        alert("Alias eliminato!");
-    } catch (error) {
-        alert("Errore durante l'eliminazione dell'alias.");
-    } finally {
-        setLoading(false);
-    }
+    } catch (error) { alert("Errore durante l'eliminazione dell'alias."); } finally { setLoading(false); }
   };
 
   const openReplaceModal = (pr) => {
     if (pr.id === 'MASTER') return alert("Il Profilo MASTER non può essere sostituito!");
-    setReplacePrData(pr);
-    setReplaceName(pr.name);
-    setReplacePhone(pr.phone || '');
-    setReplaceTargetId('');
+    setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceTargetId('');
   };
 
   const eseguiSostituzioneNuovo = async (pr) => {
     if (!replaceName) return alert("Inserisci il nuovo nome!");
     setLoading(true);
     try {
-      await updateDoc(doc(db, "prs_registry", pr.id), {
-        name: replaceName,
-        phone: replacePhone,
-        mergedInto: null
-      });
-      await fetchData();
-      setReplacePrData(null);
-      alert("PR sostituito con successo!");
-    } catch (error) {
-      alert("Errore sostituzione.");
-    } finally {
-      setLoading(false);
-    }
+      await updateDoc(doc(db, "prs_registry", pr.id), { name: replaceName, phone: replacePhone, mergedInto: null });
+      await fetchData(); setReplacePrData(null);
+    } catch (error) { alert("Errore sostituzione."); } finally { setLoading(false); }
   };
 
   const eseguiSostituzioneIngloba = async (pr) => {
@@ -224,68 +253,39 @@ const Admin = () => {
     setLoading(true);
     try {
       await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: replaceTargetId });
-      await fetchData();
-      setReplacePrData(null);
-      alert(`PR inglobato con successo!`);
-    } catch (error) {
-      alert("Errore inglobamento.");
-    } finally {
-      setLoading(false);
-    }
+      await fetchData(); setReplacePrData(null);
+    } catch (error) { alert("Errore inglobamento."); } finally { setLoading(false); }
   };
 
   const eseguiPagamento = async () => {
     const importo = Number(payAmount);
     if (!importo || importo <= 0) return alert("Inserisci un importo valido da pagare.");
 
-    const activePrs = prs.filter(p => !p.mergedInto);
-    const incassoDiretto = payPrData.count * (Number(payPrData.perEntryPay) || 0);
-    const subPrs = activePrs.filter(sub => sub.supervisorId === payPrData.id || payPrData.aliases?.includes(sub.supervisorId));
-    const bonusSupervisore = subPrs.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
-    const guadagnoLordo = incassoDiretto + bonusSupervisore;
+    const fin = calculatePrFinancials(payPrData);
     const accontoAttuale = Number(payPrData.acconto) || 0;
-    const daPagare = Math.max(0, guadagnoLordo - accontoAttuale);
+    const daPagare = Math.max(0, fin.guadagnoLordo - accontoAttuale);
 
-    if (importo > daPagare) return alert(`L'importo non può superare il totale ancora da pagare (€${daPagare.toFixed(2)})!`);
+    if (importo > daPagare) return alert(`L'importo supera il totale da pagare (€${daPagare.toFixed(2)})!`);
 
     setLoading(true);
     try {
-      await updateDoc(doc(db, "prs_registry", payPrData.id), {
-        acconto: accontoAttuale + importo
-      });
-      await fetchData();
-      setPayPrData(null);
-      alert("Pagamento registrato e sottratto con successo!");
-    } catch (error) {
-      alert("Errore durante la registrazione del pagamento.");
-    } finally {
-      setLoading(false);
-    }
+      await updateDoc(doc(db, "prs_registry", payPrData.id), { acconto: accontoAttuale + importo });
+      await fetchData(); setPayPrData(null);
+    } catch (error) { alert("Errore registrazione pagamento."); } finally { setLoading(false); }
   };
 
   const handleAzzeraContabilita = async (pr) => {
-    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler azzerare la contabilità di ${pr.name}?\n\nGli Ingressi Totali e gli Acconti verranno riportati a ZERO. Usa questa funzione solo se hai saldato completamente i conti e vuoi farlo ripartire pulito per il prossimo periodo.`);
+    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler azzerare la contabilità di ${pr.name}?`);
     if (!conferma) return;
-
     setLoading(true);
     try {
       await setDoc(doc(db, "prs", pr.id), { count: 0 }, { merge: true });
       await updateDoc(doc(db, "prs_registry", pr.id), { acconto: 0 });
-      
       if (pr.aliases && pr.aliases.length > 0) {
-        for (const alias of pr.aliases) {
-          await setDoc(doc(db, "prs", alias), { count: 0 }, { merge: true });
-        }
+        for (const alias of pr.aliases) await setDoc(doc(db, "prs", alias), { count: 0 }, { merge: true });
       }
-
-      await fetchData();
-      setPayPrData(null);
-      alert("Contabilità azzerata con successo.");
-    } catch (error) {
-      alert("Errore durante l'azzeramento della contabilità.");
-    } finally {
-      setLoading(false);
-    }
+      await fetchData(); setPayPrData(null);
+    } catch (error) { alert("Errore azzeramento."); } finally { setLoading(false); }
   };
 
   const handleAddEvent = async (e) => {
@@ -295,54 +295,31 @@ const Admin = () => {
     try {
       const reader = new FileReader();
       reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target.result;
+        const img = new Image(); img.src = event.target.result;
         img.onload = async () => {
           const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 800; 
-          const scaleSize = MAX_WIDTH / img.width;
-          canvas.width = MAX_WIDTH;
-          canvas.height = img.height * scaleSize;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
-
+          const scaleSize = 800 / img.width; canvas.width = 800; canvas.height = img.height * scaleSize;
+          const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           try {
             await setDoc(doc(collection(db, "events")), {
-              title: eventForm.title,
-              date: eventForm.date,
-              description: eventForm.description,
-              imageUrl: compressedBase64,
-              active: true,
-              timestamp: new Date()
+              title: eventForm.title, date: eventForm.date, description: eventForm.description,
+              imageUrl: canvas.toDataURL('image/jpeg', 0.7), active: true, timestamp: new Date()
             });
-            setEventForm({ title: '', date: '', description: '' });
-            setSelectedFile(null);
-            await fetchData();
-            alert("Evento pubblicato!");
-          } catch (dbError) {
-            alert("Errore salvataggio database.");
-          } finally { setLoading(false); }
+            setEventForm({ title: '', date: '', description: '' }); setSelectedFile(null); await fetchData();
+          } catch (dbError) { alert("Errore salvataggio database."); } finally { setLoading(false); }
         };
       };
-      reader.onerror = () => { alert("Errore lettura file"); setLoading(false); };
       reader.readAsDataURL(selectedFile);
-    } catch (e) { console.error(e); setLoading(false); }
+    } catch (e) { setLoading(false); }
   };
 
-  // --- LOGICA MASTER E TICKET ORFANI ---
-  const activePrs = prs.filter(p => !p.mergedInto);
-  
   const orphanedTickets = tickets.filter(t => {
     if (t.clearedFromMaster) return false; 
     const evExists = events.some(e => e.id === t.eventId);
     if (!evExists) return false; 
-
     const pr = activePrs.find(p => p.id === t.prId || p.aliases?.includes(t.prId));
     if (!pr || pr.id === 'MASTER') return false; 
-
-    const isAssigned = pr.eventIds?.includes(t.eventId);
-    return !isAssigned;
+    return !pr.eventIds?.includes(t.eventId);
   });
 
   const orphansByEvent = orphanedTickets.reduce((acc, t) => {
@@ -362,9 +339,7 @@ const Admin = () => {
 
       let additionalProfit = 0;
       for (const eventId in orphansByEvent) {
-         const count = orphansByEvent[eventId].length;
-         const val = Number(orphanValues[eventId]) || 0;
-         additionalProfit += (count * val);
+         additionalProfit += (orphansByEvent[eventId].length * (Number(orphanValues[eventId]) || 0));
       }
 
       await updateDoc(masterRef, { 
@@ -372,77 +347,48 @@ const Admin = () => {
         historicalOrphanProfit: currentProfit + additionalProfit
       }, { merge: true });
       
-      for (const t of orphanedTickets) {
-        if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
-      }
-      
-      setOrphanValues({});
-      await fetchData();
-      alert("Ticket orfani consolidati con successo nel bilancio Master!");
-    } catch (e) {
-      alert("Errore durante il consolidamento dei ticket orfani.");
-    } finally {
-      setLoading(false);
-    }
+      for (const t of orphanedTickets) if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
+      setOrphanValues({}); await fetchData();
+    } catch (e) { alert("Errore consolidamento."); } finally { setLoading(false); }
   };
 
   const handleConcludiSerata = async (eventId) => {
     const eventTitle = events.find(e => e.id === eventId)?.title || "questo evento";
     const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler concludere ${eventTitle}?\n\nGli slot verranno svuotati. Se ci sono ticket orfani per questa serata, ti verrà chiesto di assegnargli un valore prima della chiusura.`);
     if (!conferma) return;
-    
     setLoading(true);
     try {
-      // Controllo orfani pendenti per questo evento
       const eventOrphans = orphanedTickets.filter(t => t.eventId === eventId);
       if (eventOrphans.length > 0) {
-        const valStr = window.prompt(`Ci sono ${eventOrphans.length} ticket orfani per questa serata.\n\nQuanto hai guadagnato (in €) per singolo ingresso orfano? (Es. 15.00)`, "0");
-        const val = Number(valStr) || 0;
-        const profitToAdd = eventOrphans.length * val;
+        const valStr = window.prompt(`Ci sono ${eventOrphans.length} ticket orfani per questa serata.\nQuanto hai guadagnato (in €) per singolo ingresso orfano?`, "0");
+        const profitToAdd = eventOrphans.length * (Number(valStr) || 0);
 
         const masterRef = doc(db, "prs_registry", "MASTER");
         const masterSnap = await getDoc(masterRef);
-        const currentOrphans = Number(masterSnap.data()?.historicalOrphanCount) || 0;
-        const currentProfit = Number(masterSnap.data()?.historicalOrphanProfit) || 0;
-
         await updateDoc(masterRef, { 
-          historicalOrphanCount: currentOrphans + eventOrphans.length,
-          historicalOrphanProfit: currentProfit + profitToAdd
+          historicalOrphanCount: (Number(masterSnap.data()?.historicalOrphanCount) || 0) + eventOrphans.length,
+          historicalOrphanProfit: (Number(masterSnap.data()?.historicalOrphanProfit) || 0) + profitToAdd
         }, { merge: true });
 
-        for (const t of eventOrphans) {
-          if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
-        }
+        for (const t of eventOrphans) if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
       }
 
-      // Svuota slot
       const prsToUpdate = prs.filter(p => p.eventIds && p.eventIds.includes(eventId));
       for (const pr of prsToUpdate) {
         const newEventIds = pr.eventIds.map(id => id === eventId ? '' : id); 
         await updateDoc(doc(db, "prs_registry", pr.id), { eventIds: newEventIds });
       }
 
-      // Elimina evento
       await deleteDoc(doc(db, "events", eventId));
-      
       await fetchData();
-      alert("Serata conclusa e bilancio aggiornato!");
-    } catch (e) { 
-      alert("Errore chiusura serata."); 
-    } finally { 
-      setLoading(false); 
-    }
+    } catch (e) { alert("Errore chiusura serata."); } finally { setLoading(false); }
   };
 
-  // --- PAGAMENTO E AZZERAMENTO SPECIFICO MASTER ---
   const masterPr = prs.find(p => p.id === 'MASTER');
-  const incassoDirettoMaster = (masterPr?.count || 0) * (Number(masterPr?.perEntryPay) || 0);
-  const subPrsMaster = activePrs.filter(sub => sub.supervisorId === 'MASTER' || masterPr?.aliases?.includes(sub.supervisorId));
-  const bonusSupervisoreMaster = subPrsMaster.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
+  const masterFin = masterPr ? calculatePrFinancials(masterPr) : { directTotal: 0, supervisorBonus: 0 };
   const historicalOrphanProfit = Number(masterPr?.historicalOrphanProfit) || 0;
   const historicalOrphanCount = Number(masterPr?.historicalOrphanCount) || 0;
-
-  const guadagnoLordoMaster = incassoDirettoMaster + bonusSupervisoreMaster + historicalOrphanProfit;
+  const guadagnoLordoMaster = masterFin.directTotal + masterFin.supervisorBonus + historicalOrphanProfit;
   const accontoAttualeMaster = Number(masterPr?.acconto) || 0;
   const daPagareMaster = Math.max(0, guadagnoLordoMaster - accontoAttualeMaster);
 
@@ -450,34 +396,21 @@ const Admin = () => {
     const importo = Number(masterPayAmount);
     if (!importo || importo <= 0) return alert("Inserisci un prelievo valido.");
     if (importo > daPagareMaster) return alert("Il prelievo supera la giacenza in cassa!");
-
     setLoading(true);
     try {
-      await updateDoc(doc(db, "prs_registry", "MASTER"), {
-        acconto: accontoAttualeMaster + importo
-      });
-      await fetchData();
-      setMasterPayAmount('');
-      alert("Prelievo registrato con successo!");
-    } catch (e) {
-      alert("Errore registrazione prelievo.");
-    } finally { setLoading(false); }
+      await updateDoc(doc(db, "prs_registry", "MASTER"), { acconto: accontoAttualeMaster + importo });
+      await fetchData(); setMasterPayAmount('');
+    } catch (e) { alert("Errore registrazione prelievo."); } finally { setLoading(false); }
   };
 
   const handleAzzeraContabilitaMaster = async () => {
-    const conferma = window.confirm("ATTENZIONE!\nVuoi chiudere definitivamente la contabilità stagionale del MASTER?\n\nTutti i profitti, ingressi e orfani storici torneranno a ZERO.");
+    const conferma = window.confirm("ATTENZIONE!\nVuoi chiudere definitivamente la contabilità stagionale del MASTER?");
     if (!conferma) return;
     setLoading(true);
     try {
       await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
-      await updateDoc(doc(db, "prs_registry", "MASTER"), { 
-        acconto: 0,
-        historicalOrphanCount: 0,
-        historicalOrphanProfit: 0
-      });
-      await fetchData();
-      setProfitsModalOpen(false);
-      alert("Contabilità Master azzerata per la nuova stagione.");
+      await updateDoc(doc(db, "prs_registry", "MASTER"), { acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0 });
+      await fetchData(); setProfitsModalOpen(false);
     } catch (e) { alert("Errore azzeramento Master."); } finally { setLoading(false); }
   };
 
@@ -486,17 +419,14 @@ const Admin = () => {
     setLoading(true);
     try {
       await setDoc(doc(db, "settings", "admin"), { password: newAdminPassword }, { merge: true });
-      alert("Password modificata con successo!");
-      setNewAdminPassword('');
-      setPasswordModalOpen(false);
-    } catch (error) {
-      alert("Errore salvataggio password.");
-    } finally { setLoading(false); }
+      setNewAdminPassword(''); setPasswordModalOpen(false);
+    } catch (error) { alert("Errore salvataggio password."); } finally { setLoading(false); }
   };
 
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
-  const totalPrCosts = activePrs.reduce((acc, p) => acc + (p.count * ((Number(p.supervisorPay) || 0) + (Number(p.perEntryPay) || 0))), 0);
+  let totalPrCosts = 0;
+  activePrs.forEach(p => { totalPrCosts += calculatePrFinancials(p).guadagnoLordo; });
 
   return (
     <div className="min-h-screen bg-zinc-50 text-black font-sans pb-20 uppercase font-black">
@@ -549,8 +479,8 @@ const Admin = () => {
                  
                  let costoPR = 0;
                  evPrs.forEach(p => {
-                    const prEvCount = tickets.filter(t => (t.prId === p.id || p.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                    costoPR += prEvCount * ((Number(p.perEntryPay)||0) + (Number(p.supervisorPay)||0));
+                    const finEv = calculatePrFinancialsForEvent(p, ev.id);
+                    costoPR += finEv.guadagnoTotaleEv;
                  });
 
                  return (
@@ -586,7 +516,7 @@ const Admin = () => {
           <div className="animate-in slide-in-from-bottom-4 duration-300">
             <form onSubmit={handleAddPr} className="bg-white border-4 border-black p-6 mb-10 shadow-[8px_8px_0px_#000]">
               <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase"><Plus size={24}/> NUOVO COLLABORATORE</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
                 <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
                 <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
@@ -596,8 +526,6 @@ const Admin = () => {
                     {activePrs.filter(p => p.id !== 'MASTER').map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                   </select>
                 </div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Compenso Supervisore (€)</label><input type="number" min="0" step="0.01" placeholder="0.00" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.supervisorPay} onChange={e => setPrForm({...prForm, supervisorPay: e.target.value})} /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Provvigione Ingresso PR (€)</label><input type="number" min="0" step="0.01" placeholder="0.00" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.perEntryPay} onChange={e => setPrForm({...prForm, perEntryPay: e.target.value})} /></div>
               </div>
               <button className="w-full mt-6 bg-black text-white font-black py-4 uppercase hover:bg-[#FFEE00] hover:text-black transition-all shadow-[4px_4px_0px_#FFEE00] active:translate-y-1 active:shadow-none">SALVA NEL TEAM</button>
             </form>
@@ -606,37 +534,28 @@ const Admin = () => {
               <table className="w-full border-collapse border-4 border-black bg-white">
                 <thead>
                   <tr className="bg-black text-white">
-                    <th className="p-4 text-left border-r border-zinc-700">PR INFO & LINK</th>
-                    <th className="p-4 text-left border-r border-zinc-700">SUPERVISORE</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">SERATE ASSEGNATE (SLOT)</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">IN</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">COSTO</th>
-                    <th className="p-4 text-center">AZIONI</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">PR INFO & LINK</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">SUPERVISORE</th>
+                    <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
+                    <th className="p-4 text-center border-r border-zinc-700 min-w-[80px]">IN</th>
+                    <th className="p-4 text-right border-r border-zinc-700 min-w-[100px]">COSTO</th>
+                    <th className="p-4 text-center min-w-[150px]">AZIONI</th>
                   </tr>
                 </thead>
                 <tbody>
                   {activePrs.map(pr => {
                     const isMaster = pr.id === 'MASTER';
-                    const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
-
+                    
                     let supNameText = 'NESSUNO';
                     if (pr.supervisorId && !isMaster) {
                       const supObj = prs.find(p => p.id === pr.supervisorId);
                       supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
                     }
 
-                    // CALCOLI SPECIFICI MASTER O PR
-                    let guadagnoLordo = 0;
-                    let acconto = Number(pr.acconto) || 0;
-                    
-                    if (isMaster) {
-                      guadagnoLordo = guadagnoLordoMaster; 
-                    } else {
-                      const incassoDiretto = pr.count * (Number(pr.perEntryPay) || 0);
-                      const bonusSupervisore = subPrs.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
-                      guadagnoLordo = incassoDiretto + bonusSupervisore;
-                    }
-                    
+                    // Pre-calcoli
+                    const fin = isMaster ? masterFin : calculatePrFinancials(pr);
+                    const guadagnoLordo = isMaster ? guadagnoLordoMaster : fin.guadagnoLordo;
+                    const acconto = Number(pr.acconto) || 0;
                     const guadagnoTotale = Math.max(0, guadagnoLordo - acconto);
 
                     return (
@@ -652,22 +571,42 @@ const Admin = () => {
                         </td>
                         
                         <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top">
-                          {pr.supervisorId && !isMaster ? <><span className="block text-sm">{supNameText}</span><span className="text-[10px] text-zinc-500 opacity-80 block mt-1">Prende Bonus: €{Number(pr.supervisorPay).toFixed(2)}/IN</span></> : 'NESSUNO'}
+                          {pr.supervisorId && !isMaster ? (
+                            <>
+                              <span className="block text-sm text-black">{supNameText}</span>
+                              <div className="mt-2 flex items-center h-[26px]">
+                                <span className="text-[9px] text-zinc-500 whitespace-nowrap mr-2">BONUS:</span>
+                                <InlinePayInput 
+                                   initialValue={pr.supervisorPay} 
+                                   onSave={(val) => handleUpdateSupervisorPay(pr.id, val)}
+                                   placeholder="0.00"
+                                />
+                              </div>
+                            </>
+                          ) : 'NESSUNO'}
                         </td>
                         
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
-                            <div className="flex flex-col gap-1 mt-1 text-center">
-                              <span className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-100 p-1 border-2 border-black">TUTTI GLI EVENTI ATTIVI</span>
+                            <div className="flex flex-col gap-1 mt-1">
+                              <div className="mb-2">
+                                <span className="text-[10px] font-black uppercase text-zinc-500 bg-zinc-100 px-2 py-1 border-2 border-black">TUTTI GLI EVENTI ATTIVI</span>
+                              </div>
+                              {events.map(ev => (
+                                <div key={ev.id} className="h-[26px] flex items-center">
+                                  <span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]" title={ev.title}>{ev.title}</span>
+                                </div>
+                              ))}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 mt-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
+                                const currentPay = pr.eventPays?.[i] || "";
                                 return (
-                                  <div key={i} className="h-7 flex items-center px-1 border-2 border-black rounded bg-white">
+                                  <div key={i} className="h-[26px] flex items-stretch gap-1">
                                     <select 
-                                      className="w-full bg-transparent text-[10px] font-bold uppercase cursor-pointer outline-none"
+                                      className="w-28 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 cursor-pointer outline-none h-full"
                                       value={selectedEventId}
                                       onChange={(e) => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)}
                                       disabled={loading}
@@ -675,6 +614,13 @@ const Admin = () => {
                                       <option value="">-- VUOTO --</option>
                                       {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
                                     </select>
+                                    {selectedEventId && (
+                                      <InlinePayInput 
+                                         initialValue={currentPay} 
+                                         onSave={(val) => handleUpdateEventPay(pr.id, i, val, pr.eventPays)}
+                                         placeholder="0.00"
+                                      />
+                                    )}
                                   </div>
                                 )
                               })}
@@ -682,33 +628,29 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        <td className="p-2 border-r-2 border-black align-top">
+                        <td className="p-2 border-r-2 border-black align-top text-center">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
+                               <div className="mb-2 h-[22px]"></div>
                                {events.map(ev => {
                                  const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
                                  return (
-                                  <div key={ev.id} className="h-7 flex items-center justify-between gap-1 w-full">
-                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={ev.title}>{ev.title}</span>
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-0.5 rounded-sm font-black text-sm leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-sm leading-none shrink-0">0</span>}
+                                  <div key={ev.id} className="h-[26px] flex items-center justify-center w-full">
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-1.5 py-0.5 rounded-sm font-black text-[10px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">0</span>}
                                   </div>
                                  )
                                })}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 mt-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
-                                if (!selectedEventId) return <div key={i} className="h-7 flex items-center"></div>;
+                                if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-center"></div>;
                                 
-                                const evObj = events.find(e => e.id === selectedEventId);
-                                const evTitle = evObj ? evObj.title : '';
                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
-                                
                                 return (
-                                  <div key={i} className="h-7 flex items-center justify-between gap-1 w-full">
-                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={evTitle}>{evTitle}</span>
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-0.5 rounded-sm font-black text-sm leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-sm leading-none shrink-0">0</span>}
+                                  <div key={i} className="h-[26px] flex items-center justify-center w-full">
+                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-1.5 py-0.5 rounded-sm font-black text-[10px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns} IN</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">0</span>}
                                   </div>
                                 )
                               })}
@@ -716,46 +658,29 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        <td className="p-2 border-r-2 border-black align-top">
+                        <td className="p-2 border-r-2 border-black align-top text-right">
                           {isMaster ? (
                             <div className="flex flex-col gap-1 mt-1">
+                               <div className="mb-2 h-[22px]"></div>
                                {events.map(ev => {
-                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                                 const directTotalEv = evIns * (Number(pr.perEntryPay) || 0);
-                                 const bonusSupervisoreEv = subPrs.reduce((sum, sub) => {
-                                   const subEvIns = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                                   return sum + (subEvIns * (Number(sub.supervisorPay) || 0));
-                                 }, 0);
-                                 const guadagnoTotaleEv = directTotalEv + bonusSupervisoreEv;
-                                 
+                                 const finEv = calculatePrFinancialsForEvent(pr, ev.id);
                                  return (
-                                  <div key={ev.id} className="h-7 flex items-center justify-between gap-1 w-full">
-                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={ev.title}>{ev.title}</span>
-                                     {guadagnoTotaleEv > 0 ? <span className="text-black font-black text-sm leading-none shrink-0">€{guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-sm leading-none shrink-0">€0.00</span>}
+                                  <div key={ev.id} className="h-[26px] flex items-center justify-end w-full">
+                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[10px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">€0.00</span>}
                                   </div>
                                  )
                                })}
                             </div>
                           ) : (
-                            <div className="flex flex-col gap-1">
+                            <div className="flex flex-col gap-1 mt-1">
                               {[0, 1, 2, 3, 4, 5].map(i => {
                                 const selectedEventId = pr.eventIds?.[i] || "";
-                                if (!selectedEventId) return <div key={i} className="h-7 flex items-center"></div>;
+                                if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-end"></div>;
                                 
-                                const evObj = events.find(e => e.id === selectedEventId);
-                                const evTitle = evObj ? evObj.title : '';
-                                const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
-                                const directTotalEv = evIns * (Number(pr.perEntryPay) || 0);
-                                const bonusSupervisoreEv = subPrs.reduce((sum, sub) => {
-                                  const subEvIns = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
-                                  return sum + (subEvIns * (Number(sub.supervisorPay) || 0));
-                                }, 0);
-                                const guadagnoTotaleEv = directTotalEv + bonusSupervisoreEv;
-                                
+                                const finEv = calculatePrFinancialsForEvent(pr, selectedEventId);
                                 return (
-                                  <div key={i} className="h-7 flex items-center justify-between gap-1 w-full">
-                                     <span className="text-[9px] text-zinc-500 uppercase truncate max-w-[80px]" title={evTitle}>{evTitle}</span>
-                                     {guadagnoTotaleEv > 0 ? <span className="text-black font-black text-sm leading-none shrink-0">€{guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-sm leading-none shrink-0">€0.00</span>}
+                                  <div key={i} className="h-[26px] flex items-center justify-end w-full">
+                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[10px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[10px] leading-none shrink-0">€0.00</span>}
                                   </div>
                                 )
                               })}
@@ -763,8 +688,13 @@ const Admin = () => {
                           )}
                         </td>
                         
-                        <td className="p-4 text-center align-top">
-                          <div className="flex flex-col gap-2 items-center mt-1">
+                        <td className="p-4 text-center align-top bg-zinc-50">
+                          <div className="flex flex-col items-center">
+                            <span className="text-xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
+                            {acconto > 0 && <span className="text-[9px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
+                          </div>
+                          
+                          <div className="flex flex-col gap-2 items-center mt-3">
                             {isMaster ? (
                                 <>
                                 <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none flex items-center justify-center gap-1">
@@ -870,32 +800,25 @@ const Admin = () => {
               </thead>
               <tbody>
                 {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal) || p.eventId === selectedEventForModal).map(p => {
-                   const prEvCount = tickets.filter(t => (t.prId === p.id || p.aliases?.includes(t.prId)) && t.eventId === selectedEventForModal && t.used === true).length;
-                   const directTotal = prEvCount * (Number(p.perEntryPay) || 0);
-                   const subPrs = activePrs.filter(sub => (sub.supervisorId === p.id || p.aliases?.includes(sub.supervisorId)) && (sub.id === 'MASTER' || sub.eventIds?.includes(selectedEventForModal) || sub.eventId === selectedEventForModal));
-                   let bonusSupervisore = 0;
-                   subPrs.forEach(sub => {
-                     const subEvCount = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === selectedEventForModal && t.used === true).length;
-                     bonusSupervisore += subEvCount * (Number(sub.supervisorPay) || 0);
-                   });
-                   const totale = directTotal + bonusSupervisore;
+                   const finEv = calculatePrFinancialsForEvent(p, selectedEventForModal);
+                   if (finEv.evIns === 0 && finEv.supervisorBonusEv === 0 && p.id !== 'MASTER') return null;
+
                    let supNameText = p.supervisorId;
                    if (p.supervisorId && p.id !== 'MASTER') {
                      const supObj = prs.find(s => s.id === p.supervisorId);
                      supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : p.supervisorId;
                    }
-                   if (prEvCount === 0 && bonusSupervisore === 0 && p.id !== 'MASTER') return null;
                    
                    return (
                      <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-100">
                        <td className="p-3 border-r-2 border-black">{p.name}{p.supervisorId && <span className="block text-[9px] text-zinc-500 italic mt-1">SUP: {supNameText}</span>}<span className="block text-[9px] text-zinc-400 italic">ID: {p.id}</span></td>
-                       <td className="p-3 border-r-2 border-black text-center text-2xl font-black italic">{prEvCount}</td>
+                       <td className="p-3 border-r-2 border-black text-center text-2xl font-black italic">{finEv.evIns}</td>
                        <td className="p-3 border-r-2 border-black text-right text-[10px] text-zinc-600 leading-tight">
-                         {Number(p.perEntryPay) > 0 && <span>€{Number(p.perEntryPay).toFixed(2)} X INGRESSO<br/></span>}
-                         {bonusSupervisore > 0 && <span className="text-green-600">+ BONUS TEAM</span>}
-                         {Number(p.perEntryPay) === 0 && bonusSupervisore === 0 && <span>NESSUN COSTO</span>}
+                         {finEv.directTotalEv > 0 && <span>ACCORDO DIRETTO<br/></span>}
+                         {finEv.supervisorBonusEv > 0 && <span className="text-green-600">+ BONUS TEAM</span>}
+                         {finEv.guadagnoTotaleEv === 0 && <span>NESSUN COSTO</span>}
                        </td>
-                       <td className="p-3 text-right text-red-600 text-xl italic font-black">€{totale.toFixed(2)}{bonusSupervisore > 0 && <span className="block text-[9px] text-green-600 mt-1">di cui €{bonusSupervisore.toFixed(2)} da team</span>}</td>
+                       <td className="p-3 text-right text-red-600 text-xl italic font-black">€{finEv.guadagnoTotaleEv.toFixed(2)}{finEv.supervisorBonusEv > 0 && <span className="block text-[9px] text-green-600 mt-1">di cui €{finEv.supervisorBonusEv.toFixed(2)} da team</span>}</td>
                      </tr>
                    );
                 })}
@@ -929,11 +852,11 @@ const Admin = () => {
                 <div>
                   <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
                     <span className="text-[10px] font-black uppercase text-zinc-500">Da Liste Dirette Master</span>
-                    <span className="font-black">€{incassoDirettoMaster.toFixed(2)}</span>
+                    <span className="font-black">€{masterFin.directTotal.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
                     <span className="text-[10px] font-black uppercase text-zinc-500">Da Bonus Rete (Sub-PR)</span>
-                    <span className="font-black text-green-600">€{bonusSupervisoreMaster.toFixed(2)}</span>
+                    <span className="font-black text-green-600">€{masterFin.supervisorBonus.toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between items-end mb-4 border-b-2 border-dashed border-zinc-300 pb-1">
                     <span className="text-[10px] font-black uppercase text-zinc-500">Da Orfani Consolidati ({historicalOrphanCount} IN)</span>
@@ -986,7 +909,7 @@ const Admin = () => {
                               <div className="flex items-center gap-2">
                                 <label className="text-[10px] font-black uppercase text-zinc-500 whitespace-nowrap">Valore € / IN:</label>
                                 <input 
-                                  type="number" min="0" step="0.50" placeholder="Es. 15" 
+                                  type="number" min="0" step="0.50" placeholder="Es. 15.00" 
                                   className="w-20 p-2 border-2 border-black font-black text-center focus:border-[#FFEE00] outline-none"
                                   value={orphanValues[eventId] || ''}
                                   onChange={e => setOrphanValues({...orphanValues, [eventId]: e.target.value})}
@@ -1014,7 +937,7 @@ const Admin = () => {
         </div>
       )}
 
-      {/* POPUP PAGAMENTO PR */}
+      {/* POPUP PAGAMENTO PR SINGOLO */}
       {payPrData && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-md shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
@@ -1028,17 +951,14 @@ const Admin = () => {
             </div>
 
             {(() => {
-              const incassoDiretto = payPrData.count * (Number(payPrData.perEntryPay) || 0);
-              const subPrs = activePrs.filter(sub => sub.supervisorId === payPrData.id || payPrData.aliases?.includes(sub.supervisorId));
-              const bonusSupervisore = subPrs.reduce((sum, sub) => sum + (sub.count * (Number(sub.supervisorPay) || 0)), 0);
-              const guadagnoLordo = incassoDiretto + bonusSupervisore;
+              const fin = calculatePrFinancials(payPrData);
               const accontoAttuale = Number(payPrData.acconto) || 0;
-              const daPagare = Math.max(0, guadagnoLordo - accontoAttuale);
+              const daPagare = Math.max(0, fin.guadagnoLordo - accontoAttuale);
 
               return (
                 <div className="flex flex-col gap-4">
                   <div className="bg-zinc-100 p-4 border-2 border-black">
-                    <p className="text-xs font-bold uppercase text-zinc-600 flex justify-between mb-1"><span>Generato Lordo:</span> <span>€{guadagnoLordo.toFixed(2)}</span></p>
+                    <p className="text-xs font-bold uppercase text-zinc-600 flex justify-between mb-1"><span>Generato Lordo:</span> <span>€{fin.guadagnoLordo.toFixed(2)}</span></p>
                     <p className="text-xs font-bold uppercase text-zinc-600 flex justify-between mb-1"><span>Acconti Precedenti:</span> <span>- €{accontoAttuale.toFixed(2)}</span></p>
                     <div className="border-t-2 border-black my-2 pt-2 flex justify-between items-center">
                       <span className="text-sm font-black uppercase">Residuo da Pagare:</span>
@@ -1062,6 +982,57 @@ const Admin = () => {
                 </div>
               )
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP GESTIONE ALIAS */}
+      {masterModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
+              <div>
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Gestione Avanzata</p>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Alias Master</h2>
+              </div>
+              <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            </div>
+
+            <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">Alias Inglobati (Vecchi PR)</h3>
+            
+            {prs.filter(p => p.mergedInto === 'MASTER').length === 0 ? (
+                <p className="text-sm font-bold text-zinc-500 italic mb-6">Nessun alias presente nel Profilo Master.</p>
+            ) : (
+                <div className="flex flex-col gap-3 mb-6">
+                    {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
+                        <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                            <div>
+                                <p className="font-black uppercase">{alias.name} <span className="text-[10px] text-zinc-500">({alias.id})</span></p>
+                                <p className="text-[10px] font-bold text-zinc-500">Ingressi Totali Storici: {alias.count}</p>
+                            </div>
+                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
+                                <button 
+                                    onClick={() => {
+                                        navigator.clipboard.writeText(`Ciao! Il tuo vecchio pass per la lista non è più attivo. Clicca su questo nuovo link per aggiornarlo subito ed entrare in lista Master: ${window.location.origin}/?ref=MASTER`);
+                                        alert("Messaggio con link di aggiornamento copiato negli appunti!");
+                                    }}
+                                    className="bg-blue-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
+                                >
+                                    Copia Link Aggiornamento
+                                </button>
+                                <button 
+                                    onClick={() => handleDeleteAlias(alias.id)}
+                                    className="bg-red-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
+                                >
+                                    Elimina Definitivamente
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+            
+            <button onClick={() => setMasterModalOpen(false)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFEE00]">CHIUDI PANNELLO</button>
           </div>
         </div>
       )}

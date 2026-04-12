@@ -204,7 +204,7 @@ const Home = () => {
     setPriveGuests(1);
   };
 
-  // Funzione Easter Egg: 7 Click sul titolo
+  // Funzione Easter Egg: 7 Click sul LOGO
   const handleSecretClick = () => {
     setClickCount(prev => {
       if (prev + 1 >= 7) {
@@ -227,7 +227,6 @@ const Home = () => {
       }
 
       if (adminPassword === actualPassword) {
-        // MODIFICA: Reindirizza alla rotta corretta definita in App.jsx
         window.location.href = '/admin-segreto-stefano'; 
       } else {
         alert("Accesso Negato: Password Errata");
@@ -243,11 +242,17 @@ const Home = () => {
     return (
       <div className="min-h-screen bg-black text-white font-sans animate-in fade-in pb-20">
         
-        <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-zinc-800 p-4 flex items-center">
-          <button onClick={resetView} className="text-[#FFEE00] flex items-center gap-1 font-black uppercase text-sm">
+        <div className="sticky top-0 z-50 bg-black/90 backdrop-blur-md border-b border-zinc-800 p-4 flex items-center justify-between">
+          <button onClick={resetView} className="text-[#FFEE00] flex items-center gap-1 font-black uppercase text-sm z-10">
             <ChevronLeft size={20} /> Indietro
           </button>
-          <h1 className="mx-auto font-black italic text-xl tracking-widest absolute left-1/2 -translate-x-1/2">EVENT</h1>
+          
+          {/* Logo ingrandito nell'header dei dettagli */}
+          <img 
+            src="/logo.png" 
+            alt="Event Catania" 
+            className="h-12 object-contain absolute left-1/2 -translate-x-1/2" 
+          />
         </div>
 
         <div className="relative">
@@ -351,13 +356,19 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-20">
       
-      <div className="sticky top-0 z-50 bg-black border-b border-zinc-800">
-        <div className="p-5 flex justify-center items-center">
-          {/* TITOLO EASTER EGG (7 CLICK = ADMIN) */}
-          <h1 onClick={handleSecretClick} className="font-black italic text-3xl tracking-[0.2em] text-white cursor-pointer select-none">
-            E V E N T
-          </h1>
-        </div>
+      {/* LOGO GIGANTE NON STICKY (Scompare scrollando verso il basso) */}
+      <div className="bg-black pt-10 pb-6 flex justify-center items-center">
+        {/* LOGO EASTER EGG (7 CLICK = ADMIN) */}
+        <img 
+          src="/logo.png" 
+          alt="Event Catania" 
+          onClick={handleSecretClick}
+          className="w-64 md:w-80 h-auto object-contain cursor-pointer select-none drop-shadow-[0_0_20px_rgba(255,238,0,0.15)]" 
+        />
+      </div>
+
+      {/* BARRA FILTRI STICKY (Resta in alto quando si scrolla) */}
+      <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-zinc-800">
         <div className="flex overflow-x-auto no-scrollbar border-b-2 border-zinc-900">
           {['OGGI', 'SETTIMANA', 'MESE', 'TUTTI'].map(tab => (
             <button 
