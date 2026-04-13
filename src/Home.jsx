@@ -204,7 +204,7 @@ const Home = () => {
     setPriveGuests(1);
   };
 
-  // Funzione Easter Egg: 7 Click sul LOGO
+  // Funzione Easter Egg: 7 Click sul LOGO (Video)
   const handleSecretClick = () => {
     setClickCount(prev => {
       if (prev + 1 >= 7) {
@@ -247,10 +247,12 @@ const Home = () => {
             <ChevronLeft size={20} /> Indietro
           </button>
           
-          {/* Logo ingrandito nell'header dei dettagli */}
-          <img 
-            src="/logo.png" 
-            alt="Event Catania" 
+          {/* Logo Animato nell'header dei dettagli (NON in loop) */}
+          <video 
+            src="/logo.mp4" 
+            autoPlay 
+            muted 
+            playsInline 
             className="h-12 object-contain absolute left-1/2 -translate-x-1/2" 
           />
         </div>
@@ -266,7 +268,7 @@ const Home = () => {
           
           <div className="absolute bottom-0 left-0 w-full bg-gradient-to-r from-purple-900 to-black p-3 border-y-2 border-[#FFEE00] flex items-center justify-center gap-2">
             <Star size={16} className="text-[#FFEE00]" />
-            <p className="text-[10px] font-black uppercase tracking-widest text-white">
+            <p className="text-[10px] font-black uppercase tracking-widest text-white text-center">
               Sponsorizzato da: <span className="text-[#FFEE00]">GREY GOOSE VODKA</span>
             </p>
             <Star size={16} className="text-[#FFEE00]" />
@@ -356,18 +358,19 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-black text-white font-sans pb-20">
       
-      {/* LOGO GIGANTE NON STICKY (Scompare scrollando verso il basso) */}
+      {/* LOGO ANIMATO GIGANTE (NON in loop) */}
       <div className="bg-black pt-10 pb-6 flex justify-center items-center">
-        {/* LOGO EASTER EGG (7 CLICK = ADMIN) */}
-        <img 
-          src="/logo.png" 
-          alt="Event Catania" 
+        <video 
+          src="/logo.mp4" 
+          autoPlay 
+          muted 
+          playsInline 
           onClick={handleSecretClick}
           className="w-64 md:w-80 h-auto object-contain cursor-pointer select-none drop-shadow-[0_0_20px_rgba(255,238,0,0.15)]" 
         />
       </div>
 
-      {/* BARRA FILTRI STICKY (Resta in alto quando si scrolla) */}
+      {/* BARRA FILTRI STICKY */}
       <div className="sticky top-0 z-50 bg-black/95 backdrop-blur-md border-b border-zinc-800">
         <div className="flex overflow-x-auto no-scrollbar border-b-2 border-zinc-900">
           {['OGGI', 'SETTIMANA', 'MESE', 'TUTTI'].map(tab => (

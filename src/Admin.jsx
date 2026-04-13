@@ -438,18 +438,34 @@ const Admin = () => {
     <div className="min-h-screen bg-zinc-50 text-black font-sans pb-20 uppercase font-black">
       
       {/* HEADER DASHBOARD */}
-      <div className="bg-black text-white p-5 sticky top-0 z-50 flex justify-between items-center border-b-4 border-[#FFEE00]">
-        <div>
+      {/* py-1 riduce l'altezza totale, items-center allinea tutto perfettamente al centro */}
+      <div className="bg-black text-white py-1 px-5 sticky top-0 z-50 flex justify-between items-center border-b-4 border-[#FFEE00]">
+        
+        {/* COLONNA SINISTRA: LOGO E TITOLO VICINI */}
+        <div className="flex flex-col items-start">
+          {/* mt-0 elimina lo spazio sopra, -mb-5 "tira su" il titolo ADMIN PANEL verso il logo */}
+          <img src="/logo.png" alt="Logo" className="h-24 mt-8 -mb-5 object-contain block" />
           <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
-          <p className="text-[10px] font-bold text-[#FFEE00] tracking-[0.3em]">VERSION 5.0 LIVE</p>
         </div>
-        <div className="flex gap-4">
-          <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
-            <Lock size={24} />
-          </button>
-          <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
-            <RefreshCw size={24} />
-          </button>
+
+        {/* COLONNA DESTRA: TUTTO IN LINEA COL LOGO */}
+        <div className="flex items-center gap-6">
+          
+          {/* Scritta versione */}
+          <p className="text-[10px] font-bold text-[#FFEE00] tracking-[0.3em] leading-none">
+            VERSION 5.0 LIVE
+          </p>
+          
+          {/* Gruppo pulsanti */}
+          <div className="flex gap-4">
+            <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
+              <Lock size={20} />
+            </button>
+            <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
+              <RefreshCw size={20} />
+            </button>
+          </div>
+
         </div>
       </div>
 
