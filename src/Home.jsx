@@ -308,9 +308,9 @@ const Home = () => {
             </div>
           </div>
 
-          <div className="px-6 flex flex-col gap-10 max-w-2xl mx-auto">
+          <div className="px-6 flex flex-col gap-1 max-w-2xl mx-auto">
             {getFilteredEvents().length === 0 ? (
-              <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
+              <div className="text-center py-24 flex flex-col items-center gap-1 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
             ) : (
               getFilteredEvents().map(ev => (
                 <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5">
