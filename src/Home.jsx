@@ -123,11 +123,11 @@ const Home = () => {
 
   const categories = [
     { id: 'TUTTI', label: 'TUTTI GLI EVENTI', icon: LayoutGrid },
-    { id: 'DISCOTECA', label: 'CLUBBING', icon: Music },
+    { id: 'DISCOTECA', label: 'DISCOTECA', icon: Music },
     { id: 'TEATRO', label: 'TEATRO', icon: Theater },
     { id: 'CINEMA', label: 'CINEMA', icon: Film },
-    { id: 'CONCERTI', label: 'LIVE SHOW', icon: Mic2 },
-    { id: 'ARENE', label: 'ARENE', icon: Sun },
+    { id: 'CONCERTI', label: 'CONCERTI', icon: Mic2 },
+    { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE', icon: Sun },
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
   ];
 
@@ -349,14 +349,14 @@ const Home = () => {
         <div className="animate-in slide-in-from-bottom-20 duration-700">
           <button onClick={() => { setStep(1); setActiveCategory(null); }} className="px-8 py-4 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3"><ChevronLeft size={18} strokeWidth={3} /> Indietro</button>
           
-          <div className="mt-2 text-center mb-2">
+          <div className="mt-0 text-center mb-0">
              <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-1 italic">MOOD SCELTO</p>
              <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter text-white drop-shadow-[0_0_15px_rgba(255,255,255,0.3)]">
                 {categories.find(c => c.id === activeCategory)?.label}
              </h2>
           </div>
 
-          <div className="relative h-52 mt-4 mb-2 flex items-center justify-center overflow-hidden">
+          <div className="relative h-52 mt-0 mb-2 flex items-center justify-center overflow-hidden">
             <div className="absolute inset-x-6 h-[80px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl shadow-[0_0_20px_rgba(212,175,55,0.1)]" />
             <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
             <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
@@ -380,7 +380,7 @@ const Home = () => {
             ) : (
               getFilteredEvents().map(ev => (
                 <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 cursor-pointer">
-                  <div className="h-[450px] bg-black flex items-center justify-center p-4 relative overflow-hidden text-center">
+                  <div className="h-auto min-h-[300px] bg-black flex items-center justify-center p-2 relative overflow-hidden text-center">
                     <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105" />
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
@@ -414,7 +414,7 @@ const Home = () => {
 
       <div className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-2xl border-t border-white/5 p-5 flex justify-center items-center gap-4 z-40">
         <Star size={10} className="text-[#D4AF37] animate-pulse" />
-        <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">VIP Concierge • Est. 2024</span>
+        <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product Stefano Di Bella 2026</span>
         <Star size={10} className="text-[#D4AF37] animate-pulse" />
       </div>
     </div>

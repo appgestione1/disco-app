@@ -61,11 +61,11 @@ const Admin = () => {
 
   // CATEGORIE CONCORDATE
   const categories = [
-    { id: 'DISCOTECA', label: 'CLUBBING' },
+    { id: 'DISCOTECA', label: 'DISCOTECA' },
     { id: 'TEATRO', label: 'TEATRO' },
     { id: 'CINEMA', label: 'CINEMA' },
-    { id: 'CONCERTI', label: 'LIVE SHOW' },
-    { id: 'ARENE', label: 'ARENE' },
+    { id: 'CONCERTI', label: 'CONCERTI' },
+    { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE' },
     { id: 'PUB', label: 'LOUNGE/PUB' },
   ];
 
