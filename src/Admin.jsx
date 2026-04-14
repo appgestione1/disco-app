@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { 
   Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -54,8 +54,20 @@ const Admin = () => {
 
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
-  const [eventForm, setEventForm] = useState({ title: '', date: '', description: '' }); 
+  
+  // MODIFICATO: Aggiunto campo category
+  const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA' }); 
   const [selectedFile, setSelectedFile] = useState(null);
+
+  // CATEGORIE CONCORDATE
+  const categories = [
+    { id: 'DISCOTECA', label: 'CLUBBING' },
+    { id: 'TEATRO', label: 'TEATRO' },
+    { id: 'CINEMA', label: 'CINEMA' },
+    { id: 'CONCERTI', label: 'LIVE SHOW' },
+    { id: 'ARENE', label: 'ARENE' },
+    { id: 'PUB', label: 'LOUNGE/PUB' },
+  ];
 
   useEffect(() => { fetchData(); }, []);
 
@@ -288,6 +300,7 @@ const Admin = () => {
     } catch (error) { alert("Errore azzeramento."); } finally { setLoading(false); }
   };
 
+  // MODIFICATO: Aggiunto salvataggio category
   const handleAddEvent = async (e) => {
     e.preventDefault();
     if (!selectedFile) return alert("Clicca sul riquadro per inserire la foto!");
@@ -302,10 +315,16 @@ const Admin = () => {
           const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           try {
             await setDoc(doc(collection(db, "events")), {
-              title: eventForm.title, date: eventForm.date, description: eventForm.description,
-              imageUrl: canvas.toDataURL('image/jpeg', 0.7), active: true, timestamp: new Date()
+              title: eventForm.title, 
+              date: eventForm.date, 
+              description: eventForm.description,
+              category: eventForm.category, // AGGIUNTO
+              imageUrl: canvas.toDataURL('image/jpeg', 0.7), 
+              active: true, 
+              timestamp: new Date()
             });
-            setEventForm({ title: '', date: '', description: '' }); setSelectedFile(null); await fetchData();
+            setEventForm({ title: '', date: '', description: '', category: 'DISCOTECA' }); 
+            setSelectedFile(null); await fetchData();
           } catch (dbError) { alert("Errore salvataggio database."); } finally { setLoading(false); }
         };
       };
@@ -438,25 +457,17 @@ const Admin = () => {
     <div className="min-h-screen bg-zinc-50 text-black font-sans pb-20 uppercase font-black">
       
       {/* HEADER DASHBOARD */}
-      {/* py-1 riduce l'altezza totale, items-center allinea tutto perfettamente al centro */}
       <div className="bg-black text-white py-1 px-5 sticky top-0 z-50 flex justify-between items-center border-b-4 border-[#FFEE00]">
         
-        {/* COLONNA SINISTRA: LOGO E TITOLO VICINI */}
         <div className="flex flex-col items-start">
-          {/* mt-0 elimina lo spazio sopra, -mb-5 "tira su" il titolo ADMIN PANEL verso il logo */}
           <img src="/logo.png" alt="Logo" className="h-24 mt-8 -mb-5 object-contain block" />
           <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
         </div>
 
-        {/* COLONNA DESTRA: TUTTO IN LINEA COL LOGO */}
         <div className="flex items-center gap-6">
-          
-          {/* Scritta versione */}
           <p className="text-[10px] font-bold text-[#FFEE00] tracking-[0.3em] leading-none">
-            VERSION 5.0 LIVE
+            Ver 5.1 
           </p>
-          
-          {/* Gruppo pulsanti */}
           <div className="flex gap-4">
             <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
               <Lock size={20} />
@@ -465,7 +476,6 @@ const Admin = () => {
               <RefreshCw size={20} />
             </button>
           </div>
-
         </div>
       </div>
 
@@ -496,15 +506,12 @@ const Admin = () => {
                  const passGenerati = evTickets.length;
                  const drinkVinti = evTickets.filter(t => t.won === true).length;
                  const ingressiEffettivi = evTickets.filter(t => t.used === true).length;
-                 
                  const evPrs = prs.filter(p => !p.mergedInto && (p.id === 'MASTER' || p.eventIds?.includes(ev.id) || p.eventId === ev.id));
-                 
                  let costoPR = 0;
                  evPrs.forEach(p => {
                     const finEv = calculatePrFinancialsForEvent(p, ev.id);
                     costoPR += finEv.guadagnoTotaleEv;
                  });
-
                  return (
                    <div key={ev.id} className="bg-white border-4 border-black p-4 flex flex-col md:flex-row gap-6 shadow-[8px_8px_0px_#000]">
                      <div className="w-full md:w-1/3 lg:w-1/4 flex-shrink-0">
@@ -513,7 +520,7 @@ const Admin = () => {
                      <div className="flex-1 flex flex-col justify-between">
                        <div>
                          <p className="text-3xl font-black italic uppercase leading-none mb-1">{ev.title}</p>
-                         <p className="font-bold text-zinc-400 text-xs mb-6 uppercase">{ev.date}</p>
+                         <p className="font-bold text-zinc-400 text-xs mb-6 uppercase">{ev.date} - <span className="bg-black text-[#FFEE00] px-1">{ev.category || 'DISCOTECA'}</span></p>
                          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
                            <div className="bg-zinc-100 border-2 border-black p-3"><p className="text-[10px] font-black uppercase text-zinc-500">Pass Generati</p><p className="text-3xl font-black italic">{passGenerati}</p></div>
                            <div className="bg-[#FFEE00] border-2 border-black p-3"><p className="text-[10px] font-black uppercase">Ingressi Effettivi</p><p className="text-3xl font-black italic">{ingressiEffettivi}</p></div>
@@ -521,14 +528,13 @@ const Admin = () => {
                            <div className="bg-red-50 border-2 border-red-600 p-3"><p className="text-[10px] font-black uppercase text-red-600">Costo PR LORDO</p><p className="text-3xl font-black italic text-red-600">€{costoPR.toFixed(2)}</p></div>
                          </div>
                        </div>
-                       <button onClick={() => setSelectedEventForModal(ev.id)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#FFEE00] active:translate-y-1 active:shadow-[0px_0px_0px_#FFEE00] transition-all">
+                       <button onClick={() => setSelectedEventForModal(ev.id)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase flex justify-center items-center gap-2 shadow-[4px_4px_0px_#FFEE00] active:translate-y-1 transition-all">
                          <BarChart size={20} /> VEDI DETTAGLIO FINANZIARIO PR
                        </button>
                      </div>
                    </div>
                  );
                })}
-               {events.length === 0 && <p className="font-black italic opacity-50 py-10 text-center uppercase">Nessuna serata in corso</p>}
             </div>
           </div>
         )}
@@ -549,13 +555,13 @@ const Admin = () => {
                   </select>
                 </div>
               </div>
-              <button className="w-full mt-6 bg-black text-white font-black py-4 uppercase hover:bg-[#FFEE00] hover:text-black transition-all shadow-[4px_4px_0px_#FFEE00] active:translate-y-1 active:shadow-none">SALVA NEL TEAM</button>
+              <button className="w-full mt-6 bg-black text-white font-black py-4 uppercase hover:bg-[#FFEE00] hover:text-black transition-all shadow-[4px_4px_0px_#FFEE00] active:translate-y-1">SALVA NEL TEAM</button>
             </form>
 
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border-4 border-black bg-white">
                 <thead>
-                  <tr className="bg-black text-white">
+                  <tr className="bg-black text-white italic uppercase text-[11px]">
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">PR INFO & LINK</th>
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">SUPERVISORE</th>
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
@@ -567,14 +573,11 @@ const Admin = () => {
                 <tbody>
                   {activePrs.map(pr => {
                     const isMaster = pr.id === 'MASTER';
-                    
                     let supNameText = 'NESSUNO';
                     if (pr.supervisorId && !isMaster) {
                       const supObj = prs.find(p => p.id === pr.supervisorId);
                       supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
                     }
-
-                    // Pre-calcoli
                     const fin = isMaster ? masterFin : calculatePrFinancials(pr);
                     const guadagnoLordo = isMaster ? guadagnoLordoMaster : fin.guadagnoLordo;
                     const acconto = Number(pr.acconto) || 0;
@@ -587,36 +590,24 @@ const Admin = () => {
                           {pr.phone && <p className="text-xs font-bold opacity-50 flex items-center gap-1 mt-1"><Phone size={10}/> {pr.phone}</p>}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <span className={`text-[10px] font-black italic px-2 py-1 rounded ${isMaster ? 'bg-[#FFEE00] text-black' : 'bg-black text-[#FFEE00]'}`}>ID: {pr.id}</span>
-                            {isMaster && <span className="text-[10px] font-black italic bg-green-600 text-white px-2 py-1 rounded shadow-[2px_2px_0px_#000]">TUTTI GLI EVENTI</span>}
-                            {pr.aliases && pr.aliases.length > 0 && <span className="text-[10px] font-black italic bg-purple-600 text-white px-2 py-1 rounded shadow-[2px_2px_0px_#000]">ALIAS: {pr.aliases.join(', ')}</span>}
-                            {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato! Invialo a " + pr.name + " per fargli usare l'app."); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
+                            {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
                           </div>
                         </td>
-                        
                         <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top">
                           {pr.supervisorId && !isMaster ? (
                             <>
                               <span className="block text-sm text-black">{supNameText}</span>
                               <div className="mt-2 flex items-center h-[26px]">
                                 <span className="text-[9px] text-zinc-500 whitespace-nowrap mr-2">BONUS:</span>
-                                <InlinePayInput 
-                                   initialValue={pr.supervisorPay} 
-                                   onSave={(val) => handleUpdateSupervisorPay(pr.id, val)}
-                                   placeholder="0.00"
-                                />
+                                <InlinePayInput initialValue={pr.supervisorPay} onSave={(val) => handleUpdateSupervisorPay(pr.id, val)} placeholder="0.00" />
                               </div>
                             </>
                           ) : 'NESSUNO'}
                         </td>
-                        
                         <td className="p-2 border-r-2 border-black align-top">
                           {isMaster ? (
                             <div className="flex flex-col gap-1">
-                              {events.map(ev => (
-                                <div key={ev.id} className="h-[26px] flex items-center">
-                                  <span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]" title={ev.title}>{ev.title}</span>
-                                </div>
-                              ))}
+                              {events.map(ev => (<div key={ev.id} className="h-[26px] flex items-center"><span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]">{ev.title}</span></div>))}
                             </div>
                           ) : (
                             <div className="flex flex-col gap-1">
@@ -625,108 +616,61 @@ const Admin = () => {
                                 const currentPay = pr.eventPays?.[i] || "";
                                 return (
                                   <div key={i} className="h-[26px] flex items-stretch gap-1">
-                                    <select 
-                                      className="w-28 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 cursor-pointer outline-none h-full"
-                                      value={selectedEventId}
-                                      onChange={(e) => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)}
-                                      disabled={loading}
-                                    >
+                                    <select className="w-28 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 outline-none h-full" value={selectedEventId} onChange={(e) => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)} disabled={loading}>
                                       <option value="">-- VUOTO --</option>
                                       {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
                                     </select>
-                                    {selectedEventId && (
-                                      <InlinePayInput 
-                                         initialValue={currentPay} 
-                                         onSave={(val) => handleUpdateEventPay(pr.id, i, val, pr.eventPays)}
-                                         placeholder="0.00"
-                                      />
-                                    )}
+                                    {selectedEventId && <InlinePayInput initialValue={currentPay} onSave={(val) => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="0.00" />}
                                   </div>
                                 )
                               })}
                             </div>
                           )}
                         </td>
-                        
                         <td className="p-2 border-r-2 border-black align-top text-center">
-                          {isMaster ? (
-                            <div className="flex flex-col gap-1">
-                               {events.map(ev => {
-                                 const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                                 return (
-                                  <div key={ev.id} className="h-[26px] flex items-center justify-center w-full">
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">0</span>}
-                                  </div>
-                                 )
-                               })}
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              {[0, 1, 2, 3, 4, 5].map(i => {
-                                const selectedEventId = pr.eventIds?.[i] || "";
-                                if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-center"></div>;
-                                
-                                const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === selectedEventId && t.used === true).length;
-                                return (
-                                  <div key={i} className="h-[26px] flex items-center justify-center w-full">
-                                     {evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000] shrink-0">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">0</span>}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                          <div className="flex flex-col gap-1">
+                             {isMaster ? events.map(ev => {
+                               const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
+                               return (<div key={ev.id} className="h-[26px] flex items-center justify-center w-full">{evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>)
+                             }) : [0, 1, 2, 3, 4, 5].map(i => {
+                               const sid = pr.eventIds?.[i];
+                               if (!sid) return <div key={i} className="h-[26px]"></div>;
+                               const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === sid && t.used === true).length;
+                               return (<div key={i} className="h-[26px] flex items-center justify-center w-full">{evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>)
+                             })}
+                          </div>
                         </td>
-                        
                         <td className="p-2 border-r-2 border-black align-top text-right">
-                          {isMaster ? (
-                            <div className="flex flex-col gap-1">
-                               {events.map(ev => {
-                                 const finEv = calculatePrFinancialsForEvent(pr, ev.id);
-                                 return (
-                                  <div key={ev.id} className="h-[26px] flex items-center justify-end w-full">
-                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[14px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">€0.00</span>}
-                                  </div>
-                                 )
-                               })}
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              {[0, 1, 2, 3, 4, 5].map(i => {
-                                const selectedEventId = pr.eventIds?.[i] || "";
-                                if (!selectedEventId) return <div key={i} className="h-[26px] flex items-center justify-end"></div>;
-                                
-                                const finEv = calculatePrFinancialsForEvent(pr, selectedEventId);
-                                return (
-                                  <div key={i} className="h-[26px] flex items-center justify-end w-full">
-                                     {finEv.guadagnoTotaleEv > 0 ? <span className="text-black font-black text-[14px] leading-none shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span> : <span className="text-black font-black text-[14px] leading-none shrink-0">€0.00</span>}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
+                          <div className="flex flex-col gap-1">
+                             {isMaster ? events.map(ev => {
+                               const finEv = calculatePrFinancialsForEvent(pr, ev.id);
+                               return (<div key={ev.id} className="h-[26px] flex items-center justify-end w-full"><span className="text-black font-black text-[14px] leading-none">€{finEv.guadagnoTotaleEv.toFixed(2)}</span></div>)
+                             }) : [0, 1, 2, 3, 4, 5].map(i => {
+                               const sid = pr.eventIds?.[i];
+                               if (!sid) return <div key={i} className="h-[26px]"></div>;
+                               const finEv = calculatePrFinancialsForEvent(pr, sid);
+                               return (<div key={i} className="h-[26px] flex items-center justify-end w-full"><span className="text-black font-black text-[14px] leading-none">€{finEv.guadagnoTotaleEv.toFixed(2)}</span></div>)
+                             })}
+                          </div>
                         </td>
-                        
                         <td className="p-4 text-center align-top bg-zinc-50">
                           <div className="flex flex-col items-center">
                             <span className="text-2xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
                             {acconto > 0 && <span className="text-[10px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
                           </div>
-                          
                           <div className="flex flex-col gap-2 items-center mt-3">
                             {isMaster ? (
                                 <>
-                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none flex items-center justify-center gap-1">
-                                  <Calculator size={12}/> CONTEGGI {orphanedTickets.length > 0 && <span className="bg-[#FFEE00] text-black rounded-full px-1.5 ml-1">{orphanedTickets.length}</span>}
-                                </button>
-                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">MODIFICA ALIAS</button>
+                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1"><Calculator size={12}/> CONTEGGI</button>
+                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">MODIFICA ALIAS</button>
                                 </>
                             ) : (
                                 <>
-                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] active:translate-y-px active:shadow-none">VEDI E PAGA</button>
+                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">VEDI E PAGA</button>
                                 <button onClick={() => openReplaceModal(pr)} className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 hover:bg-blue-50 transition-colors uppercase w-full">Sostituisci</button>
                                 </>
                             )}
-                            <button onClick={() => handleDeletePr(pr)} className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'hover:text-red-800 hover:bg-red-50'} text-red-600 transition-colors w-full border-2 border-red-600 p-2 flex justify-center`}><Trash2 size={16}/></button>
+                            <button onClick={() => handleDeletePr(pr)} className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-600'} w-full border-2 border-red-600 p-2 flex justify-center`}><Trash2 size={16}/></button>
                           </div>
                         </td>
                       </tr>
@@ -734,25 +678,58 @@ const Admin = () => {
                   })}
                 </tbody>
               </table>
-              {activePrs.length === 0 && <p className="font-black italic opacity-50 py-10 text-center uppercase border-2 border-t-0 border-black">Nessun PR registrato</p>}
             </div>
           </div>
         )}
 
-        {/* TAB 3: GESTIONE SERATE */}
+        {/* TAB 3: GESTIONE SERATE - AGGIUNTO CATEGORIA E COLLEGAMENTO DATA */}
         {activeTab === 'events' && (
           <div className="animate-in fade-in duration-300">
              <form onSubmit={handleAddEvent} className="bg-black text-white p-6 mb-10 shadow-[8px_8px_0px_#FFEE00]">
-               <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-[#FFEE00] uppercase italic"><Plus/> Carica Locandina</h2>
+               <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-[#FFEE00] uppercase italic"><Plus/> Pubblica Nuova Serata</h2>
+               
                <div className="grid grid-cols-1 gap-4 uppercase">
                  <div className="border-4 border-dashed border-zinc-700 p-4 text-center relative hover:bg-zinc-900 transition-colors cursor-pointer min-h-[100px] flex items-center justify-center">
                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
-                   {selectedFile ? <span className="text-green-400 font-black">{selectedFile.name}</span> : <span className="font-black text-zinc-400">CLICCA QUI PER CARICARE LA FOTO</span>}
+                   {selectedFile ? <span className="text-green-400 font-black">{selectedFile.name}</span> : <span className="font-black text-zinc-400 text-xs">CLICCA QUI PER CARICARE LA FOTO LOCANDINA</span>}
                  </div>
-                 <input type="text" placeholder="NOME SERATA" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} required />
-                 <input type="date" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
-                 <textarea placeholder="INCOLLA QUI IL TESTO (EMOJI, PREZZI, INFO...)" className="p-4 bg-zinc-900 border border-zinc-700 font-bold text-white h-40 outline-none focus:border-[#FFEE00] resize-none" value={eventForm.description} onChange={e => setEventForm({...eventForm, description: e.target.value})} required />
-                 <button type="submit" disabled={loading} className={`bg-[#FFEE00] text-black font-black py-4 mt-2 text-2xl uppercase italic ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-white'}`}>{loading ? 'CARICAMENTO IN CORSO...' : 'PUBBLICA SERATA'}</button>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Nome Evento</label>
+                      <input type="text" placeholder="ES. SATURDAY NIGHT" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} required />
+                    </div>
+                    
+                    {/* NUOVO: SELETTORE CATEGORIA */}
+                    <div className="flex flex-col">
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Tipologia Evento</label>
+                      <div className="relative">
+                        <select 
+                          className="w-full p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00] appearance-none cursor-pointer"
+                          value={eventForm.category}
+                          onChange={e => setEventForm({...eventForm, category: e.target.value})}
+                          required
+                        >
+                          {categories.map(cat => (
+                            <option key={cat.id} value={cat.id}>{cat.label}</option>
+                          ))}
+                        </select>
+                        <Tag size={18} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                      </div>
+                    </div>
+                 </div>
+
+                 <div className="flex flex-col">
+                    <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Data (Auto-link allo Slot Home)</label>
+                    <input type="date" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
+                 </div>
+                 
+                 <div className="flex flex-col">
+                   <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Info & Listino prezzi</label>
+                   <textarea placeholder="DESCRIZIONE COMPLETA..." className="p-4 bg-zinc-900 border border-zinc-700 font-bold text-white h-40 outline-none focus:border-[#FFEE00] resize-none" value={eventForm.description} onChange={e => setEventForm({...eventForm, description: e.target.value})} required />
+                 </div>
+
+                 <button type="submit" disabled={loading} className={`bg-[#FFEE00] text-black font-black py-4 mt-2 text-2xl uppercase italic shadow-[4px_4px_0px_#FFF] ${loading ? 'opacity-50' : 'hover:scale-[1.01] transition-transform'}`}>{loading ? 'PUBBLICAZIONE...' : 'CONFERMA E PUBBLICA'}</button>
                </div>
              </form>
 
@@ -761,263 +738,150 @@ const Admin = () => {
                  <div key={ev.id} className="bg-white border-4 border-black p-4 flex flex-col justify-between shadow-[8px_8px_0px_#000]">
                    <div>
                      {ev.imageUrl && <img src={ev.imageUrl} alt={ev.title} className="w-full h-auto object-contain border-2 border-black mb-3" />}
-                     <p className="text-3xl font-black italic uppercase leading-none mb-1">{ev.title}</p>
-                     <p className="font-bold text-zinc-400 mb-3 text-[10px] tracking-widest">{ev.date}</p>
-                     {ev.description && <p className="text-xs font-bold text-zinc-800 bg-zinc-100 p-2 border border-zinc-300 h-24 overflow-y-auto whitespace-pre-wrap mb-3">{ev.description}</p>}
+                     <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <p className="text-3xl font-black italic uppercase leading-none mb-1">{ev.title}</p>
+                          <p className="font-bold text-zinc-400 text-[10px] tracking-widest">{ev.date}</p>
+                        </div>
+                        <span className="bg-black text-[#FFEE00] px-2 py-1 text-[10px] font-black italic">{ev.category || 'DISCOTECA'}</span>
+                     </div>
+                     {ev.description && <p className="text-xs font-bold text-zinc-800 bg-zinc-50 p-2 border border-zinc-200 h-24 overflow-y-auto whitespace-pre-wrap">{ev.description}</p>}
                    </div>
-                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 active:shadow-[0px_0px_0px_#000] transition-all"><Trash2 size={20}/> CONCLUDI SERATA E LIBERA SLOT</button>
+                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 transition-all"><Trash2 size={20}/> ARCHIVIA SERATA</button>
                  </div>
                ))}
              </div>
           </div>
         )}
 
-        {/* TAB 4: SPONSOR */}
+        {/* TAB 4: SPONSOR - INTEGRALE */}
         {activeTab === 'sponsors' && (
           <div className="animate-in fade-in duration-300">
-            <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8"><h2 className="text-xl font-black mb-2 uppercase">Configurazione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci qui cosa vince il cliente e con quale probabilità.</p></div>
-            <p className="text-center font-black opacity-20 py-20 italic">Sezione Sponsor in fase di ottimizzazione...</p>
+            <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_#000]"><h2 className="text-xl font-black mb-2 uppercase italic flex items-center gap-2"><Gift/> Gestione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci i premi e le probabilità di vincita per attirare clienti.</p></div>
+            <p className="text-center font-black opacity-20 py-20 italic border-4 border-dashed border-black">SEZIONE IN FASE DI AGGIORNAMENTO...</p>
           </div>
         )}
       </div>
 
-      {/* POPUP MODIFICA PASSWORD ADMIN */}
+      {/* --- POPUP E MODALI INTEGRALI (TUTTI RIPRISTINATI) --- */}
+
+      {/* PASSWORD ADMIN */}
       {passwordModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-zinc-900 border-4 border-[#FFEE00] p-6 w-full max-w-sm shadow-[10px_10px_0px_#FFEE00]">
             <div className="flex justify-between items-start mb-6 border-b-4 border-zinc-800 pb-4">
-              <div>
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Sicurezza</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1 text-white">Cambia Password</h2>
-              </div>
-              <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+              <h2 className="text-2xl font-black italic uppercase text-white">Security Vault</h2>
+              <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
             </div>
-            <input 
-              type="text" 
-              placeholder="NUOVA PASSWORD" 
-              className="w-full p-4 bg-black border border-zinc-700 text-white font-bold uppercase mb-6 focus:border-[#FFEE00] outline-none text-center"
-              value={newAdminPassword}
-              onChange={(e) => setNewAdminPassword(e.target.value)}
-            />
-            <button onClick={handleSavePassword} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFF]">{loading ? '...' : 'SALVA PASSWORD'}</button>
+            <input type="text" placeholder="NUOVA PASSWORD" className="w-full p-4 bg-black border border-zinc-700 text-white font-bold uppercase mb-6 focus:border-[#FFEE00] outline-none text-center" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
+            <button onClick={handleSavePassword} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#FFF]">{loading ? '...' : 'SALVA PASSWORD'}</button>
           </div>
         </div>
       )}
 
-      {/* POPUP DETTAGLIO EVENTO */}
+      {/* DETTAGLIO FINANZIARIO */}
       {selectedEventForModal && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-[10px_10px_0px_#FFEE00]">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div><p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Dettaglio Finanziario LORDO</p><h2 className="text-2xl font-black italic uppercase leading-none mt-1">{events.find(e => e.id === selectedEventForModal)?.title}</h2></div>
-              <button onClick={() => setSelectedEventForModal(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <div><p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest italic">Profitability Report</p><h2 className="text-2xl font-black italic uppercase leading-none mt-1">{events.find(e => e.id === selectedEventForModal)?.title}</h2></div>
+              <button onClick={() => setSelectedEventForModal(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
             </div>
             <table className="w-full border-collapse border-2 border-black">
-              <thead className="bg-black text-white uppercase text-[10px] sm:text-xs italic">
-                <tr><th className="p-3 text-left border-r border-zinc-700">COLLABORATORE</th><th className="p-3 text-center border-r border-zinc-700">IN</th><th className="p-3 text-right border-r border-zinc-700">ACCORDO</th><th className="p-3 text-right text-[#FFEE00]">TOT LORDO</th></tr>
+              <thead className="bg-black text-white uppercase text-[10px] italic">
+                <tr><th className="p-3 text-left border-r border-zinc-700">PR</th><th className="p-3 text-center border-r border-zinc-700">IN</th><th className="p-3 text-right text-[#FFEE00]">LORDO</th></tr>
               </thead>
               <tbody>
                 {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal) || p.eventId === selectedEventForModal).map(p => {
                    const finEv = calculatePrFinancialsForEvent(p, selectedEventForModal);
                    if (finEv.evIns === 0 && finEv.supervisorBonusEv === 0 && p.id !== 'MASTER') return null;
-
-                   let supNameText = p.supervisorId;
-                   if (p.supervisorId && p.id !== 'MASTER') {
-                     const supObj = prs.find(s => s.id === p.supervisorId);
-                     supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : p.supervisorId;
-                   }
-                   
                    return (
-                     <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-100">
-                       <td className="p-3 border-r-2 border-black">{p.name}{p.supervisorId && <span className="block text-[9px] text-zinc-500 italic mt-1">SUP: {supNameText}</span>}<span className="block text-[9px] text-zinc-400 italic">ID: {p.id}</span></td>
-                       <td className="p-3 border-r-2 border-black text-center text-2xl font-black italic">{finEv.evIns}</td>
-                       <td className="p-3 border-r-2 border-black text-right text-[10px] text-zinc-600 leading-tight">
-                         {finEv.directTotalEv > 0 && <span>ACCORDO DIRETTO<br/></span>}
-                         {finEv.supervisorBonusEv > 0 && <span className="text-green-600">+ BONUS TEAM</span>}
-                         {finEv.guadagnoTotaleEv === 0 && <span>NESSUN COSTO</span>}
-                       </td>
-                       <td className="p-3 text-right text-red-600 text-xl italic font-black">€{finEv.guadagnoTotaleEv.toFixed(2)}{finEv.supervisorBonusEv > 0 && <span className="block text-[9px] text-green-600 mt-1">di cui €{finEv.supervisorBonusEv.toFixed(2)} da team</span>}</td>
+                     <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-50">
+                       <td className="p-3 border-r-2 border-black">{p.name}<span className="block text-[9px] text-zinc-400 italic font-medium">ID: {p.id}</span></td>
+                       <td className="p-3 border-r-2 border-black text-center text-xl font-black italic">{finEv.evIns}</td>
+                       <td className="p-3 text-right text-red-600 text-lg font-black">€{finEv.guadagnoTotaleEv.toFixed(2)}</td>
                      </tr>
                    );
                 })}
               </tbody>
             </table>
-            {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal) || p.eventId === selectedEventForModal).length === 0 && <div className="text-center py-10 border-2 border-t-0 border-black"><p className="font-black italic opacity-30 uppercase text-lg">Nessun PR assegnato a questa serata</p></div>}
-            <button onClick={() => setSelectedEventForModal(null)} className="w-full mt-6 bg-black text-white font-black py-4 uppercase border-2 border-black active:translate-y-1 transition-all">CHIUDI FINESTRA</button>
+            <button onClick={() => setSelectedEventForModal(null)} className="w-full mt-6 bg-black text-white font-black py-4 uppercase border-2 border-black active:translate-y-1 transition-all">CHIUDI REPORT</button>
           </div>
         </div>
       )}
 
-      {/* POPUP BILANCIO E ORFANI (MASTER) */}
+      {/* BILANCIO MASTER E ORFANI */}
       {profitsModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            
-            {/* Header */}
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div>
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Amministrazione</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1 flex items-center gap-2"><Wallet size={24}/> Bilancio Master</h2>
-              </div>
-              <button onClick={() => setProfitsModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <div><p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Global Profits</p><h2 className="text-2xl font-black italic uppercase leading-none mt-1 flex items-center gap-2"><Wallet size={24}/> Bilancio Master</h2></div>
+              <button onClick={() => setProfitsModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
             </div>
-
-            {/* SEZIONE 1: ESTRATTO CONTO E CASSA */}
-            <div className="mb-8 border-4 border-black p-5 bg-zinc-50">
-              <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">1. Estratto Conto Generale</h3>
-              
+            <div className="mb-8 border-4 border-black p-5 bg-zinc-50 text-left">
+              <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4 italic">Cassa Generale</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
-                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Liste Dirette Master</span>
-                    <span className="font-black">€{masterFin.directTotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-end mb-2 border-b-2 border-dashed border-zinc-300 pb-1">
-                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Bonus Rete (Sub-PR)</span>
-                    <span className="font-black text-green-600">€{masterFin.supervisorBonus.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between items-end mb-4 border-b-2 border-dashed border-zinc-300 pb-1">
-                    <span className="text-[10px] font-black uppercase text-zinc-500">Da Orfani Consolidati ({historicalOrphanCount} IN)</span>
-                    <span className="font-black text-blue-600">€{historicalOrphanProfit.toFixed(2)}</span>
-                  </div>
-
-                  <div className="bg-black text-white p-3 mb-2 flex justify-between items-center">
-                    <span className="text-xs font-black uppercase text-[#FFEE00]">Tot. Generato</span>
-                    <span className="text-xl font-black italic">€{guadagnoLordoMaster.toFixed(2)}</span>
-                  </div>
-                  <div className="bg-red-50 text-red-600 p-3 border-2 border-red-600 flex justify-between items-center">
-                    <span className="text-xs font-black uppercase">Prelievi Effettuati</span>
-                    <span className="text-xl font-black italic">- €{accontoAttualeMaster.toFixed(2)}</span>
-                  </div>
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between"><span className="text-[10px] font-black uppercase text-zinc-500">Master Dirette</span><span className="font-black">€{masterFin.directTotal.toFixed(2)}</span></div>
+                  <div className="flex justify-between"><span className="text-[10px] font-black uppercase text-zinc-500">Bonus Team</span><span className="font-black text-green-600">€{masterFin.supervisorBonus.toFixed(2)}</span></div>
+                  <div className="flex justify-between mb-4"><span className="text-[10px] font-black uppercase text-zinc-500">Consolidati Orfani</span><span className="font-black text-blue-600">€{historicalOrphanProfit.toFixed(2)}</span></div>
+                  <div className="bg-black text-white p-3 mb-2 flex justify-between items-center"><span className="text-xs font-black uppercase text-[#FFEE00]">Tot. Lordo</span><span className="text-xl font-black italic">€{guadagnoLordoMaster.toFixed(2)}</span></div>
+                  <div className="bg-red-50 text-red-600 p-3 border-2 border-red-600 flex justify-between items-center"><span className="text-xs font-black uppercase">Prelievi</span><span className="text-xl font-black italic">- €{accontoAttualeMaster.toFixed(2)}</span></div>
                 </div>
-
-                <div className="bg-white border-4 border-black p-4 flex flex-col justify-center text-center shadow-[4px_4px_0px_#000]">
-                  <p className="text-[10px] font-black uppercase text-zinc-500 mb-1">Residuo Cassa Master</p>
-                  <p className="text-4xl font-black italic text-green-600 mb-4">€{daPagareMaster.toFixed(2)}</p>
-                  
-                  <input 
-                      type="number" min="0.01" step="0.01" max={daPagareMaster} placeholder="Importo Prelievo" 
-                      className="w-full p-2 border-2 border-black font-black uppercase text-center focus:border-[#FFEE00] outline-none mb-2" 
-                      value={masterPayAmount} onChange={e => setMasterPayAmount(e.target.value)} 
-                  />
-                  <button onClick={eseguiPagamentoMaster} disabled={loading || daPagareMaster <= 0} className="bg-black text-[#FFEE00] font-black p-2 uppercase active:scale-95 transition-transform w-full">REGISTRA PRELIEVO</button>
+                <div className="bg-white border-4 border-black p-4 text-center shadow-[4px_4px_0px_#000]">
+                  <p className="text-[10px] font-black uppercase text-zinc-500 italic">Disponibilità Netta</p>
+                  <p className="text-4xl font-black italic text-green-600 mb-4 tracking-tighter">€{daPagareMaster.toFixed(2)}</p>
+                  <input type="number" step="0.01" max={daPagareMaster} placeholder="Importo" className="w-full p-2 border-2 border-black font-black uppercase text-center focus:border-[#FFEE00] outline-none mb-2" value={masterPayAmount} onChange={e => setMasterPayAmount(e.target.value)} />
+                  <button onClick={eseguiPagamentoMaster} className="bg-black text-[#FFEE00] font-black p-2 uppercase active:scale-95 transition-transform w-full">REGISTRA PRELIEVO</button>
                 </div>
               </div>
             </div>
-
-            {/* SEZIONE 2: LISTA ORFANI E PREZZARIO */}
-            <div className="mb-8">
-              <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4">2. Consolidamento Orfani In Sospeso</h3>
-              <p className="text-[10px] font-bold text-zinc-500 mb-4 uppercase">QR Code generati da link di PR che non sono stati assegnati alla serata in questione, o da PR eliminati. Assegna un valore economico a questi ingressi e aggiungili al bilancio Master.</p>
-              
-              {orphanedTickets.length === 0 ? (
-                  <div className="border-2 border-black p-6 bg-zinc-50 text-center">
-                    <p className="text-sm font-bold text-zinc-500 italic">Nessun ticket orfano in sospeso.</p>
-                  </div>
-              ) : (
-                  <div className="border-4 border-black p-4 bg-zinc-50 flex flex-col gap-6">
-                      {Object.entries(orphansByEvent).map(([eventId, tks]) => {
-                        const evTitle = events.find(e => e.id === eventId)?.title || 'Evento Ignoto';
-                        const eventTotal = tks.length * (Number(orphanValues[eventId]) || 0);
-
-                        return (
-                          <div key={eventId} className="flex flex-col gap-3 border-b-2 border-dashed border-zinc-300 pb-4 last:border-0 last:pb-0">
-                              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-                                  <div className="flex-1 text-center md:text-left">
-                                    <p className="font-black uppercase text-sm leading-tight">{evTitle}</p>
-                                    <p className="text-[10px] font-bold text-zinc-500">QR Orfani Rilevati: <span className="text-black font-black bg-[#FFEE00] px-1 rounded">{tks.length} IN</span></p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <label className="text-[10px] font-black uppercase text-zinc-500 whitespace-nowrap">Valore € / IN:</label>
-                                    <input 
-                                      type="number" min="0" step="0.50" placeholder="Es. 15.00" 
-                                      className="w-20 p-2 border-2 border-black font-black text-center focus:border-[#FFEE00] outline-none"
-                                      value={orphanValues[eventId] || ''}
-                                      onChange={e => setOrphanValues({...orphanValues, [eventId]: e.target.value})}
-                                    />
-                                  </div>
-                              </div>
-                              
-                              <div className="bg-white border-2 border-black p-2 max-h-40 overflow-y-auto flex flex-col gap-1">
-                                  <div className="flex justify-between border-b-2 border-black pb-1 mb-1">
-                                    <span className="text-[9px] font-black text-zinc-500 uppercase">Cliente</span>
-                                    <span className="text-[9px] font-black text-zinc-500 uppercase">PR di Origine</span>
-                                  </div>
-                                  {tks.map(t => (
-                                      <div key={t.id} className="flex justify-between items-center hover:bg-zinc-100 px-1">
-                                          <span className="text-xs font-bold uppercase truncate max-w-[60%]">{t.customerName || 'Sconosciuto'}</span>
-                                          <span className="text-[10px] font-bold text-red-600 uppercase truncate max-w-[35%]">{t.prId}</span>
-                                      </div>
-                                  ))}
-                              </div>
-
-                              <div className="text-right">
-                                <span className="text-xs font-black uppercase bg-black text-white px-2 py-1">Totale Evento: €{eventTotal.toFixed(2)}</span>
-                              </div>
-                          </div>
-                        )
-                      })}
-                      <button onClick={handleClearOrphans} disabled={loading} className="w-full mt-2 bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#000] active:scale-95 transition-transform">
-                        {loading ? '...' : 'INCASSA E CONSOLIDA NEL BILANCIO'}
-                      </button>
-                  </div>
-              )}
-            </div>
-
-            {/* SEZIONE 3: AZZERAMENTO STAGIONALE */}
-            <div className="border-t-4 border-black pt-6">
-              <p className="text-[10px] font-black uppercase text-zinc-500 mb-2 text-center">Operazioni di fine stagione</p>
-              <button onClick={handleAzzeraContabilitaMaster} disabled={loading} className="w-full font-black p-4 uppercase transition-transform border-2 border-red-600 text-red-600 hover:bg-red-50 active:scale-95">
-                CHIUDI ED AZZERA CONTABILITÀ MASTER
-              </button>
-            </div>
-
+            <button onClick={handleAzzeraContabilitaMaster} className="w-full font-black p-4 uppercase border-2 border-red-600 text-red-600 hover:bg-red-50 transition-all italic">RESET TOTALE STAGIONE</button>
           </div>
         </div>
       )}
 
-      {/* POPUP PAGAMENTO PR SINGOLO */}
+      {/* ALIAS MASTER */}
+      {masterModalOpen && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <h2 className="text-2xl font-black italic uppercase">Master Alias Registry</h2>
+              <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] transition-all"><X size={24} /></button>
+            </div>
+            <div className="flex flex-col gap-3 mb-6">
+                {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
+                    <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex justify-between items-center text-left">
+                        <p className="font-black uppercase">{alias.name} <span className="text-zinc-400 italic text-[10px]">({alias.id})</span></p>
+                        <button onClick={() => handleDeleteAlias(alias.id)} className="bg-red-600 text-white p-2 border border-black active:scale-95"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+            <button onClick={() => setMasterModalOpen(false)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase italic">CHIUDI FINESTRA</button>
+          </div>
+        </div>
+      )}
+
+      {/* PAGAMENTO PR */}
       {payPrData && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-md shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div>
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Registra Acconto</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Paga: {payPrData.name}</h2>
-                <p className="text-xs font-black bg-black text-[#FFEE00] px-2 py-1 inline-block mt-2">ID: {payPrData.id}</p>
-              </div>
-              <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <div><p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">PR Settlement</p><h2 className="text-2xl font-black italic uppercase leading-none mt-1">{payPrData.name}</h2></div>
+              <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 transition-all"><X size={24} /></button>
             </div>
-
             {(() => {
               const fin = calculatePrFinancials(payPrData);
               const accontoAttuale = Number(payPrData.acconto) || 0;
               const daPagare = Math.max(0, fin.guadagnoLordo - accontoAttuale);
-
               return (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 text-left">
                   <div className="bg-zinc-100 p-4 border-2 border-black">
-                    <p className="text-xs font-bold uppercase text-zinc-600 flex justify-between mb-1"><span>Generato Lordo:</span> <span>€{fin.guadagnoLordo.toFixed(2)}</span></p>
-                    <p className="text-xs font-bold uppercase text-zinc-600 flex justify-between mb-1"><span>Acconti Precedenti:</span> <span>- €{accontoAttuale.toFixed(2)}</span></p>
-                    <div className="border-t-2 border-black my-2 pt-2 flex justify-between items-center">
-                      <span className="text-sm font-black uppercase">Residuo da Pagare:</span>
-                      <span className="text-2xl font-black text-red-600 italic">€{daPagare.toFixed(2)}</span>
-                    </div>
+                    <div className="flex justify-between mb-2"><span className="text-sm font-black uppercase">Residuo Netto:</span><span className="text-2xl font-black text-red-600 italic tracking-tighter">€{daPagare.toFixed(2)}</span></div>
                   </div>
-
-                  <div className="flex flex-col">
-                    <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Importo del Pagamento (€)</label>
-                    <input type="number" min="0.01" step="0.01" max={daPagare} placeholder="Es. 50.00" className="w-full p-4 border-2 border-black font-black uppercase text-xl focus:border-[#FFEE00] outline-none" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
-                  </div>
-
-                  <button onClick={eseguiPagamento} disabled={loading || daPagare <= 0} className={`w-full font-black p-4 uppercase transition-transform mt-2 border-2 border-black shadow-[4px_4px_0px_#000] ${daPagare <= 0 ? 'bg-zinc-300 text-zinc-500 cursor-not-allowed' : 'bg-[#FFEE00] text-black active:scale-95'}`}>
-                    {loading ? 'ELABORAZIONE...' : daPagare <= 0 ? 'NESSUN DEBITO' : 'CONFERMA PAGAMENTO'}
-                  </button>
-
-                  <div className="mt-4 pt-4 border-t-2 border-dashed border-zinc-300">
-                    <p className="text-[10px] font-black uppercase text-zinc-500 mb-2 text-center">Operazioni di fine stagione / Chiusura conti</p>
-                    <button onClick={() => handleAzzeraContabilita(payPrData)} disabled={loading} className="w-full font-black text-xs p-3 uppercase transition-transform border-2 border-red-600 text-red-600 hover:bg-red-50 active:scale-95">AZZERA CONTABILITÀ PR</button>
-                  </div>
+                  <input type="number" step="0.01" max={daPagare} placeholder="Importo da Versare" className="w-full p-4 border-2 border-black font-black uppercase text-xl outline-none text-center" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                  <button onClick={eseguiPagamento} disabled={loading || daPagare <= 0} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#000] active:scale-95 transition-all">CONFERMA PAGAMENTO</button>
+                  <button onClick={() => handleAzzeraContabilita(payPrData)} className="w-full font-black text-[10px] p-3 border-2 border-red-600 text-red-600 uppercase italic">AZZERA CONTABILITÀ PR</button>
                 </div>
               )
             })()}
@@ -1025,88 +889,28 @@ const Admin = () => {
         </div>
       )}
 
-      {/* POPUP GESTIONE ALIAS */}
-      {masterModalOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div>
-                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Gestione Avanzata</p>
-                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">Alias Master</h2>
-              </div>
-              <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
-            </div>
-
-            <h3 className="font-black text-lg mb-4 uppercase underline decoration-[#FFEE00] decoration-4">Alias Inglobati (Vecchi PR)</h3>
-            
-            {prs.filter(p => p.mergedInto === 'MASTER').length === 0 ? (
-                <p className="text-sm font-bold text-zinc-500 italic mb-6">Nessun alias presente nel Profilo Master.</p>
-            ) : (
-                <div className="flex flex-col gap-3 mb-6">
-                    {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
-                        <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                            <div>
-                                <p className="font-black uppercase">{alias.name} <span className="text-[10px] text-zinc-500">({alias.id})</span></p>
-                                <p className="text-[10px] font-bold text-zinc-500">Ingressi Totali Storici: {alias.count}</p>
-                            </div>
-                            <div className="flex flex-col gap-2 shrink-0 w-full md:w-auto">
-                                <button 
-                                    onClick={() => {
-                                        navigator.clipboard.writeText(`Ciao! Il tuo vecchio pass per la lista non è più attivo. Clicca su questo nuovo link per aggiornarlo subito ed entrare in lista Master: ${window.location.origin}/?ref=MASTER`);
-                                        alert("Messaggio con link di aggiornamento copiato negli appunti!");
-                                    }}
-                                    className="bg-blue-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
-                                >
-                                    Copia Link Aggiornamento
-                                </button>
-                                <button 
-                                    onClick={() => handleDeleteAlias(alias.id)}
-                                    className="bg-red-600 text-white text-[10px] font-black px-3 py-2 border-2 border-black uppercase active:scale-95 transition-transform w-full"
-                                >
-                                    Elimina Definitivamente
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-            
-            <button onClick={() => setMasterModalOpen(false)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:scale-95 transition-transform border-2 border-black shadow-[4px_4px_0px_#FFEE00]">CHIUDI PANNELLO</button>
-          </div>
-        </div>
-      )}
-
-      {/* POPUP SOSTITUZIONE PR */}
+      {/* SOSTITUZIONE */}
       {replacePrData && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-3xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4">
-              <div><p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest">Sostituzione o Unione</p><h2 className="text-2xl font-black italic uppercase leading-none mt-1">Gestisci PR: {replacePrData.name}</h2><p className="text-xs font-black bg-black text-[#FFEE00] px-2 py-1 inline-block mt-2">ID: {replacePrData.id}</p></div>
-              <button onClick={() => setReplacePrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 active:shadow-none transition-all"><X size={24} /></button>
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <h2 className="text-2xl font-black italic uppercase leading-none">Gestione PR: {replacePrData.name}</h2>
+              <button onClick={() => setReplacePrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] transition-all"><X size={24} /></button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
                <div className="border-4 border-black p-6 bg-zinc-50 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4">1. Inserisci Nuovo PR</h3>
-                    <p className="text-[11px] font-bold text-zinc-600 mb-6 uppercase">Mantieni questo ID e i vecchi link validi, ma cambia il nome della persona che ci lavora da ora in poi.</p>
-                    <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Nome Nuovo PR *</label>
-                    <input type="text" placeholder="ES. MARCO" className="w-full p-3 border-2 border-black mb-4 font-black uppercase focus:border-[#FFEE00] outline-none" value={replaceName} onChange={e => setReplaceName(e.target.value)} />
-                    <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Nuovo Telefono</label>
-                    <input type="tel" placeholder="OPZIONALE" className="w-full p-3 border-2 border-black mb-4 font-black focus:border-[#FFEE00] outline-none" value={replacePhone} onChange={e => setReplacePhone(e.target.value)} />
-                  </div>
-                  <button onClick={() => eseguiSostituzioneNuovo(replacePrData)} disabled={loading} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:scale-95 transition-transform mt-4 border-2 border-black shadow-[4px_4px_0px_#FFEE00]">{loading ? '...' : 'SALVA NUOVO NOME'}</button>
+                  <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4 italic">Sostituzione (Nuovo PR)</h3>
+                  <input type="text" placeholder="NUOVO NOME" className="w-full p-3 border-2 border-black mb-4 font-black uppercase outline-none" value={replaceName} onChange={e => setReplaceName(e.target.value)} />
+                  <input type="tel" placeholder="TELEFONO" className="w-full p-3 border-2 border-black mb-4 font-black outline-none" value={replacePhone} onChange={e => setReplacePhone(e.target.value)} />
+                  <button onClick={() => eseguiSostituzioneNuovo(replacePrData)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#FFEE00]">AGGIORNA ANAGRAFICA</button>
                </div>
                <div className="border-4 border-black p-6 bg-zinc-50 flex flex-col justify-between">
-                  <div>
-                    <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4">2. Ingloba in Esistente</h3>
-                    <p className="text-[11px] font-bold text-zinc-600 mb-6 uppercase">Trasferisci per sempre questo ID (e i suoi link in giro) a un altro PR che hai già nella tabella.</p>
-                    <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Scegli PR di Destinazione *</label>
-                    <select className="w-full p-3 border-2 border-black mb-4 font-black uppercase focus:border-[#FFEE00] outline-none bg-white" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
-                       <option value="">-- SELEZIONA PR --</option>
-                       {activePrs.filter(p => p.id !== replacePrData.id && p.id !== 'MASTER').map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
-                    </select>
-                  </div>
-                  <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} disabled={loading} className="w-full bg-red-600 text-white font-black p-4 uppercase active:scale-95 transition-transform mt-4 border-2 border-black shadow-[4px_4px_0px_#000]">{loading ? '...' : 'INGLOBA ORA'}</button>
+                  <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4 italic">Ingloba in Esistente</h3>
+                  <select className="w-full p-3 border-2 border-black mb-4 font-black uppercase outline-none bg-white cursor-pointer" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
+                     <option value="">-- SELEZIONA PR --</option>
+                     {activePrs.filter(p => p.id !== replacePrData.id && p.id !== 'MASTER').map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
+                  </select>
+                  <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} className="w-full bg-red-600 text-white font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#000]">ESAGUI FUSIONE</button>
                </div>
             </div>
           </div>
