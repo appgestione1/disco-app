@@ -6,6 +6,7 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, Power, Trash2 } from 'lucide-react';
 import Admin from './Admin'; 
 import Home from './Home'; // <-- COLLEGAMENTO ALLA NUOVA HOME
+import SuperAdmin from './SuperAdmin';
 
 // --- SCANNER (LATO STAFF - NO STOP) ---
 const Scanner = () => {
@@ -165,6 +166,7 @@ export default function App() {
         <Route path="/scanner" element={<Scanner />} />
         <Route path="/pr/:prId" element={<PRDashboard />} />
         <Route path="/admin-segreto-stefano" element={<Admin />} />
+        <Route path="/super-control-room" element={<SuperAdmin />} />
       </Routes>
     </Router>
   );

@@ -113,9 +113,16 @@ const Home = () => {
   const [ticketId, setTicketId] = useState(null);
   const [hasWon, setHasWon] = useState(false);
   const [winClaimed, setWinClaimed] = useState(false);
+  
+  // STATI PER LOGIN ADMIN E SUPERADMIN
   const [clickCount, setClickCount] = useState(0);
+  const [lockClickCount, setLockClickCount] = useState(0);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [showSuperAdminLogin, setShowSuperAdminLogin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
+  const [superAdminPassword, setSuperAdminPassword] = useState('');
+
+  const [appSettings, setAppSettings] = useState({ isPassEnabled: true, isPriveEnabled: true });
 
   const passRef = useRef(null); 
   const PRIVE_ADVANCE_FEE = 50;
@@ -130,7 +137,17 @@ const Home = () => {
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
   ];
 
-  useEffect(() => { fetchEvents(); }, []);
+  useEffect(() => { 
+    fetchEvents(); 
+    fetchGlobalSettings();
+  }, []);
+
+  const fetchGlobalSettings = async () => {
+    try {
+      const snap = await getDoc(doc(db, "settings", "global"));
+      if (snap.exists()) setAppSettings(snap.data());
+    } catch (e) { console.error(e); }
+  };
 
   const fetchEvents = async () => {
     try {
@@ -167,9 +184,22 @@ const Home = () => {
     try {
       const docSnap = await getDoc(doc(db, "settings", "admin"));
       const actualPassword = docSnap.exists() ? docSnap.data().password : "admin";
-      if (adminPassword === actualPassword) { window.location.href = '/admin-segreto-stefano'; } 
-      else { alert("Password Errata"); setAdminPassword(''); }
+      if (adminPassword === actualPassword) { 
+        window.location.href = '/admin-segreto-stefano'; 
+      } else { 
+        alert("Password Errata"); 
+        setAdminPassword(''); 
+      }
     } catch (error) { alert("Errore"); }
+  };
+
+  const handleVerifySuperAdminPassword = () => {
+    if (superAdminPassword === 'superadmin') {
+      window.location.href = '/super-control-room';
+    } else {
+      alert("Password SuperAdmin Errata");
+      setSuperAdminPassword('');
+    }
   };
 
   const handleDownloadPass = async () => {
@@ -234,7 +264,6 @@ const Home = () => {
             
             <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter">{selectedEvent.title}</h2>
             
-            {/* AGGIUNTA DESCRIZIONE DELL'EVENTO */}
             {selectedEvent.description && (
               <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl">
                 <div className="flex items-center gap-2 mb-2 text-[#D4AF37]">
@@ -248,12 +277,23 @@ const Home = () => {
             )}
 
             <div className="space-y-4">
-              <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
-                <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
-              </button>
-              <button onClick={() => setBookingMode('prive')} className="w-full border-2 border-[#D4AF37] text-[#D4AF37] p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
-                <div className="flex items-center gap-2"><Crown size={18}/><span>PRENOTA TAVOLO PRIVÉ</span></div> <ArrowRight size={18} />
-              </button>
+              {appSettings.isPassEnabled && (
+                <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
+                  <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
+                </button>
+              )}
+
+              {appSettings.isPriveEnabled && (
+                <button onClick={() => setBookingMode('prive')} className="w-full border-2 border-[#D4AF37] text-[#D4AF37] p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
+                  <div className="flex items-center gap-2"><Crown size={18}/><span>PRENOTA TAVOLO PRIVÉ</span></div> <ArrowRight size={18} />
+                </button>
+              )}
+
+              {!appSettings.isPassEnabled && !appSettings.isPriveEnabled && (
+                <div className="text-center py-6 px-4 bg-zinc-900/30 rounded-3xl border border-white/5">
+                   <p className="text-zinc-500 font-black italic uppercase text-[10px] tracking-widest">Le prenotazioni online per questo evento sono momentaneamente chiuse.</p>
+                </div>
+              )}
             </div>
           </div>
         ) : !ticketId ? (
@@ -318,12 +358,21 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
       <div className="h-[20vh] flex flex-col items-center justify-center relative p-4">
+        {/* LOGO CON SCORCIATOIA 7 CLICK */}
         <video 
           src="/logo.mp4" 
           autoPlay 
           muted 
           playsInline 
-          onClick={() => setClickCount(c => c+1 >= 7 ? (setShowAdminLogin(true), 0) : c+1)} 
+          onClick={() => {
+            const newCount = clickCount + 1;
+            if (newCount >= 7) {
+              setShowAdminLogin(true);
+              setClickCount(0);
+            } else {
+              setClickCount(newCount);
+            }
+          }} 
           className="w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(212,175,55,0.2)]" 
         />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
@@ -413,13 +462,67 @@ const Home = () => {
         </div>
       )}
 
-      {showAdminLogin && (
+      {/* LOGIN MODAL (ADMIN E SUPERADMIN) */}
+      {(showAdminLogin || showSuperAdminLogin) && (
         <div className="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-10 animate-in fade-in zoom-in text-center">
           <div className="w-full max-w-sm space-y-10">
-            <Lock className="mx-auto text-[#D4AF37] mb-4" size={56} />
-            <input type="password" placeholder="STAFF CODE" className="w-full p-6 bg-zinc-900 border border-white/10 rounded-2xl text-white text-center font-black tracking-[0.6em] outline-none focus:border-[#D4AF37]" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} />
-            <button onClick={handleVerifyPassword} className="w-full bg-white text-black p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">ACCESSO STAFF</button>
-            <button onClick={() => setShowAdminLogin(false)} className="text-zinc-500 text-[10px] font-black uppercase underline">Chiudi</button>
+            {/* LUCCHETTO CON SCORCIATOIA 7 CLICK PER SUPERADMIN */}
+            <div 
+              onClick={() => {
+                if (showAdminLogin) {
+                  const nextLockCount = lockClickCount + 1;
+                  if (nextLockCount >= 7) {
+                    setShowAdminLogin(false);
+                    setShowSuperAdminLogin(true);
+                    setLockClickCount(0);
+                  } else {
+                    setLockClickCount(nextLockCount);
+                  }
+                }
+              }}
+              className="cursor-pointer active:scale-90 transition-transform"
+            >
+              {showSuperAdminLogin ? (
+                <ShieldCheck className="mx-auto text-red-600 mb-4" size={56} />
+              ) : (
+                <Lock className="mx-auto text-[#D4AF37] mb-4" size={56} />
+              )}
+            </div>
+
+            {showSuperAdminLogin ? (
+              <>
+                <h2 className="text-white font-black italic uppercase">SuperAdmin Access</h2>
+                <input 
+                  type="password" 
+                  placeholder="SUPER CODE" 
+                  className="w-full p-6 bg-zinc-900 border border-red-900/30 rounded-2xl text-white text-center font-black tracking-[0.6em] outline-none focus:border-red-600" 
+                  value={superAdminPassword} 
+                  onChange={e => setSuperAdminPassword(e.target.value)} 
+                />
+                <button onClick={handleVerifySuperAdminPassword} className="w-full bg-red-600 text-white p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">ENTRA MASTER</button>
+                <button 
+                  onClick={() => {
+                    setShowSuperAdminLogin(false);
+                    setShowAdminLogin(true);
+                  }} 
+                  className="text-zinc-500 text-[10px] font-black uppercase underline"
+                >
+                  Torna Admin
+                </button>
+              </>
+            ) : (
+              <>
+                <input 
+                  type="password" 
+                  placeholder="STAFF CODE" 
+                  className="w-full p-6 bg-zinc-900 border border-white/10 rounded-2xl text-white text-center font-black tracking-[0.6em] outline-none focus:border-[#D4AF37]" 
+                  value={adminPassword} 
+                  onChange={e => setAdminPassword(e.target.value)} 
+                />
+                <button onClick={handleVerifyPassword} className="w-full bg-white text-black p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">ACCESSO STAFF</button>
+                <button onClick={() => { setShowAdminLogin(false); setLockClickCount(0); }} className="text-zinc-500 text-[10px] font-black uppercase underline">Chiudi</button>
+              </>
+            )}
           </div>
         </div>
       )}
