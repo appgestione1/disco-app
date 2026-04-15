@@ -6,7 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import html2canvas from 'html2canvas'; 
 import { 
   ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
-  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone
+  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone, Info
 } from 'lucide-react';
 
 // --- COMPONENTE GRATTA E VINCI ---
@@ -155,7 +155,6 @@ const Home = () => {
 
   const handleDateChange = (e) => {
     const scrollPos = e.target.scrollTop;
-    // Calcolato sull'altezza riga di 50px
     const index = Math.round(scrollPos / 50);
     if (dates[index]) {
       if (selectedDate.toDateString() !== dates[index].toDateString()) {
@@ -232,7 +231,22 @@ const Home = () => {
             <div className="w-full bg-black rounded-[2rem] overflow-hidden mb-8 border border-white/10 shadow-2xl text-center">
               <img src={selectedEvent.imageUrl} alt="Event" className="max-w-full object-contain max-h-[60vh] mx-auto" />
             </div>
+            
             <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter">{selectedEvent.title}</h2>
+            
+            {/* AGGIUNTA DESCRIZIONE DELL'EVENTO */}
+            {selectedEvent.description && (
+              <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl">
+                <div className="flex items-center gap-2 mb-2 text-[#D4AF37]">
+                  <Info size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-widest italic">Info & Listino</span>
+                </div>
+                <p className="text-sm font-bold text-zinc-300 whitespace-pre-wrap italic leading-relaxed">
+                  {selectedEvent.description}
+                </p>
+              </div>
+            )}
+
             <div className="space-y-4">
               <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                 <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
@@ -303,8 +317,15 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
-      <div className="h-[20vh] flex flex-col items-center justify-center relative p-8">
-        <video src="/logo.mp4" autoPlay muted playsInline onClick={() => setClickCount(c => c+1 >= 7 ? (setShowAdminLogin(true), 0) : c+1)} className="w-72 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(212,175,55,0.2)]" />
+      <div className="h-[20vh] flex flex-col items-center justify-center relative p-4">
+        <video 
+          src="/logo.mp4" 
+          autoPlay 
+          muted 
+          playsInline 
+          onClick={() => setClickCount(c => c+1 >= 7 ? (setShowAdminLogin(true), 0) : c+1)} 
+          className="w-64 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(212,175,55,0.2)]" 
+        />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
       </div>
 
@@ -330,7 +351,7 @@ const Home = () => {
         <div className="animate-in slide-in-from-bottom-20 duration-700">
           <button 
             onClick={() => { setStep(1); setActiveCategory(null); }} 
-            className="px-8 py-4 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3 active:scale-95 transition-all"
+            className="px-8 py-2 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3 active:scale-95 transition-all"
           >
             <ChevronLeft size={18} strokeWidth={3} /> Indietro
           </button>
@@ -342,19 +363,15 @@ const Home = () => {
              </h2>
           </div>
 
-          {/* Altezza aumentata a h-36 per dare respiro al rettangolo più grande */}
           <div className="relative h-36 mt-2 mb-2 flex items-center justify-center overflow-hidden">
-            {/* RETTANGOLO GIALLO ALLARGATO A 70px (da 60px) */}
             <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl shadow-[0_0_20px_rgba(212,175,55,0.1)]" />
             <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
             
             <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
-              {/* Spaziatore calibrato per la nuova altezza (45px) */}
               <div className="h-[45px]" /> 
               {dates.map((d, i) => {
                 const isSel = selectedDate.toDateString() === d.toDateString();
                 return (
-                  // Altezza riga 50px per scroll perfetto
                   <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
                     <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>
                       {d.toLocaleDateString('it-IT', { weekday: 'long' })}
