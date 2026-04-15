@@ -122,8 +122,6 @@ const Home = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [superAdminPassword, setSuperAdminPassword] = useState('');
 
-  const [appSettings, setAppSettings] = useState({ isPassEnabled: true, isPriveEnabled: true });
-
   const passRef = useRef(null); 
   const PRIVE_ADVANCE_FEE = 50;
 
@@ -139,15 +137,7 @@ const Home = () => {
 
   useEffect(() => { 
     fetchEvents(); 
-    fetchGlobalSettings();
   }, []);
-
-  const fetchGlobalSettings = async () => {
-    try {
-      const snap = await getDoc(doc(db, "settings", "global"));
-      if (snap.exists()) setAppSettings(snap.data());
-    } catch (e) { console.error(e); }
-  };
 
   const fetchEvents = async () => {
     try {
@@ -267,7 +257,6 @@ const Home = () => {
             {selectedEvent.description && (
               <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl">
                 <div className="flex items-center gap-2 mb-2 text-[#D4AF37]">
-                  <Info size={16} />
                   <span className="text-[10px] font-black uppercase tracking-widest italic">Info & Listino</span>
                 </div>
                 <p className="text-sm font-bold text-zinc-300 whitespace-pre-wrap italic leading-relaxed">
@@ -277,21 +266,22 @@ const Home = () => {
             )}
 
             <div className="space-y-4">
-              {appSettings.isPassEnabled && (
+              {/* LOGICA DINAMICA PER SINGOLO EVENTO */}
+              {!selectedEvent.isPassDisabled && (
                 <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
                 </button>
               )}
 
-              {appSettings.isPriveEnabled && (
+              {!selectedEvent.isPriveDisabled && (
                 <button onClick={() => setBookingMode('prive')} className="w-full border-2 border-[#D4AF37] text-[#D4AF37] p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <div className="flex items-center gap-2"><Crown size={18}/><span>PRENOTA TAVOLO PRIVÉ</span></div> <ArrowRight size={18} />
                 </button>
               )}
 
-              {!appSettings.isPassEnabled && !appSettings.isPriveEnabled && (
+              {selectedEvent.isPassDisabled && selectedEvent.isPriveDisabled && (
                 <div className="text-center py-6 px-4 bg-zinc-900/30 rounded-3xl border border-white/5">
-                   <p className="text-zinc-500 font-black italic uppercase text-[10px] tracking-widest">Le prenotazioni online per questo evento sono momentaneamente chiuse.</p>
+                   <p className="text-zinc-500 font-black italic uppercase text-[10px] tracking-widest">Le prenotazioni online per questa serata sono attualmente chiuse.</p>
                 </div>
               )}
             </div>
@@ -358,7 +348,6 @@ const Home = () => {
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
       <div className="h-[20vh] flex flex-col items-center justify-center relative p-4">
-        {/* LOGO CON SCORCIATOIA 7 CLICK */}
         <video 
           src="/logo.mp4" 
           autoPlay 
@@ -450,7 +439,6 @@ const Home = () => {
                     <div className="flex justify-between items-center text-left">
                        <div className="flex items-center gap-4 text-zinc-500 font-black text-[10px] uppercase tracking-widest">
                          <div className="flex items-center gap-2"><Calendar size={14} className="text-[#D4AF37]"/> {new Date(ev.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</div>
-                         <span>h. 23:30</span>
                        </div>
                        <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-2xl"><ArrowRight size={22} strokeWidth={3} /></div>
                     </div>
@@ -466,7 +454,6 @@ const Home = () => {
       {(showAdminLogin || showSuperAdminLogin) && (
         <div className="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-10 animate-in fade-in zoom-in text-center">
           <div className="w-full max-w-sm space-y-10">
-            {/* LUCCHETTO CON SCORCIATOIA 7 CLICK PER SUPERADMIN */}
             <div 
               onClick={() => {
                 if (showAdminLogin) {
@@ -500,15 +487,7 @@ const Home = () => {
                   onChange={e => setSuperAdminPassword(e.target.value)} 
                 />
                 <button onClick={handleVerifySuperAdminPassword} className="w-full bg-red-600 text-white p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">ENTRA MASTER</button>
-                <button 
-                  onClick={() => {
-                    setShowSuperAdminLogin(false);
-                    setShowAdminLogin(true);
-                  }} 
-                  className="text-zinc-500 text-[10px] font-black uppercase underline"
-                >
-                  Torna Admin
-                </button>
+                <button onClick={() => { setShowSuperAdminLogin(false); setShowAdminLogin(true); }} className="text-zinc-500 text-[10px] font-black uppercase underline">Torna Admin</button>
               </>
             ) : (
               <>

@@ -1,120 +1,133 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { ShieldCheck, Power, LayoutGrid, Crown, Lock } from 'lucide-react';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown, List } from 'lucide-react';
 
 const SuperAdmin = () => {
-  const [isAuthorized, setIsAuthorized] = useState(false);
-  const [password, setPassword] = useState('');
-  const [settings, setSettings] = useState({ isPassEnabled: true, isPriveEnabled: true });
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showList, setShowList] = useState(false); // Stato per gestire l'apertura della lista
 
-  // 1. Verifica Password (stessa logica Admin ma con "superadmin")
-  const handleLogin = () => {
-    if (password === 'superadmin') {
-      setIsAuthorized(true);
-      fetchSettings();
-    } else {
-      alert("Password SuperAdmin Errata");
-      setPassword('');
-    }
-  };
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
-  const fetchSettings = async () => {
+  const fetchEvents = async () => {
     try {
-      const snap = await getDoc(doc(db, "settings", "global"));
-      if (snap.exists()) {
-        setSettings(snap.data());
-      } else {
-        // Se non esiste, crea il documento iniziale
-        await setDoc(doc(db, "settings", "global"), { isPassEnabled: true, isPriveEnabled: true });
-      }
+      const evSnap = await getDocs(collection(db, "events"));
+      const evData = evSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setEvents(evData.sort((a, b) => new Date(a.date) - new Date(b.date)));
     } catch (e) {
-      console.error(e);
+      console.error("Errore fetch:", e);
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleSetting = async (key) => {
-    const newValue = !settings[key];
-    const updated = { ...settings, [key]: newValue };
-    setSettings(updated);
-    await setDoc(doc(db, "settings", "global"), updated, { merge: true });
+  const toggleEventSetting = async (eventId, field, currentValue) => {
+    try {
+      const eventRef = doc(db, "events", eventId);
+      const newValue = !currentValue;
+      setEvents(events.map(ev => ev.id === eventId ? { ...ev, [field]: newValue } : ev));
+      await updateDoc(eventRef, { [field]: newValue });
+    } catch (e) {
+      alert("Errore durante l'aggiornamento");
+    }
   };
 
-  if (!isAuthorized) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-10 text-center">
-        <div className="w-full max-w-sm space-y-10">
-          <ShieldCheck className="mx-auto text-red-600 mb-4" size={80} />
-          <h1 className="text-white font-black italic text-2xl uppercase">SuperAdmin Access</h1>
-          <input 
-            type="password" 
-            placeholder="SUPERADMIN CODE" 
-            className="w-full p-6 bg-zinc-900 border border-red-900/30 rounded-2xl text-white text-center font-black tracking-[0.6em] outline-none focus:border-red-600" 
-            value={password} 
-            onChange={e => setPassword(e.target.value)} 
-          />
-          <button onClick={handleLogin} className="w-full bg-red-600 text-white p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">ENTRA NEL SISTEMA</button>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return (
+    <div className="min-h-screen bg-black flex items-center justify-center text-[#D4AF37] font-black animate-pulse uppercase">
+      Inizializzazione Sistema...
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white p-6 font-sans">
+    <div className="min-h-screen bg-zinc-950 text-white p-4 font-sans uppercase font-black">
       <div className="max-w-4xl mx-auto">
+        
+        {/* HEADER */}
         <div className="flex justify-between items-center mb-12">
-            <h1 className="text-3xl font-black italic flex items-center gap-3">
-              <ShieldCheck className="text-red-600" size={32} /> SUPERADMIN
-            </h1>
-            <span className="text-[10px] bg-red-600/20 text-red-500 px-4 py-1 rounded-full font-black uppercase tracking-widest border border-red-600/30">Livello 0 - Root Access</span>
+          <h1 className="text-2xl font-black italic flex items-center gap-2 text-red-600">
+            <ShieldCheck size={28} /> SUPERADMIN
+          </h1>
+          <button 
+            onClick={() => window.location.href = '/'} 
+            className="text-[10px] bg-zinc-900 px-6 py-3 rounded-full border border-zinc-800 hover:bg-red-600 hover:text-white transition-all shadow-lg"
+          >
+            Esci dal Pannello
+          </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          {/* CONTROLLO PASS LISTA */}
-          <div className={`p-8 rounded-[2.5rem] border-2 transition-all duration-500 ${settings.isPassEnabled ? 'bg-zinc-900 border-green-500/50' : 'bg-zinc-900/50 border-red-500/50'}`}>
-            <div className="flex justify-between items-start mb-6">
-              <div className={`p-4 rounded-2xl ${settings.isPassEnabled ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>
-                <LayoutGrid size={32} />
-              </div>
-              <button 
-                onClick={() => toggleSetting('isPassEnabled')}
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg ${settings.isPassEnabled ? 'bg-green-500 text-black' : 'bg-red-500 text-white'}`}
-              >
-                <Power size={28} />
-              </button>
-            </div>
-            <h3 className="text-2xl font-black uppercase italic italic">Tasto Pass (QR)</h3>
-            <p className="text-zinc-500 text-sm mt-2 font-bold leading-relaxed">
-              Stato attuale: <span className={settings.isPassEnabled ? 'text-green-500' : 'text-red-500'}>{settings.isPassEnabled ? 'ATTIVO' : 'DISATTIVATO'}</span>
-              <br />Quando disattivato, gli utenti non potranno generare il QR Pass nella Home.
-            </p>
+        {/* PULSANTE PRINCIPALE PER APRIRE LA LISTA */}
+        {!showList ? (
+          <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
+            <button 
+              onClick={() => setShowList(true)}
+              className="group relative flex items-center gap-6 bg-red-600 text-white px-12 py-8 rounded-[2.5rem] shadow-[0_20px_50px_rgba(220,38,38,0.3)] hover:scale-105 active:scale-95 transition-all duration-300 border-b-8 border-red-800"
+            >
+              <List size={40} className="group-hover:rotate-12 transition-transform" />
+              <span className="text-3xl italic tracking-tighter">CONTROLLO EVENTI</span>
+              <ChevronDown size={24} className="opacity-50" />
+            </button>
+            <p className="mt-8 text-zinc-600 text-xs tracking-[0.3em]">Clicca per gestire i permessi delle serate</p>
           </div>
+        ) : (
+          /* LISTA EVENTI (VISIBLE SOLO DOPO IL CLICK) */
+          <div className="space-y-4 animate-in slide-in-from-bottom-10 duration-500">
+            <div className="flex items-center justify-between mb-6 px-4">
+              <h2 className="text-zinc-500 text-xs tracking-widest italic">GESTIONE SINGOLI EVENTI</h2>
+              <button onClick={() => setShowList(false)} className="text-red-500 text-[10px] underline">Chiudi Lista</button>
+            </div>
 
-          {/* CONTROLLO PRIVÈ */}
-          <div className={`p-8 rounded-[2.5rem] border-2 transition-all duration-500 ${settings.isPriveEnabled ? 'bg-zinc-900 border-amber-500/50' : 'bg-zinc-900/50 border-red-500/50'}`}>
-            <div className="flex justify-between items-start mb-6">
-              <div className={`p-4 rounded-2xl ${settings.isPriveEnabled ? 'bg-amber-500/10 text-amber-500' : 'bg-red-500/10 text-red-500'}`}>
-                <Crown size={32} />
+            {events.map(ev => (
+              <div key={ev.id} className="bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl hover:border-red-600/30 transition-colors">
+                <div className="flex items-center gap-5 flex-1 w-full">
+                  <div className="w-14 h-14 bg-black rounded-3xl flex items-center justify-center text-[#D4AF37] border border-zinc-800 shrink-0 shadow-inner">
+                    <Calendar size={28} />
+                  </div>
+                  <div className="overflow-hidden">
+                    <h3 className="text-xl leading-tight text-white truncate italic">{ev.title}</h3>
+                    <p className="text-[10px] text-zinc-500 italic mt-1 tracking-widest">{ev.date}</p>
+                  </div>
+                </div>
+
+                <div className="flex gap-8 shrink-0 bg-black/40 p-4 rounded-[2rem] border border-white/5">
+                  {/* CONTROLLO QR PASS */}
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[7px] text-zinc-600 tracking-tighter">LISTA QR</span>
+                    <button 
+                      onClick={() => toggleEventSetting(ev.id, 'isPassDisabled', ev.isPassDisabled)}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 shadow-lg ${!ev.isPassDisabled ? 'bg-green-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
+                    >
+                      {!ev.isPassDisabled ? <LayoutGrid size={24} /> : <Power size={24} />}
+                    </button>
+                    <span className={`text-[8px] font-black ${!ev.isPassDisabled ? 'text-green-500' : 'text-red-600'}`}>
+                      {!ev.isPassDisabled ? 'ATTIVO' : 'SPENTO'}
+                    </span>
+                  </div>
+
+                  {/* CONTROLLO PRIVÈ */}
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[7px] text-zinc-600 tracking-tighter">TAVOLI</span>
+                    <button 
+                      onClick={() => toggleEventSetting(ev.id, 'isPriveDisabled', ev.isPriveDisabled)}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 shadow-lg ${!ev.isPriveDisabled ? 'bg-amber-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
+                    >
+                      {!ev.isPriveDisabled ? <Crown size={24} /> : <Power size={24} />}
+                    </button>
+                    <span className={`text-[8px] font-black ${!ev.isPriveDisabled ? 'text-amber-500' : 'text-red-600'}`}>
+                      {!ev.isPriveDisabled ? 'ATTIVO' : 'SPENTO'}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <button 
-                onClick={() => toggleSetting('isPriveEnabled')}
-                className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg ${settings.isPriveEnabled ? 'bg-amber-500 text-black' : 'bg-red-500 text-white'}`}
-              >
-                <Power size={28} />
-              </button>
-            </div>
-            <h3 className="text-2xl font-black uppercase italic italic">Tasto Privé</h3>
-            <p className="text-zinc-500 text-sm mt-2 font-bold leading-relaxed">
-                Stato attuale: <span className={settings.isPriveEnabled ? 'text-amber-500' : 'text-red-500'}>{settings.isPriveEnabled ? 'ATTIVO' : 'DISATTIVATO'}</span>
-                <br />Usa questo per chiudere le prenotazioni tavoli in tempo reale.
-            </p>
+            ))}
           </div>
+        )}
+
+        <div className="mt-20 text-center opacity-20">
+            <p className="text-[8px] tracking-[0.8em]">Security Layer v2.0 - Root</p>
         </div>
-
-        <button onClick={() => window.location.reload()} className="mt-12 text-zinc-600 font-black uppercase text-[10px] tracking-widest border-b border-zinc-800 pb-2">Logout SuperAdmin</button>
       </div>
     </div>
   );
