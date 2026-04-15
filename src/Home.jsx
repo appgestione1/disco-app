@@ -9,7 +9,7 @@ import {
   Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone
 } from 'lucide-react';
 
-// --- COMPONENTE GRATTA E VINCI (LOGICA ORIGINALE) ---
+// --- COMPONENTE GRATTA E VINCI ---
 const ScratchCard = ({ onWin }) => {
   const canvasRef = useRef(null);
   const isDrawingRef = useRef(false);
@@ -102,11 +102,10 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1); 
   const [activeCategory, setActiveCategory] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [bookingMode, setBookingMode] = useState(null);
   
-  // MODIFICATO: Aggiunto stato per il telefono
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState(''); 
   
@@ -146,19 +145,22 @@ const Home = () => {
   });
 
   const getFilteredEvents = () => {
+    const formattedSelected = selectedDate.toISOString().split('T')[0];
     return events.filter(ev => {
       const matchesCategory = activeCategory === 'TUTTI' || ev.category === activeCategory;
       const evDate = new Date(ev.date).toISOString().split('T')[0];
-      return matchesCategory && evDate === selectedDate;
+      return matchesCategory && evDate === formattedSelected;
     });
   };
 
   const handleDateChange = (e) => {
     const scrollPos = e.target.scrollTop;
-    const index = Math.round(scrollPos / 80);
+    // Calcolato sull'altezza riga di 50px
+    const index = Math.round(scrollPos / 50);
     if (dates[index]) {
-      const formatted = dates[index].toISOString().split('T')[0];
-      if (selectedDate !== formatted) setSelectedDate(formatted);
+      if (selectedDate.toDateString() !== dates[index].toDateString()) {
+        setSelectedDate(dates[index]);
+      }
     }
   };
 
@@ -182,14 +184,10 @@ const Home = () => {
     }
   };
 
-  // MODIFICATO: Notifica vincita al PR tramite WhatsApp
   const handleClaimWin = async () => {
     try {
       setLoading(true);
-      // Aggiorna database
       await updateDoc(doc(db, "tickets", ticketId), { won: true });
-      
-      // Recupera numero PR
       const prSnap = await getDoc(doc(db, "prs_registry", prRef));
       const prPhone = prSnap.exists() ? prSnap.data().phone : "";
 
@@ -198,7 +196,6 @@ const Home = () => {
         const whatsappUrl = `https://wa.me/${prPhone.replace(/\s+/g, '')}?text=${encodeURIComponent(message)}`;
         window.open(whatsappUrl, '_blank');
       }
-
       setWinClaimed(true);
       alert(`Vincita registrata! Abbiamo aperto WhatsApp per informare il tuo PR di riferimento.`);
     } catch (e) { alert("Errore riscatto"); } finally { setLoading(false); }
@@ -207,7 +204,6 @@ const Home = () => {
   const handleAction = async () => {
     if (!customerName.trim()) return alert("Inserisci Nome e Cognome");
     if (!customerPhone.trim()) return alert("Inserisci il numero WhatsApp");
-    
     setLoading(true);
     const newId = Math.random().toString(36).substr(2, 9).toUpperCase();
     const data = {
@@ -231,11 +227,10 @@ const Home = () => {
         <button onClick={resetView} className="mb-6 flex items-center gap-2 text-zinc-500 uppercase text-[10px] tracking-widest font-black">
           <ChevronLeft size={16} /> CHIUDI
         </button>
-
         {!bookingMode ? (
           <div className="animate-in fade-in duration-700">
-            <div className="w-full bg-black rounded-[2rem] overflow-hidden mb-8 border border-white/10 shadow-2xl">
-              <img src={selectedEvent.imageUrl} alt="Event" className="w-full object-contain max-h-[60vh]" />
+            <div className="w-full bg-black rounded-[2rem] overflow-hidden mb-8 border border-white/10 shadow-2xl text-center">
+              <img src={selectedEvent.imageUrl} alt="Event" className="max-w-full object-contain max-h-[60vh] mx-auto" />
             </div>
             <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter">{selectedEvent.title}</h2>
             <div className="space-y-4">
@@ -249,16 +244,12 @@ const Home = () => {
           </div>
         ) : !ticketId ? (
           <div className="bg-zinc-900/80 p-8 rounded-[2.5rem] border border-white/5 space-y-8 backdrop-blur-xl animate-in slide-in-from-bottom-10">
-            <h3 className="text-3xl font-black italic uppercase tracking-tighter text-center">
-              {bookingMode === 'prive' ? 'RISERVA PRIVÉ' : 'ACCESSO LISTA'}
-            </h3>
+            <h3 className="text-3xl font-black italic uppercase tracking-tighter text-center">{bookingMode === 'prive' ? 'RISERVA PRIVÉ' : 'ACCESSO LISTA'}</h3>
             <div className="space-y-6">
                <div className="space-y-1">
                  <label className="text-[9px] font-black uppercase text-zinc-500 ml-2 tracking-widest italic">Intestatario</label>
                  <input type="text" placeholder="NOME E COGNOME" className="w-full p-5 bg-black border border-white/10 rounded-2xl text-white font-black uppercase outline-none focus:border-[#D4AF37] text-center" value={customerName} onChange={e => setCustomerName(e.target.value)} />
                </div>
-
-               {/* NUOVO: CAMPO TELEFONO */}
                <div className="space-y-1">
                  <label className="text-[9px] font-black uppercase text-zinc-500 ml-2 tracking-widest italic">Numero WhatsApp</label>
                  <div className="relative">
@@ -266,7 +257,6 @@ const Home = () => {
                    <input type="tel" placeholder="333 1234567" className="w-full p-5 pl-12 bg-black border border-white/10 rounded-2xl text-white font-black uppercase outline-none focus:border-[#D4AF37] text-center" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                  </div>
                </div>
-
                {bookingMode === 'prive' && (
                  <div className="text-center space-y-6">
                     <div className="flex items-center justify-center gap-12 bg-black/40 p-6 rounded-3xl border border-white/5">
@@ -285,9 +275,7 @@ const Home = () => {
             <div ref={passRef} className="relative w-full max-w-sm bg-zinc-900 rounded-[3rem] p-10 flex flex-col items-center border border-white/10 shadow-2xl overflow-hidden mb-6">
                <div className="absolute top-8 right-8 opacity-10"><Crown size={120} /></div>
                <h3 className="text-[#D4AF37] font-black text-xs tracking-[0.4em] uppercase mb-10 text-center">DIGITAL MEMBER PASS</h3>
-               <div className="bg-white p-5 rounded-[2rem] mb-10">
-                  <QRCodeCanvas value={ticketId} size={200} />
-               </div>
+               <div className="bg-white p-5 rounded-[2rem] mb-10"><QRCodeCanvas value={ticketId} size={200} /></div>
                <div className="text-center mb-10">
                  <p className="text-4xl font-black italic uppercase leading-none tracking-tighter mb-1">{customerName}</p>
                  <p className="text-zinc-500 font-bold text-[10px] uppercase">{bookingMode === 'prive' ? `VIP TABLE x ${priveGuests}` : 'GUESTLIST ENTRANCE'}</p>
@@ -297,22 +285,15 @@ const Home = () => {
                   <div className="text-right"><p className="text-[8px] text-zinc-600 font-black uppercase mb-1">AUTHORIZED BY</p><p className="text-[#D4AF37] font-black italic text-xl leading-none">{prRef}</p></div>
                </div>
             </div>
-
-            <button onClick={handleDownloadPass} className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-full font-black uppercase text-xs tracking-widest shadow-xl mb-12 active:scale-95">
-              <Download size={18} /> SALVA NELLA GALLERIA
-            </button>
-
+            <button onClick={handleDownloadPass} className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-full font-black uppercase text-xs tracking-widest shadow-xl mb-12 active:scale-95"><Download size={18} /> SALVA NELLA GALLERIA</button>
             <div className="text-center">
               <p className="text-[10px] text-zinc-600 font-black tracking-[0.4em] uppercase mb-6 italic text-center">Luxury Reward</p>
               <ScratchCard onWin={() => setHasWon(true)} />
               {hasWon && !winClaimed && (
-                <button onClick={handleClaimWin} className="mt-6 flex items-center justify-center gap-2 w-full bg-[#D4AF37] text-black p-5 rounded-2xl font-black uppercase text-sm animate-bounce shadow-2xl">
-                  <Send size={20} /> RISCATTA PREMIO E NOTIFICA PR
-                </button>
+                <button onClick={handleClaimWin} className="mt-6 flex items-center justify-center gap-2 w-full bg-[#D4AF37] text-black p-5 rounded-2xl font-black uppercase text-sm animate-bounce shadow-2xl"><Send size={20} /> RISCATTA PREMIO E NOTIFICA PR</button>
               )}
               {winClaimed && <p className="mt-4 text-green-500 font-black uppercase italic text-xs tracking-widest animate-pulse">Vincita notificata correttamente! ✅</p>}
             </div>
-
             <button onClick={resetView} className="mt-12 text-zinc-600 font-black uppercase text-[10px] border-b border-zinc-900 pb-2">Torna agli eventi</button>
           </div>
         )}
@@ -347,7 +328,12 @@ const Home = () => {
 
       {step === 2 && (
         <div className="animate-in slide-in-from-bottom-20 duration-700">
-          <button onClick={() => { setStep(1); setActiveCategory(null); }} className="px-8 py-4 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3"><ChevronLeft size={18} strokeWidth={3} /> Indietro</button>
+          <button 
+            onClick={() => { setStep(1); setActiveCategory(null); }} 
+            className="px-8 py-4 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3 active:scale-95 transition-all"
+          >
+            <ChevronLeft size={18} strokeWidth={3} /> Indietro
+          </button>
           
           <div className="mt-0 text-center mb-0">
              <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-1 italic">MOOD SCELTO</p>
@@ -356,21 +342,30 @@ const Home = () => {
              </h2>
           </div>
 
-          <div className="relative h-52 mt-0 mb-2 flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-x-6 h-[80px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl shadow-[0_0_20px_rgba(212,175,55,0.1)]" />
+          {/* Altezza aumentata a h-36 per dare respiro al rettangolo più grande */}
+          <div className="relative h-36 mt-2 mb-2 flex items-center justify-center overflow-hidden">
+            {/* RETTANGOLO GIALLO ALLARGATO A 70px (da 60px) */}
+            <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl shadow-[0_0_20px_rgba(212,175,55,0.1)]" />
             <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
+            
             <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
-              <div className="h-[75px]" /> 
+              {/* Spaziatore calibrato per la nuova altezza (45px) */}
+              <div className="h-[45px]" /> 
               {dates.map((d, i) => {
-                const isSel = selectedDate === d.toISOString().split('T')[0];
+                const isSel = selectedDate.toDateString() === d.toDateString();
                 return (
-                  <div key={i} className="h-[80px] flex flex-col items-center justify-center snap-center transition-all duration-300">
-                    <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-1 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
-                    <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                  // Altezza riga 50px per scroll perfetto
+                  <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
+                    <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>
+                      {d.toLocaleDateString('it-IT', { weekday: 'long' })}
+                    </span>
+                    <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>
+                      {d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}
+                    </span>
                   </div>
                 );
               })}
-              <div className="h-[75px]" /> 
+              <div className="h-[45px]" /> 
             </div>
           </div>
 
@@ -381,7 +376,7 @@ const Home = () => {
               getFilteredEvents().map(ev => (
                 <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 cursor-pointer">
                   <div className="h-auto min-h-[300px] bg-black flex items-center justify-center p-2 relative overflow-hidden text-center">
-                    <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105" />
+                    <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105 mx-auto" />
                   </div>
                   <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
                   <div className="absolute bottom-0 left-0 w-full p-10">
