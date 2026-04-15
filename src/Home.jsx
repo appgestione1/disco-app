@@ -303,7 +303,7 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
-      <div className="h-[30vh] flex flex-col items-center justify-center relative p-8">
+      <div className="h-[20vh] flex flex-col items-center justify-center relative p-8">
         <video src="/logo.mp4" autoPlay muted playsInline onClick={() => setClickCount(c => c+1 >= 7 ? (setShowAdminLogin(true), 0) : c+1)} className="w-72 h-auto relative z-10 drop-shadow-[0_0_30px_rgba(212,175,55,0.2)]" />
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-black" />
       </div>
