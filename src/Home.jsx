@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
 import { collection, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import html2canvas from 'html2canvas'; 
 import { 
   ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
-  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone, Info
+  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone, Info, Users, Edit3
 } from 'lucide-react';
 
 // --- COMPONENTE GRATTA E VINCI ---
@@ -96,6 +96,7 @@ const ScratchCard = ({ onWin }) => {
 // --- HOME ---
 const Home = () => {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const prRef = searchParams.get('ref') || 'MASTER';
 
   const [events, setEvents] = useState([]);
@@ -105,21 +106,29 @@ const Home = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [bookingMode, setBookingMode] = useState(null);
+  const [prName, setPrName] = useState(''); 
   
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState(''); 
+  const [groupNames, setGroupNames] = useState(''); 
+  const [guestCount, setGuestCount] = useState(1); 
   
   const [priveGuests, setPriveGuests] = useState(1);
   const [ticketId, setTicketId] = useState(null);
   const [hasWon, setHasWon] = useState(false);
   const [winClaimed, setWinClaimed] = useState(false);
   
+  // STATI PER LOGIN ADMIN E SEQUENZA STELLE
   const [clickCount, setClickCount] = useState(0);
   const [lockClickCount, setLockClickCount] = useState(0);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
   const [showSuperAdminLogin, setShowSuperAdminLogin] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [superAdminPassword, setSuperAdminPassword] = useState('');
+
+  // LOGICA SEQUENZA SEGRETA STELLE
+  const [starSequence, setStarSequence] = useState([]);
+  const [showPrAccess, setShowPrAccess] = useState(false);
 
   const passRef = useRef(null); 
   const PRIVE_ADVANCE_FEE = 50;
@@ -135,8 +144,9 @@ const Home = () => {
   ];
 
   useEffect(() => { 
-    fetchEvents(); 
-  }, []);
+    fetchEvents();
+    fetchPrInfo();
+  }, [prRef]);
 
   const fetchEvents = async () => {
     try {
@@ -144,6 +154,33 @@ const Home = () => {
       const evData = evSnap.docs.map(d => ({ id: d.id, ...d.data() }));
       setEvents(evData.sort((a, b) => new Date(a.date) - new Date(b.date)));
     } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
+  const fetchPrInfo = async () => {
+    try {
+      const docSnap = await getDoc(doc(db, "prs_registry", prRef));
+      if (docSnap.exists()) {
+        setPrName(docSnap.data().name);
+      } else {
+        setPrName(prRef);
+      }
+    } catch (e) { console.error("Errore PR info:", e); }
+  };
+
+  const handleStarClick = (side) => {
+    const newSequence = [...starSequence, side];
+    
+    // Controlliamo se la sequenza è corretta: Destra (R), Destra (R), Sinistra (L), Sinistra (L)
+    if (newSequence.length === 4) {
+      if (newSequence[0] === 'R' && newSequence[1] === 'R' && newSequence[2] === 'L' && newSequence[3] === 'L') {
+        setShowPrAccess(!showPrAccess);
+      }
+      setStarSequence([]); // Reset dopo 4 tocchi
+    } else {
+      setStarSequence(newSequence);
+      // Reset automatico se non finisce la sequenza in 3 secondi
+      setTimeout(() => setStarSequence([]), 3000);
+    }
   };
 
   const dates = Array.from({ length: 30 }, (_, i) => {
@@ -227,16 +264,19 @@ const Home = () => {
     const data = {
       id: newId, eventId: selectedEvent.id, prId: prRef,
       customerName, customerPhone, used: false, won: false, timestamp: new Date(),
-      type: bookingMode === 'single' ? 'singolo' : (bookingMode === 'prive' ? 'prive' : 'pr_list')
+      type: bookingMode === 'single' ? 'singolo' : (bookingMode === 'prive' ? 'prive' : 'pr_list'),
+      guestCount: bookingMode === 'prive' ? priveGuests : guestCount,
+      companions: groupNames
     };
-    if (bookingMode === 'prive') { data.guests = priveGuests; data.advancePaid = priveGuests * PRIVE_ADVANCE_FEE; }
+    if (bookingMode === 'prive') { data.advancePaid = priveGuests * PRIVE_ADVANCE_FEE; }
     try { await setDoc(doc(db, "tickets", newId), data); setTicketId(newId); } 
     catch (e) { alert("Errore generazione"); } finally { setLoading(false); }
   };
 
   const resetView = () => { 
     setSelectedEvent(null); setBookingMode(null); setTicketId(null); 
-    setCustomerName(''); setCustomerPhone(''); setPriveGuests(1); setHasWon(false); setWinClaimed(false);
+    setCustomerName(''); setCustomerPhone(''); setPriveGuests(1); setGuestCount(1);
+    setGroupNames(''); setHasWon(false); setWinClaimed(false);
   };
 
   if (selectedEvent) {
@@ -251,7 +291,7 @@ const Home = () => {
               <img src={selectedEvent.imageUrl} alt="Event" className="max-w-full object-contain max-h-[60vh] mx-auto" />
             </div>
             
-            <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter">{selectedEvent.title}</h2>
+            <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter text-center">{selectedEvent.title}</h2>
             
             {selectedEvent.description && (
               <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl text-left">
@@ -265,28 +305,24 @@ const Home = () => {
             )}
 
             <div className="space-y-4">
-              {/* 1. OTTIENI PASS LISTA */}
               {selectedEvent.isPassDisabled !== true && (
                 <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
                 </button>
               )}
 
-              {/* 2. PRENOTA TAVOLO PRIVÉ */}
               {selectedEvent.isPriveDisabled !== true && (
                 <button onClick={() => setBookingMode('prive')} className="w-full border-2 border-[#D4AF37] text-[#D4AF37] p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <div className="flex items-center gap-2"><Crown size={18}/><span>PRENOTA TAVOLO PRIVÉ</span></div> <ArrowRight size={18} />
                 </button>
               )}
 
-              {/* 3. AGGIUNGIMI NELLA LISTA DEL PR (FISSAATO IL PROBLEMA DELLO SPEGNIMENTO) */}
               {selectedEvent.isPrListDisabled !== true && (
                 <button onClick={() => setBookingMode('pr')} className="w-full border-2 border-zinc-700 text-zinc-400 p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform hover:border-zinc-500 hover:text-zinc-300">
                   <div className="flex items-center gap-2"><Star size={18}/><span>Aggiungimi nella Lista del PR</span></div> <ArrowRight size={18} />
                 </button>
               )}
 
-              {/* MESSAGGIO SE TUTTO È SPENTO */}
               {selectedEvent.isPassDisabled === true && 
                selectedEvent.isPriveDisabled === true && 
                selectedEvent.isPrListDisabled === true && (
@@ -299,7 +335,7 @@ const Home = () => {
         ) : !ticketId ? (
           <div className="bg-zinc-900/80 p-8 rounded-[2.5rem] border border-white/5 space-y-8 backdrop-blur-xl animate-in slide-in-from-bottom-10">
             <h3 className="text-3xl font-black italic uppercase tracking-tighter text-center">
-                {bookingMode === 'prive' ? 'RISERVA PRIVÉ' : (bookingMode === 'pr' ? 'LISTA PR' : 'ACCESSO LISTA')}
+                {bookingMode === 'prive' ? 'RISERVA PRIVÉ' : (bookingMode === 'pr' ? `LISTA ${prName.toUpperCase()}` : 'ACCESSO LISTA')}
             </h3>
             <div className="space-y-6">
                <div className="space-y-1">
@@ -313,6 +349,31 @@ const Home = () => {
                    <input type="tel" placeholder="333 1234567" className="w-full p-5 pl-12 bg-black border border-white/10 rounded-2xl text-white font-black uppercase outline-none focus:border-[#D4AF37] text-center" value={customerPhone} onChange={e => setCustomerPhone(e.target.value)} />
                  </div>
                </div>
+
+               {bookingMode !== 'prive' && (
+                  <div className="space-y-4">
+                    <label className="text-[9px] font-black uppercase text-zinc-500 ml-2 tracking-widest italic block text-center">Numero Persone da inserire</label>
+                    <div className="flex items-center justify-center gap-10 bg-black/40 p-4 rounded-2xl border border-white/5">
+                      <button onClick={() => setGuestCount(Math.max(1, guestCount - 1))} className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center text-[#D4AF37]"><Minus size={16}/></button>
+                      <span className="text-4xl font-black italic">{guestCount}</span>
+                      <button onClick={() => setGuestCount(guestCount + 1)} className="w-10 h-10 rounded-full border border-zinc-800 flex items-center justify-center text-[#D4AF37]"><Plus size={16}/></button>
+                    </div>
+                  </div>
+               )}
+
+               <div className="space-y-1">
+                 <label className="text-[9px] font-black uppercase text-zinc-500 ml-2 tracking-widest italic">Nominativi (Opzionale)</label>
+                 <div className="relative">
+                    <Edit3 className="absolute left-4 top-5 text-zinc-600" size={18} />
+                    <textarea 
+                      placeholder="ES. MARIO ROSSI, LUCA VERDI..." 
+                      className="w-full p-5 pl-12 bg-black border border-white/10 rounded-2xl text-white font-black uppercase outline-none focus:border-[#D4AF37] h-24 resize-none text-xs" 
+                      value={groupNames} 
+                      onChange={e => setGroupNames(e.target.value)}
+                    />
+                 </div>
+               </div>
+
                {bookingMode === 'prive' && (
                  <div className="text-center space-y-6">
                     <div className="flex items-center justify-center gap-12 bg-black/40 p-6 rounded-3xl border border-white/5">
@@ -335,12 +396,12 @@ const Home = () => {
                <div className="text-center mb-10">
                  <p className="text-4xl font-black italic uppercase leading-none tracking-tighter mb-1">{customerName}</p>
                  <p className="text-zinc-500 font-bold text-[10px] uppercase">
-                    {bookingMode === 'prive' ? `VIP TABLE x ${priveGuests}` : (bookingMode === 'pr' ? 'PR LIST MEMBER' : 'GUESTLIST ENTRANCE')}
+                    {bookingMode === 'prive' ? `VIP TABLE x ${priveGuests}` : (bookingMode === 'pr' ? `LISTA ${prName.toUpperCase()} x ${guestCount}` : `GUESTLIST ENTRANCE x ${guestCount}`)}
                  </p>
                </div>
                <div className="w-full flex justify-between items-end border-t border-white/10 pt-8 text-left">
                   <div><p className="text-[8px] text-zinc-600 font-black uppercase mb-1">TICKET ID</p><p className="font-mono text-xs font-bold">{ticketId}</p></div>
-                  <div className="text-right"><p className="text-[8px] text-zinc-600 font-black uppercase mb-1">AUTHORIZED BY</p><p className="text-[#D4AF37] font-black italic text-xl leading-none">{prRef}</p></div>
+                  <div className="text-right"><p className="text-[8px] text-zinc-600 font-black uppercase mb-1">AUTHORIZED BY</p><p className="text-[#D4AF37] font-black italic text-xl leading-none">{prName}</p></div>
                </div>
             </div>
             <button onClick={handleDownloadPass} className="flex items-center gap-2 bg-white text-black px-8 py-4 rounded-full font-black uppercase text-xs tracking-widest shadow-xl mb-12 active:scale-95"><Download size={18} /> SALVA NELLA GALLERIA</button>
@@ -361,6 +422,16 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
+      {/* ICONA SEGRETA PR */}
+      {showPrAccess && (
+        <button 
+          onClick={() => navigate(`/pr/${prRef}`)}
+          className="fixed top-6 right-6 z-[60] bg-[#D4AF37] text-black p-4 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.5)] animate-bounce border-2 border-white"
+        >
+          <Crown size={28} />
+        </button>
+      )}
+
       <div className="h-[20vh] flex flex-col items-center justify-center relative p-4">
         <video 
           src="/logo.mp4" 
@@ -403,7 +474,7 @@ const Home = () => {
         <div className="animate-in slide-in-from-bottom-20 duration-700">
           <button 
             onClick={() => { setStep(1); setActiveCategory(null); }} 
-            className="px-8 py-2 text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] flex items-center gap-3 active:scale-95 transition-all"
+            className="px-8 py-2 text-zinc-500 font-black uppercase text-[10px] tracking-widest flex items-center gap-3 active:scale-95 transition-all"
           >
             <ChevronLeft size={18} strokeWidth={3} /> Indietro
           </button>
@@ -520,10 +591,15 @@ const Home = () => {
         </div>
       )}
 
+      {/* FOOTER CON STELLE CLICCABILI */}
       <div className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-2xl border-t border-white/5 p-5 flex justify-center items-center gap-4 z-40">
-        <Star size={10} className="text-[#D4AF37] animate-pulse" />
+        <button onClick={() => handleStarClick('L')}>
+          <Star size={10} className="text-[#D4AF37] animate-pulse" />
+        </button>
         <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product Stefano Di Bella 2026</span>
-        <Star size={10} className="text-[#D4AF37] animate-pulse" />
+        <button onClick={() => handleStarClick('R')}>
+          <Star size={10} className="text-[#D4AF37] animate-pulse" />
+        </button>
       </div>
     </div>
   );
