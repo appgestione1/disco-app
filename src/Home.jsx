@@ -653,7 +653,7 @@ const Home = () => {
         <button onClick={() => handleStarClick('L')} className="p-4 hover:scale-110 transition-transform">
           <Star size={24} className="text-[#D4AF37] animate-pulse" />
         </button>
-        <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product Stefano Di Bella 2026</span>
+        <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product 2026 Stefano Di Bella</span>
         <button onClick={() => handleStarClick('R')} className="p-4 hover:scale-110 transition-transform">
           <Star size={24} className="text-[#D4AF37] animate-pulse" />
         </button>
