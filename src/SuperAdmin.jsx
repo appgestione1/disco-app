@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
-import { ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown, List } from 'lucide-react';
+import { ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown, List, Star } from 'lucide-react';
 
 const SuperAdmin = () => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showList, setShowList] = useState(false); // Stato per gestire l'apertura della lista
+  const [showList, setShowList] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -27,7 +27,9 @@ const SuperAdmin = () => {
   const toggleEventSetting = async (eventId, field, currentValue) => {
     try {
       const eventRef = doc(db, "events", eventId);
-      const newValue = !currentValue;
+      // Forza il valore booleano per evitare problemi con campi inesistenti
+      const newValue = currentValue === true ? false : true; 
+      
       setEvents(events.map(ev => ev.id === eventId ? { ...ev, [field]: newValue } : ev));
       await updateDoc(eventRef, { [field]: newValue });
     } catch (e) {
@@ -45,7 +47,6 @@ const SuperAdmin = () => {
     <div className="min-h-screen bg-zinc-950 text-white p-4 font-sans uppercase font-black">
       <div className="max-w-4xl mx-auto">
         
-        {/* HEADER */}
         <div className="flex justify-between items-center mb-12">
           <h1 className="text-2xl font-black italic flex items-center gap-2 text-red-600">
             <ShieldCheck size={28} /> SUPERADMIN
@@ -58,7 +59,6 @@ const SuperAdmin = () => {
           </button>
         </div>
 
-        {/* PULSANTE PRINCIPALE PER APRIRE LA LISTA */}
         {!showList ? (
           <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-500">
             <button 
@@ -69,10 +69,8 @@ const SuperAdmin = () => {
               <span className="text-3xl italic tracking-tighter">CONTROLLO EVENTI</span>
               <ChevronDown size={24} className="opacity-50" />
             </button>
-            <p className="mt-8 text-zinc-600 text-xs tracking-[0.3em]">Clicca per gestire i permessi delle serate</p>
           </div>
         ) : (
-          /* LISTA EVENTI (VISIBLE SOLO DOPO IL CLICK) */
           <div className="space-y-4 animate-in slide-in-from-bottom-10 duration-500">
             <div className="flex items-center justify-between mb-6 px-4">
               <h2 className="text-zinc-500 text-xs tracking-widest italic">GESTIONE SINGOLI EVENTI</h2>
@@ -80,24 +78,24 @@ const SuperAdmin = () => {
             </div>
 
             {events.map(ev => (
-              <div key={ev.id} className="bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl hover:border-red-600/30 transition-colors">
+              <div key={ev.id} className="bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl transition-colors">
                 <div className="flex items-center gap-5 flex-1 w-full">
-                  <div className="w-14 h-14 bg-black rounded-3xl flex items-center justify-center text-[#D4AF37] border border-zinc-800 shrink-0 shadow-inner">
+                  <div className="w-14 h-14 bg-black rounded-3xl flex items-center justify-center text-[#D4AF37] border border-zinc-800 shrink-0">
                     <Calendar size={28} />
                   </div>
-                  <div className="overflow-hidden">
+                  <div className="overflow-hidden text-left">
                     <h3 className="text-xl leading-tight text-white truncate italic">{ev.title}</h3>
                     <p className="text-[10px] text-zinc-500 italic mt-1 tracking-widest">{ev.date}</p>
                   </div>
                 </div>
 
-                <div className="flex gap-8 shrink-0 bg-black/40 p-4 rounded-[2rem] border border-white/5">
-                  {/* CONTROLLO QR PASS */}
+                <div className="flex gap-4 md:gap-8 shrink-0 bg-black/40 p-4 rounded-[2rem] border border-white/5">
+                  {/* LISTA QR */}
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-[7px] text-zinc-600 tracking-tighter">LISTA QR</span>
                     <button 
                       onClick={() => toggleEventSetting(ev.id, 'isPassDisabled', ev.isPassDisabled)}
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 shadow-lg ${!ev.isPassDisabled ? 'bg-green-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 ${!ev.isPassDisabled ? 'bg-green-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
                     >
                       {!ev.isPassDisabled ? <LayoutGrid size={24} /> : <Power size={24} />}
                     </button>
@@ -106,12 +104,12 @@ const SuperAdmin = () => {
                     </span>
                   </div>
 
-                  {/* CONTROLLO PRIVÈ */}
+                  {/* TAVOLI */}
                   <div className="flex flex-col items-center gap-2">
                     <span className="text-[7px] text-zinc-600 tracking-tighter">TAVOLI</span>
                     <button 
                       onClick={() => toggleEventSetting(ev.id, 'isPriveDisabled', ev.isPriveDisabled)}
-                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 shadow-lg ${!ev.isPriveDisabled ? 'bg-amber-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 ${!ev.isPriveDisabled ? 'bg-amber-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
                     >
                       {!ev.isPriveDisabled ? <Crown size={24} /> : <Power size={24} />}
                     </button>
@@ -119,15 +117,25 @@ const SuperAdmin = () => {
                       {!ev.isPriveDisabled ? 'ATTIVO' : 'SPENTO'}
                     </span>
                   </div>
+
+                  {/* LISTA PR (QUELLO CHE NON SI SPEGNEVA) */}
+                  <div className="flex flex-col items-center gap-2">
+                    <span className="text-[7px] text-zinc-600 tracking-tighter">LISTA PR</span>
+                    <button 
+                      onClick={() => toggleEventSetting(ev.id, 'isPrListDisabled', ev.isPrListDisabled)}
+                      className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all border-2 ${!ev.isPrListDisabled ? 'bg-blue-500 border-black text-black scale-105' : 'bg-zinc-800 border-red-600/50 text-red-600'}`}
+                    >
+                      {!ev.isPrListDisabled ? <Star size={24} /> : <Power size={24} />}
+                    </button>
+                    <span className={`text-[8px] font-black ${!ev.isPrListDisabled ? 'text-blue-500' : 'text-red-600'}`}>
+                      {!ev.isPrListDisabled ? 'ATTIVO' : 'SPENTO'}
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
         )}
-
-        <div className="mt-20 text-center opacity-20">
-            <p className="text-[8px] tracking-[0.8em]">Security Layer v2.0 - Root</p>
-        </div>
       </div>
     </div>
   );

@@ -114,7 +114,6 @@ const Home = () => {
   const [hasWon, setHasWon] = useState(false);
   const [winClaimed, setWinClaimed] = useState(false);
   
-  // STATI PER LOGIN ADMIN E SUPERADMIN
   const [clickCount, setClickCount] = useState(0);
   const [lockClickCount, setLockClickCount] = useState(0);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -228,7 +227,7 @@ const Home = () => {
     const data = {
       id: newId, eventId: selectedEvent.id, prId: prRef,
       customerName, customerPhone, used: false, won: false, timestamp: new Date(),
-      type: bookingMode === 'single' ? 'singolo' : 'prive'
+      type: bookingMode === 'single' ? 'singolo' : (bookingMode === 'prive' ? 'prive' : 'pr_list')
     };
     if (bookingMode === 'prive') { data.guests = priveGuests; data.advancePaid = priveGuests * PRIVE_ADVANCE_FEE; }
     try { await setDoc(doc(db, "tickets", newId), data); setTicketId(newId); } 
@@ -255,7 +254,7 @@ const Home = () => {
             <h2 className="text-4xl font-black italic uppercase leading-none mb-4 tracking-tighter">{selectedEvent.title}</h2>
             
             {selectedEvent.description && (
-              <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl">
+              <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl text-left">
                 <div className="flex items-center gap-2 mb-2 text-[#D4AF37]">
                   <span className="text-[10px] font-black uppercase tracking-widest italic">Info & Listino</span>
                 </div>
@@ -266,24 +265,31 @@ const Home = () => {
             )}
 
             <div className="space-y-4">
-              {/* LOGICA DINAMICA PER SINGOLO EVENTO */}
-              {!selectedEvent.isPassDisabled && (
+              {/* 1. OTTIENI PASS LISTA */}
+              {selectedEvent.isPassDisabled !== true && (
                 <button onClick={() => setBookingMode('single')} className="w-full bg-white text-black p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <span>OTTIENI PASS LISTA</span> <ArrowRight size={18} />
                 </button>
               )}
 
-              {!selectedEvent.isPriveDisabled && (
+              {/* 2. PRENOTA TAVOLO PRIVÉ */}
+              {selectedEvent.isPriveDisabled !== true && (
                 <button onClick={() => setBookingMode('prive')} className="w-full border-2 border-[#D4AF37] text-[#D4AF37] p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform">
                   <div className="flex items-center gap-2"><Crown size={18}/><span>PRENOTA TAVOLO PRIVÉ</span></div> <ArrowRight size={18} />
                 </button>
               )}
 
-              <button onClick={() => setBookingMode('pr')} className="w-full border-2 border-zinc-700 text-zinc-400 p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform hover:border-zinc-500 hover:text-zinc-300">
-                <div className="flex items-center gap-2"><Star size={18}/><span>Aggiungimi nella Lista del PR</span></div> <ArrowRight size={18} />
-              </button>
+              {/* 3. AGGIUNGIMI NELLA LISTA DEL PR (FISSAATO IL PROBLEMA DELLO SPEGNIMENTO) */}
+              {selectedEvent.isPrListDisabled !== true && (
+                <button onClick={() => setBookingMode('pr')} className="w-full border-2 border-zinc-700 text-zinc-400 p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform hover:border-zinc-500 hover:text-zinc-300">
+                  <div className="flex items-center gap-2"><Star size={18}/><span>Aggiungimi nella Lista del PR</span></div> <ArrowRight size={18} />
+                </button>
+              )}
 
-              {selectedEvent.isPassDisabled && selectedEvent.isPriveDisabled && (
+              {/* MESSAGGIO SE TUTTO È SPENTO */}
+              {selectedEvent.isPassDisabled === true && 
+               selectedEvent.isPriveDisabled === true && 
+               selectedEvent.isPrListDisabled === true && (
                 <div className="text-center py-6 px-4 bg-zinc-900/30 rounded-3xl border border-white/5">
                    <p className="text-zinc-500 font-black italic uppercase text-[10px] tracking-widest">Le prenotazioni online per questa serata sono attualmente chiuse.</p>
                 </div>
@@ -292,7 +298,9 @@ const Home = () => {
           </div>
         ) : !ticketId ? (
           <div className="bg-zinc-900/80 p-8 rounded-[2.5rem] border border-white/5 space-y-8 backdrop-blur-xl animate-in slide-in-from-bottom-10">
-            <h3 className="text-3xl font-black italic uppercase tracking-tighter text-center">{bookingMode === 'prive' ? 'RISERVA PRIVÉ' : 'ACCESSO LISTA'}</h3>
+            <h3 className="text-3xl font-black italic uppercase tracking-tighter text-center">
+                {bookingMode === 'prive' ? 'RISERVA PRIVÉ' : (bookingMode === 'pr' ? 'LISTA PR' : 'ACCESSO LISTA')}
+            </h3>
             <div className="space-y-6">
                <div className="space-y-1">
                  <label className="text-[9px] font-black uppercase text-zinc-500 ml-2 tracking-widest italic">Intestatario</label>
@@ -326,7 +334,9 @@ const Home = () => {
                <div className="bg-white p-5 rounded-[2rem] mb-10"><QRCodeCanvas value={ticketId} size={200} /></div>
                <div className="text-center mb-10">
                  <p className="text-4xl font-black italic uppercase leading-none tracking-tighter mb-1">{customerName}</p>
-                 <p className="text-zinc-500 font-bold text-[10px] uppercase">{bookingMode === 'prive' ? `VIP TABLE x ${priveGuests}` : 'GUESTLIST ENTRANCE'}</p>
+                 <p className="text-zinc-500 font-bold text-[10px] uppercase">
+                    {bookingMode === 'prive' ? `VIP TABLE x ${priveGuests}` : (bookingMode === 'pr' ? 'PR LIST MEMBER' : 'GUESTLIST ENTRANCE')}
+                 </p>
                </div>
                <div className="w-full flex justify-between items-end border-t border-white/10 pt-8 text-left">
                   <div><p className="text-[8px] text-zinc-600 font-black uppercase mb-1">TICKET ID</p><p className="font-mono text-xs font-bold">{ticketId}</p></div>
@@ -454,7 +464,7 @@ const Home = () => {
         </div>
       )}
 
-      {/* LOGIN MODAL (ADMIN E SUPERADMIN) */}
+      {/* LOGIN MODAL */}
       {(showAdminLogin || showSuperAdminLogin) && (
         <div className="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-10 animate-in fade-in zoom-in text-center">
           <div className="w-full max-w-sm space-y-10">
