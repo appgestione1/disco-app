@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase'; 
 import { 
   collection, getDocs, updateDoc, 
-  deleteDoc, doc, setDoc, query, orderBy, getDoc 
+  deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField 
 } from 'firebase/firestore';
 import { 
   Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -124,6 +124,17 @@ const Admin = () => {
   };
 
   const activePrs = prs.filter(p => !p.mergedInto);
+
+  // FUNZIONE PER RESET PASSWORD PR
+  const handleResetPrPassword = async (prId) => {
+    const conferma = window.confirm("Vuoi davvero resettare la password di questo PR? Al prossimo accesso dovrà impostarne una nuova.");
+    if (!conferma) return;
+    try {
+      await updateDoc(doc(db, "prs_registry", prId), { prPassword: deleteField() });
+      alert("Password resettata con successo.");
+      fetchData();
+    } catch (e) { alert("Errore durante il reset."); }
+  };
 
   const calculatePrFinancials = (pr) => {
     let directTotal = 0;
@@ -331,78 +342,17 @@ const Admin = () => {
     } catch (e) { setLoading(false); }
   };
 
-  const orphanedTickets = tickets.filter(t => {
-    if (t.clearedFromMaster) return false; 
-    if (t.used !== true) return false; 
-
-    const evExists = events.some(e => e.id === t.eventId);
-    if (!evExists) return false; 
-
-    const pr = activePrs.find(p => p.id === t.prId || p.aliases?.includes(t.prId));
-    
-    if (!pr) return true; 
-
-    if (pr.id === 'MASTER') return false; 
-    return !pr.eventIds?.includes(t.eventId);
-  });
-
-  const orphansByEvent = orphanedTickets.reduce((acc, t) => {
-    if (!acc[t.eventId]) acc[t.eventId] = [];
-    acc[t.eventId].push(t);
-    return acc;
-  }, {});
-
-  const handleClearOrphans = async () => {
-    if (orphanedTickets.length === 0) return;
-    setLoading(true);
-    try {
-      const masterRef = doc(db, "prs_registry", "MASTER");
-      const masterSnap = await getDoc(masterRef);
-      const currentOrphans = Number(masterSnap.data()?.historicalOrphanCount) || 0;
-      const currentProfit = Number(masterSnap.data()?.historicalOrphanProfit) || 0;
-
-      let additionalProfit = 0;
-      for (const eventId in orphansByEvent) {
-         additionalProfit += (orphansByEvent[eventId].length * (Number(orphanValues[eventId]) || 0));
-      }
-
-      await updateDoc(masterRef, { 
-        historicalOrphanCount: currentOrphans + orphanedTickets.length,
-        historicalOrphanProfit: currentProfit + additionalProfit
-      }, { merge: true });
-      
-      for (const t of orphanedTickets) if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
-      setOrphanValues({}); await fetchData();
-    } catch (e) { alert("Errore consolidamento."); } finally { setLoading(false); }
-  };
-
   const handleConcludiSerata = async (eventId) => {
     const eventTitle = events.find(e => e.id === eventId)?.title || "questo evento";
-    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler concludere ${eventTitle}?\n\nGli slot verranno svuotati. Se ci sono ticket orfani per questa serata, ti verrà chiesto di assegnargli un valore prima della chiusura.`);
+    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler concludere ${eventTitle}?\n\nGli slot verranno svuotati.`);
     if (!conferma) return;
     setLoading(true);
     try {
-      const eventOrphans = orphanedTickets.filter(t => t.eventId === eventId);
-      if (eventOrphans.length > 0) {
-        const valStr = window.prompt(`Ci sono ${eventOrphans.length} ticket orfani per questa serata.\nQuanto hai guadagnato (in €) per singolo ingresso orfano?`, "0");
-        const profitToAdd = eventOrphans.length * (Number(valStr) || 0);
-
-        const masterRef = doc(db, "prs_registry", "MASTER");
-        const masterSnap = await getDoc(masterRef);
-        await updateDoc(masterRef, { 
-          historicalOrphanCount: (Number(masterSnap.data()?.historicalOrphanCount) || 0) + eventOrphans.length,
-          historicalOrphanProfit: (Number(masterSnap.data()?.historicalOrphanProfit) || 0) + profitToAdd
-        }, { merge: true });
-
-        for (const t of eventOrphans) if (t.id) await updateDoc(doc(db, "tickets", t.id), { clearedFromMaster: true });
-      }
-
       const prsToUpdate = prs.filter(p => p.eventIds && p.eventIds.includes(eventId));
       for (const pr of prsToUpdate) {
         const newEventIds = pr.eventIds.map(id => id === eventId ? '' : id); 
         await updateDoc(doc(db, "prs_registry", pr.id), { eventIds: newEventIds });
       }
-
       await deleteDoc(doc(db, "events", eventId));
       await fetchData();
     } catch (e) { alert("Errore chiusura serata."); } finally { setLoading(false); }
@@ -449,8 +399,6 @@ const Admin = () => {
 
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
-  let totalPrCosts = 0;
-  activePrs.forEach(p => { totalPrCosts += calculatePrFinancials(p).guadagnoLordo; });
 
   return (
     <div className="min-h-screen bg-zinc-50 text-black font-sans pb-20 uppercase font-black">
@@ -498,7 +446,7 @@ const Admin = () => {
                  const passGenerati = evTickets.length;
                  const drinkVinti = evTickets.filter(t => t.won === true).length;
                  const ingressiEffettivi = evTickets.filter(t => t.used === true).length;
-                 const evPrs = prs.filter(p => !p.mergedInto && (p.id === 'MASTER' || p.eventIds?.includes(ev.id) || p.eventId === ev.id));
+                 const evPrs = prs.filter(p => !p.mergedInto && (p.id === 'MASTER' || p.eventIds?.includes(ev.id)));
                  let costoPR = 0;
                  evPrs.forEach(p => {
                     const finEv = calculatePrFinancialsForEvent(p, ev.id);
@@ -537,10 +485,10 @@ const Admin = () => {
             <form onSubmit={handleAddPr} className="bg-white border-4 border-black p-6 mb-10 shadow-[8px_8px_0px_#000]">
               <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase"><Plus size={24}/> NUOVO COLLABORATORE</h2>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Supervisore (Opzionale)</label>
+                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
+                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
+                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
+                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Supervisore (Opzionale)</label>
                   <select className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00] bg-white" value={prForm.supervisorId} onChange={e => setPrForm({...prForm, supervisorId: e.target.value})}>
                     <option value="">-- NESSUN SUPERVISORE --</option>
                     {activePrs.filter(p => p.id !== 'MASTER').map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
@@ -577,7 +525,7 @@ const Admin = () => {
 
                     return (
                       <tr key={pr.id} className="border-b-2 border-black hover:bg-[#FFEE00]/10">
-                        <td className="p-4 border-r-2 border-black align-top">
+                        <td className="p-4 border-r-2 border-black align-top text-left">
                           <p className="font-black text-lg leading-none">{pr.name}</p>
                           {pr.phone && <p className="text-xs font-bold opacity-50 flex items-center gap-1 mt-1"><Phone size={10}/> {pr.phone}</p>}
                           <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -585,7 +533,7 @@ const Admin = () => {
                             {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
                           </div>
                         </td>
-                        <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top">
+                        <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top text-left">
                           {pr.supervisorId && !isMaster ? (
                             <>
                               <span className="block text-sm text-black">{supNameText}</span>
@@ -596,7 +544,7 @@ const Admin = () => {
                             </>
                           ) : 'NESSUNO'}
                         </td>
-                        <td className="p-2 border-r-2 border-black align-top">
+                        <td className="p-2 border-r-2 border-black align-top text-left">
                           {isMaster ? (
                             <div className="flex flex-col gap-1">
                               {events.map(ev => (<div key={ev.id} className="h-[26px] flex items-center"><span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]">{ev.title}</span></div>))}
@@ -651,6 +599,7 @@ const Admin = () => {
                             {acconto > 0 && <span className="text-[10px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
                           </div>
                           <div className="flex flex-col gap-2 items-center mt-3">
+                            <button onClick={() => handleResetPrPassword(pr.id)} className="bg-black text-white text-[10px] p-2 border-2 border-black flex items-center justify-center gap-1 uppercase w-full shadow-[2px_2px_0px_#000] active:scale-95"><KeyRound size={12}/> RESET PWD</button>
                             {isMaster ? (
                                 <>
                                 <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1"><Calculator size={12}/> CONTEGGI</button>
@@ -688,7 +637,7 @@ const Admin = () => {
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col">
-                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Nome Evento</label>
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Nome Evento</label>
                       <input type="text" placeholder="ES. SATURDAY NIGHT" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} required />
                     </div>
                     
@@ -712,12 +661,12 @@ const Admin = () => {
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="flex flex-col">
-                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Data (Auto-link slot)</label>
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Data (Auto-link slot)</label>
                       <input type="date" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
                     </div>
 
                     <div className="flex flex-col">
-                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Luogo / Location</label>
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Luogo / Location</label>
                       <div className="relative">
                         <input type="text" placeholder="ES. VILLA D'ESTE" className="p-4 pl-12 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00] w-full" value={eventForm.location} onChange={e => setEventForm({...eventForm, location: e.target.value})} required />
                         <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
@@ -726,7 +675,7 @@ const Admin = () => {
                  </div>
                  
                  <div className="flex flex-col">
-                   <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Info & Listino prezzi</label>
+                   <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Info & Listino prezzi</label>
                    <textarea placeholder="DESCRIZIONE COMPLETA..." className="p-4 bg-zinc-900 border border-zinc-700 font-bold text-white h-40 outline-none focus:border-[#FFEE00] resize-none" value={eventForm.description} onChange={e => setEventForm({...eventForm, description: e.target.value})} required />
                  </div>
 
@@ -736,7 +685,7 @@ const Admin = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {events.map(ev => (
-                 <div key={ev.id} className="bg-white border-4 border-black p-4 flex flex-col justify-between shadow-[8px_8px_0px_#000]">
+                 <div key={ev.id} className="bg-white border-4 border-black p-4 flex flex-col justify-between shadow-[8px_8px_0px_#000] text-left">
                    <div>
                      {ev.imageUrl && <img src={ev.imageUrl} alt={ev.title} className="w-full h-auto object-contain border-2 border-black mb-3" />}
                      <div className="flex justify-between items-start mb-3">
@@ -761,20 +710,17 @@ const Admin = () => {
         {/* TAB 4: SPONSOR */}
         {activeTab === 'sponsors' && (
           <div className="animate-in fade-in duration-300">
-            <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_#000]"><h2 className="text-xl font-black mb-2 uppercase italic flex items-center gap-2"><Gift/> Gestione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci i premi e le probabilità di vincita per attirare clienti.</p></div>
+            <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_#000] text-left"><h2 className="text-xl font-black mb-2 uppercase italic flex items-center gap-2"><Gift/> Gestione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci i premi e le probabilità di vincita per attirare clienti.</p></div>
             <p className="text-center font-black opacity-20 py-20 italic border-4 border-dashed border-black">SEZIONE IN FASE DI AGGIORNAMENTO...</p>
           </div>
         )}
       </div>
 
-      {/* MODALI E POPUP */}
-      {/* ... (Password, Dettaglio Finanziario, Bilancio Master, Alias, Pagamento, Sostituzione rimangono invariati) ... */}
-      
       {/* PASSWORD ADMIN */}
       {passwordModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-zinc-900 border-4 border-[#FFEE00] p-6 w-full max-w-sm shadow-[10px_10px_0px_#FFEE00]">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-zinc-800 pb-4">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-zinc-800 pb-4 text-left">
               <h2 className="text-2xl font-black italic uppercase text-white">Security Vault</h2>
               <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
             </div>
@@ -797,11 +743,11 @@ const Admin = () => {
                 <tr><th className="p-3 text-left border-r border-zinc-700">PR</th><th className="p-3 text-center border-r border-zinc-700">IN</th><th className="p-3 text-right text-[#FFEE00]">LORDO</th></tr>
               </thead>
               <tbody>
-                {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal) || p.eventId === selectedEventForModal).map(p => {
+                {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal)).map(p => {
                    const finEv = calculatePrFinancialsForEvent(p, selectedEventForModal);
                    if (finEv.evIns === 0 && finEv.supervisorBonusEv === 0 && p.id !== 'MASTER') return null;
                    return (
-                     <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-50">
+                     <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-50 text-left">
                        <td className="p-3 border-r-2 border-black">{p.name}<span className="block text-[9px] text-zinc-400 italic font-medium">ID: {p.id}</span></td>
                        <td className="p-3 border-r-2 border-black text-center text-xl font-black italic">{finEv.evIns}</td>
                        <td className="p-3 text-right text-red-600 text-lg font-black">€{finEv.guadagnoTotaleEv.toFixed(2)}</td>
@@ -815,7 +761,7 @@ const Admin = () => {
         </div>
       )}
 
-      {/* BILANCIO MASTER E ORFANI */}
+      {/* BILANCIO MASTER */}
       {profitsModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white border-4 border-black p-6 w-full max-w-2xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">

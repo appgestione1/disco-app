@@ -6,7 +6,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import html2canvas from 'html2canvas'; 
 import { 
   ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
-  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone, Info, Users, Edit3
+  Music, Theater, Film, Mic2, Sun, Utensils, Sparkles, LayoutGrid, Download, Send, Phone, Info, Users, Edit3, X
 } from 'lucide-react';
 
 // --- COMPONENTE GRATTA E VINCI ---
@@ -118,7 +118,6 @@ const Home = () => {
   const [hasWon, setHasWon] = useState(false);
   const [winClaimed, setWinClaimed] = useState(false);
   
-  // STATI PER LOGIN ADMIN E SEQUENZA STELLE
   const [clickCount, setClickCount] = useState(0);
   const [lockClickCount, setLockClickCount] = useState(0);
   const [showAdminLogin, setShowAdminLogin] = useState(false);
@@ -126,9 +125,12 @@ const Home = () => {
   const [adminPassword, setAdminPassword] = useState('');
   const [superAdminPassword, setSuperAdminPassword] = useState('');
 
-  // LOGICA SEQUENZA SEGRETA STELLE
+  // SEQUENZA STELLE E PASSWORD PR
   const [starSequence, setStarSequence] = useState([]);
   const [showPrAccess, setShowPrAccess] = useState(false);
+  const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
+  const [prPasswordInput, setPrPasswordInput] = useState('');
+  const [isFirstPrAccess, setIsFirstPrAccess] = useState(false);
 
   const passRef = useRef(null); 
   const PRIVE_ADVANCE_FEE = 50;
@@ -169,18 +171,50 @@ const Home = () => {
 
   const handleStarClick = (side) => {
     const newSequence = [...starSequence, side];
-    
-    // Controlliamo se la sequenza è corretta: Destra (R), Destra (R), Sinistra (L), Sinistra (L)
     if (newSequence.length === 4) {
       if (newSequence[0] === 'R' && newSequence[1] === 'R' && newSequence[2] === 'L' && newSequence[3] === 'L') {
         setShowPrAccess(!showPrAccess);
       }
-      setStarSequence([]); // Reset dopo 4 tocchi
+      setStarSequence([]); 
     } else {
       setStarSequence(newSequence);
-      // Reset automatico se non finisce la sequenza in 3 secondi
       setTimeout(() => setStarSequence([]), 3000);
     }
+  };
+
+  const handleOpenPrDashboard = async () => {
+    try {
+      const prDoc = await getDoc(doc(db, "prs_registry", prRef));
+      const data = prDoc.data();
+      if (!data?.prPassword) {
+        setIsFirstPrAccess(true);
+        setShowPrPasswordModal(true);
+      } else {
+        setIsFirstPrAccess(false);
+        setShowPrPasswordModal(true);
+      }
+    } catch (e) { alert("Errore verifica credenziali"); }
+  };
+
+  const handleVerifyPrPassword = async () => {
+    if (!prPasswordInput) return;
+    try {
+      const prDocRef = doc(db, "prs_registry", prRef);
+      const prDoc = await getDoc(prDocRef);
+      
+      if (isFirstPrAccess) {
+        await updateDoc(prDocRef, { prPassword: prPasswordInput });
+        navigate(`/pr/${prRef}`);
+      } else {
+        if (prDoc.data().prPassword === prPasswordInput) {
+          navigate(`/pr/${prRef}`);
+        } else {
+          alert("Password Errata");
+        }
+      }
+      setPrPasswordInput('');
+      setShowPrPasswordModal(false);
+    } catch (e) { alert("Errore sistema"); }
   };
 
   const dates = Array.from({ length: 30 }, (_, i) => {
@@ -422,14 +456,37 @@ const Home = () => {
 
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
-      {/* ICONA SEGRETA PR */}
+      {/* ACCESSO DASHBOARD PR */}
       {showPrAccess && (
         <button 
-          onClick={() => navigate(`/pr/${prRef}`)}
+          onClick={handleOpenPrDashboard}
           className="fixed top-6 right-6 z-[60] bg-[#D4AF37] text-black p-4 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.5)] animate-bounce border-2 border-white"
         >
           <Crown size={28} />
         </button>
+      )}
+
+      {/* MODALE PASSWORD PR */}
+      {showPrPasswordModal && (
+        <div className="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-10 animate-in fade-in zoom-in text-center">
+          <div className="w-full max-w-sm space-y-10">
+            <Lock className="mx-auto text-[#D4AF37]" size={56} />
+            <h2 className="text-white font-black italic uppercase">
+                {isFirstPrAccess ? 'Imposta Password PR' : 'Inserisci Password PR'}
+            </h2>
+            <input 
+              type="password" 
+              placeholder="PASSWORD" 
+              className="w-full p-6 bg-zinc-900 border border-white/10 rounded-2xl text-white text-center font-black tracking-[0.4em] outline-none focus:border-[#D4AF37]" 
+              value={prPasswordInput} 
+              onChange={e => setPrPasswordInput(e.target.value)} 
+            />
+            <button onClick={handleVerifyPrPassword} className="w-full bg-[#D4AF37] text-black p-6 rounded-full font-black uppercase shadow-2xl active:scale-95 transition-all">
+                {isFirstPrAccess ? 'CONFIGURA E ACCEDI' : 'VERIFICA E ACCEDI'}
+            </button>
+            <button onClick={() => setShowPrPasswordModal(false)} className="text-zinc-500 text-[10px] font-black uppercase underline">Annulla</button>
+          </div>
+        </div>
       )}
 
       <div className="h-[20vh] flex flex-col items-center justify-center relative p-4">
@@ -535,7 +592,7 @@ const Home = () => {
         </div>
       )}
 
-      {/* LOGIN MODAL */}
+      {/* LOGIN MODAL ADMIN */}
       {(showAdminLogin || showSuperAdminLogin) && (
         <div className="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-10 animate-in fade-in zoom-in text-center">
           <div className="w-full max-w-sm space-y-10">
@@ -591,14 +648,14 @@ const Home = () => {
         </div>
       )}
 
-      {/* FOOTER CON STELLE CLICCABILI */}
-      <div className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-2xl border-t border-white/5 p-5 flex justify-center items-center gap-4 z-40">
-        <button onClick={() => handleStarClick('L')}>
-          <Star size={10} className="text-[#D4AF37] animate-pulse" />
+      {/* FOOTER CON STELLE ALLARGATE */}
+      <div className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-2xl border-t border-white/5 p-4 flex justify-center items-center gap-10 z-40">
+        <button onClick={() => handleStarClick('L')} className="p-4 hover:scale-110 transition-transform">
+          <Star size={24} className="text-[#D4AF37] animate-pulse" />
         </button>
         <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product Stefano Di Bella 2026</span>
-        <button onClick={() => handleStarClick('R')}>
-          <Star size={10} className="text-[#D4AF37] animate-pulse" />
+        <button onClick={() => handleStarClick('R')} className="p-4 hover:scale-110 transition-transform">
+          <Star size={24} className="text-[#D4AF37] animate-pulse" />
         </button>
       </div>
     </div>
