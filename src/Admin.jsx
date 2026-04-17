@@ -6,7 +6,7 @@ import {
 } from 'firebase/firestore';
 import { 
   Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -55,8 +55,7 @@ const Admin = () => {
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
   
-  // MODIFICATO: Aggiunto campo category
-  const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA' }); 
+  const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
 
   // CATEGORIE CONCORDATE
@@ -300,7 +299,6 @@ const Admin = () => {
     } catch (error) { alert("Errore azzeramento."); } finally { setLoading(false); }
   };
 
-  // MODIFICATO: Aggiunto salvataggio category
   const handleAddEvent = async (e) => {
     e.preventDefault();
     if (!selectedFile) return alert("Clicca sul riquadro per inserire la foto!");
@@ -317,13 +315,14 @@ const Admin = () => {
             await setDoc(doc(collection(db, "events")), {
               title: eventForm.title, 
               date: eventForm.date, 
+              location: eventForm.location,
               description: eventForm.description,
-              category: eventForm.category, // AGGIUNTO
+              category: eventForm.category,
               imageUrl: canvas.toDataURL('image/jpeg', 0.7), 
               active: true, 
               timestamp: new Date()
             });
-            setEventForm({ title: '', date: '', description: '', category: 'DISCOTECA' }); 
+            setEventForm({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
             setSelectedFile(null); await fetchData();
           } catch (dbError) { alert("Errore salvataggio database."); } finally { setLoading(false); }
         };
@@ -459,7 +458,7 @@ const Admin = () => {
       {/* HEADER DASHBOARD */}
       <div className="bg-black text-white py-1 px-5 sticky top-0 z-50 flex justify-between items-center border-b-4 border-[#FFEE00]">
         
-        <div className="flex flex-col items-start">
+        <div className="flex items-start flex-col">
           <img src="/logo.png" alt="Logo" className="h-24 mt-8 -mb-5 object-contain block" />
           <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
         </div>
@@ -492,13 +491,6 @@ const Admin = () => {
         {/* TAB 1: DATI LIVE */}
         {activeTab === 'stats' && (
           <div className="animate-in fade-in duration-300">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-              <div className="bg-white border-4 border-black p-5 shadow-[6px_6px_0px_#000]"><Ticket className="mb-2 text-zinc-400" /><p className="text-[10px] font-black uppercase">Pass Generati Totali</p><p className="text-5xl font-black italic">{tickets.length}</p></div>
-              <div className="bg-[#FFEE00] border-4 border-black p-5 shadow-[6px_6px_0px_#000]"><Users className="mb-2 text-black" /><p className="text-[10px] font-black uppercase">Ingressi Effettivi Totali</p><p className="text-5xl font-black italic">{totalScanned}</p></div>
-              <div className="bg-black text-white border-4 border-black p-5 shadow-[6px_6px_0px_#FFEE00]"><Award className="mb-2 text-[#FFEE00]" /><p className="text-[10px] font-black uppercase text-[#FFEE00]">Drink Vinti Totali</p><p className="text-5xl font-black italic">{totalWon}</p></div>
-              <div className="bg-white border-4 border-red-600 p-5 shadow-[6px_6px_0px_#dc2626]"><DollarSign className="mb-2 text-red-600" /><p className="text-[10px] font-black uppercase text-red-600">Costo Stimato PR LORDO</p><p className="text-5xl font-black italic">€{totalPrCosts.toFixed(2)}</p></div>
-            </div>
-
             <h2 className="text-2xl font-black italic mb-6 underline uppercase">Dati Live per Singola Serata</h2>
             <div className="flex flex-col gap-6">
                {events.map(ev => {
@@ -682,7 +674,7 @@ const Admin = () => {
           </div>
         )}
 
-        {/* TAB 3: GESTIONE SERATE - AGGIUNTO CATEGORIA E COLLEGAMENTO DATA */}
+        {/* TAB 3: GESTIONE SERATE */}
         {activeTab === 'events' && (
           <div className="animate-in fade-in duration-300">
              <form onSubmit={handleAddEvent} className="bg-black text-white p-6 mb-10 shadow-[8px_8px_0px_#FFEE00]">
@@ -700,7 +692,6 @@ const Admin = () => {
                       <input type="text" placeholder="ES. SATURDAY NIGHT" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.title} onChange={e => setEventForm({...eventForm, title: e.target.value})} required />
                     </div>
                     
-                    {/* NUOVO: SELETTORE CATEGORIA */}
                     <div className="flex flex-col">
                       <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase text-left">Tipologia Evento</label>
                       <div className="relative">
@@ -719,9 +710,19 @@ const Admin = () => {
                     </div>
                  </div>
 
-                 <div className="flex flex-col">
-                    <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Data (Auto-link allo Slot Home)</label>
-                    <input type="date" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="flex flex-col">
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Data (Auto-link slot)</label>
+                      <input type="date" className="p-4 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00]" value={eventForm.date} onChange={e => setEventForm({...eventForm, date: e.target.value})} required />
+                    </div>
+
+                    <div className="flex flex-col">
+                      <label className="text-[10px] text-[#FFEE00] mb-1 tracking-widest uppercase">Luogo / Location</label>
+                      <div className="relative">
+                        <input type="text" placeholder="ES. VILLA D'ESTE" className="p-4 pl-12 bg-zinc-900 border border-zinc-700 font-black text-white outline-none focus:border-[#FFEE00] w-full" value={eventForm.location} onChange={e => setEventForm({...eventForm, location: e.target.value})} required />
+                        <MapPin size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" />
+                      </div>
+                    </div>
                  </div>
                  
                  <div className="flex flex-col">
@@ -741,7 +742,10 @@ const Admin = () => {
                      <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="text-3xl font-black italic uppercase leading-none mb-1">{ev.title}</p>
-                          <p className="font-bold text-zinc-400 text-[10px] tracking-widest">{ev.date}</p>
+                          <div className="flex items-center gap-2">
+                             <p className="font-bold text-zinc-400 text-[10px] tracking-widest">{ev.date}</p>
+                             {ev.location && <span className="text-zinc-500 text-[10px] font-black uppercase flex items-center gap-1">• <MapPin size={10}/> {ev.location}</span>}
+                          </div>
                         </div>
                         <span className="bg-black text-[#FFEE00] px-2 py-1 text-[10px] font-black italic">{ev.category || 'DISCOTECA'}</span>
                      </div>
@@ -754,7 +758,7 @@ const Admin = () => {
           </div>
         )}
 
-        {/* TAB 4: SPONSOR - INTEGRALE */}
+        {/* TAB 4: SPONSOR */}
         {activeTab === 'sponsors' && (
           <div className="animate-in fade-in duration-300">
             <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_#000]"><h2 className="text-xl font-black mb-2 uppercase italic flex items-center gap-2"><Gift/> Gestione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci i premi e le probabilità di vincita per attirare clienti.</p></div>
@@ -763,8 +767,9 @@ const Admin = () => {
         )}
       </div>
 
-      {/* --- POPUP E MODALI INTEGRALI (TUTTI RIPRISTINATI) --- */}
-
+      {/* MODALI E POPUP */}
+      {/* ... (Password, Dettaglio Finanziario, Bilancio Master, Alias, Pagamento, Sostituzione rimangono invariati) ... */}
+      
       {/* PASSWORD ADMIN */}
       {passwordModalOpen && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">

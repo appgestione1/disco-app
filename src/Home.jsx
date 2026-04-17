@@ -279,6 +279,10 @@ const Home = () => {
                 </button>
               )}
 
+              <button onClick={() => setBookingMode('pr')} className="w-full border-2 border-zinc-700 text-zinc-400 p-6 rounded-full font-black uppercase text-xs tracking-widest flex items-center justify-between active:scale-95 transition-transform hover:border-zinc-500 hover:text-zinc-300">
+                <div className="flex items-center gap-2"><Star size={18}/><span>Aggiungimi nella Lista del PR</span></div> <ArrowRight size={18} />
+              </button>
+
               {selectedEvent.isPassDisabled && selectedEvent.isPriveDisabled && (
                 <div className="text-center py-6 px-4 bg-zinc-900/30 rounded-3xl border border-white/5">
                    <p className="text-zinc-500 font-black italic uppercase text-[10px] tracking-widest">Le prenotazioni online per questa serata sono attualmente chiuse.</p>
