@@ -7,9 +7,10 @@ import {
 } from 'firebase/firestore';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator } from 'lucide-react';
-import Admin from './Admin'; 
-import Home from './Home'; 
+import Admin from './Admin';
+import Home from './Home';
 import SuperAdmin from './SuperAdmin';
+import SubmitEvent from './SubmitEvent';
 
 // --- SCANNER (LATO STAFF) ---
 const Scanner = () => {
@@ -331,6 +332,7 @@ export default function App() {
         <Route path="/pr/:prId" element={<PRDashboard />} />
         <Route path="/admin-segreto-stefano" element={<Admin />} />
         <Route path="/super-control-room" element={<SuperAdmin />} />
+        <Route path="/proponi-evento" element={<SubmitEvent />} />
       </Routes>
     </Router>
   );

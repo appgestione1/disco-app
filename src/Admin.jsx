@@ -5,8 +5,8 @@ import {
   deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField 
 } from 'firebase/firestore';
 import { 
-  Users, Calendar, Ticket, Gift, Trash2, 
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound
+  Users, Calendar, Ticket, Gift, Trash2,
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound, Ban, Crown
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -51,6 +51,9 @@ const Admin = () => {
 
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [newAdminPassword, setNewAdminPassword] = useState('');
+
+  const [priveManageEvent, setPriveManageEvent] = useState(null);
+  const [priveForm, setPriveForm] = useState({ name: '', price: '', inclusions: '' });
 
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
   const [autoPrCode, setAutoPrCode] = useState('PR001'); 
@@ -340,6 +343,78 @@ const Admin = () => {
       };
       reader.readAsDataURL(selectedFile);
     } catch (e) { setLoading(false); }
+  };
+
+  const handleSavePriveType = async (ev) => {
+    if (!priveForm.name.trim() || !priveForm.price) return alert('Inserisci nome e prezzo');
+    const newType = {
+      id: Math.random().toString(36).substr(2, 8).toUpperCase(),
+      name: priveForm.name,
+      price: Number(priveForm.price),
+      inclusions: priveForm.inclusions || '',
+      available: true
+    };
+    const updatedTypes = [...(ev.priveTypes || []), newType];
+    try {
+      await updateDoc(doc(db, 'events', ev.id), { priveTypes: updatedTypes });
+      const updated = { ...ev, priveTypes: updatedTypes };
+      setPriveManageEvent(updated);
+      setEvents(events.map(e => e.id === ev.id ? updated : e));
+      setPriveForm({ name: '', price: '', inclusions: '' });
+    } catch { alert('Errore salvataggio'); }
+  };
+
+  const handleDeletePriveType = async (ev, typeId) => {
+    if (!window.confirm('Eliminare questo tipo di privé?')) return;
+    const updatedTypes = (ev.priveTypes || []).filter(t => t.id !== typeId);
+    try {
+      await updateDoc(doc(db, 'events', ev.id), { priveTypes: updatedTypes });
+      const updated = { ...ev, priveTypes: updatedTypes };
+      setPriveManageEvent(updated);
+      setEvents(events.map(e => e.id === ev.id ? updated : e));
+    } catch { alert('Errore eliminazione'); }
+  };
+
+  const handleTogglePriveAvailability = async (ev, typeId, currentAvailable) => {
+    const updatedTypes = (ev.priveTypes || []).map(t =>
+      t.id === typeId ? { ...t, available: currentAvailable === false ? true : false } : t
+    );
+    try {
+      await updateDoc(doc(db, 'events', ev.id), { priveTypes: updatedTypes });
+      const updated = { ...ev, priveTypes: updatedTypes };
+      setPriveManageEvent(updated);
+      setEvents(events.map(e => e.id === ev.id ? updated : e));
+    } catch { alert('Errore aggiornamento'); }
+  };
+
+  const handleToggleCancelled = async (ev) => {
+    const newValue = !ev.isCancelled;
+    const msg = newValue
+      ? `Segnare "${ev.title}" come ANNULLATO?\n\nTutte le prenotazioni verranno disabilitate.`
+      : `Riattivare "${ev.title}"?`;
+    if (!window.confirm(msg)) return;
+    setLoading(true);
+    try {
+      const updates = { isCancelled: newValue };
+      if (newValue) {
+        updates.isPassDisabled = true;
+        updates.isPriveDisabled = true;
+        updates.isPrListDisabled = true;
+      }
+      await updateDoc(doc(db, "events", ev.id), updates);
+      await fetchData();
+    } catch { alert("Errore aggiornamento."); } finally { setLoading(false); }
+  };
+
+  const handleTogglePriveSoldOut = async (ev) => {
+    const newValue = !ev.isPriveSoldOut;
+    setLoading(true);
+    try {
+      const updates = { isPriveSoldOut: newValue };
+      if (newValue) updates.isPriveDisabled = true;
+      await updateDoc(doc(db, "events", ev.id), updates);
+      await fetchData();
+    } catch { alert("Errore aggiornamento."); } finally { setLoading(false); }
   };
 
   const handleConcludiSerata = async (eventId) => {
@@ -685,9 +760,23 @@ const Admin = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {events.map(ev => (
-                 <div key={ev.id} className="bg-white border-4 border-black p-4 flex flex-col justify-between shadow-[8px_8px_0px_#000] text-left">
+                 <div key={ev.id} className={`border-4 p-4 flex flex-col justify-between shadow-[8px_8px_0px_#000] text-left ${ev.isCancelled ? 'bg-red-50 border-red-600' : 'bg-white border-black'}`}>
                    <div>
-                     {ev.imageUrl && <img src={ev.imageUrl} alt={ev.title} className="w-full h-auto object-contain border-2 border-black mb-3" />}
+                     {ev.imageUrl && (
+                       <div className="relative w-full mb-3">
+                         <img src={ev.imageUrl} alt={ev.title} className="w-full h-auto object-contain border-2 border-black" />
+                         {ev.isCancelled && (
+                           <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+                             <p className="text-red-500 font-black text-xl italic uppercase rotate-[-12deg] border-4 border-red-600 px-4 py-2">EVENTO ANNULLATO</p>
+                           </div>
+                         )}
+                         {ev.isPriveSoldOut && !ev.isCancelled && (
+                           <div className="absolute bottom-2 right-2 bg-black/80 text-amber-400 font-black text-[8px] px-2 py-1 border border-amber-400/50 uppercase tracking-widest">
+                             Sold out Privé
+                           </div>
+                         )}
+                       </div>
+                     )}
                      <div className="flex justify-between items-start mb-3">
                         <div>
                           <p className="text-3xl font-black italic uppercase leading-none mb-1">{ev.title}</p>
@@ -700,7 +789,34 @@ const Admin = () => {
                      </div>
                      {ev.description && <p className="text-xs font-bold text-zinc-800 bg-zinc-50 p-2 border border-zinc-200 h-24 overflow-y-auto whitespace-pre-wrap">{ev.description}</p>}
                    </div>
-                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-red-600 text-white border-2 border-black mt-4 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#000] uppercase text-sm active:translate-y-1 transition-all"><Trash2 size={20}/> ARCHIVIA SERATA</button>
+                   <button
+                     onClick={() => setPriveManageEvent(ev)}
+                     className="w-full p-3 border-2 border-black bg-[#FFEE00] text-black flex justify-center items-center gap-2 font-black uppercase text-xs shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all mt-4"
+                   >
+                     <Crown size={16} /> GESTIONE PRIVÉ
+                     {(ev.priveTypes || []).length > 0 && (
+                       <span className="bg-black text-[#FFEE00] text-[9px] px-1.5 py-0.5 rounded-sm ml-1">
+                         {ev.priveTypes.length} TIPI
+                       </span>
+                     )}
+                   </button>
+                   <div className="grid grid-cols-2 gap-3 mt-3">
+                     <button
+                       onClick={() => handleToggleCancelled(ev)}
+                       disabled={loading}
+                       className={`p-3 border-2 border-black flex justify-center items-center gap-2 font-black uppercase text-xs shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all ${ev.isCancelled ? 'bg-zinc-900 text-[#FFEE00]' : 'bg-red-600 text-white'}`}
+                     >
+                       <Ban size={16} /> {ev.isCancelled ? 'RIATTIVA' : 'ANNULLA'}
+                     </button>
+                     <button
+                       onClick={() => handleTogglePriveSoldOut(ev)}
+                       disabled={loading}
+                       className={`p-3 border-2 border-black flex justify-center items-center gap-2 font-black uppercase text-xs shadow-[3px_3px_0px_#000] active:translate-y-1 transition-all ${ev.isPriveSoldOut ? 'bg-zinc-200 text-zinc-600' : 'bg-amber-400 text-black'}`}
+                     >
+                       <Crown size={16} /> {ev.isPriveSoldOut ? 'PRIVÉ OK' : 'SOLD OUT PRIVÉ'}
+                     </button>
+                   </div>
+                   <button onClick={() => handleConcludiSerata(ev.id)} className="w-full p-4 bg-black text-white border-2 border-black mt-3 flex justify-center items-center gap-2 font-black shadow-[4px_4px_0px_#FFEE00] uppercase text-sm active:translate-y-1 transition-all"><Trash2 size={20}/> ARCHIVIA SERATA</button>
                  </div>
                ))}
              </div>
@@ -864,6 +980,101 @@ const Admin = () => {
                   <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} className="w-full bg-red-600 text-white font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#000]">ESAGUI FUSIONE</button>
                </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* GESTIONE PRIVÉ */}
+      {priveManageEvent && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white border-4 border-black p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-[10px_10px_0px_#FFEE00]">
+            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
+              <div>
+                <p className="text-[10px] font-black uppercase text-zinc-500 tracking-widest italic">Configurazione Privé</p>
+                <h2 className="text-2xl font-black italic uppercase leading-none mt-1">{priveManageEvent.title}</h2>
+              </div>
+              <button onClick={() => { setPriveManageEvent(null); setPriveForm({ name: '', price: '', inclusions: '' }); }} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
+            </div>
+
+            {/* Form nuovo tipo privé */}
+            <div className="bg-zinc-100 border-2 border-black p-5 mb-6">
+              <h3 className="font-black uppercase text-sm mb-4 flex items-center gap-2 italic"><Plus size={16} /> Aggiungi Tipo Privé</h3>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Nome Tavolo</label>
+                  <input
+                    type="text" placeholder="ES. STANDARD, VIP REGIA, PALCO..."
+                    className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]"
+                    value={priveForm.name} onChange={e => setPriveForm({ ...priveForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Prezzo Totale Tavolo (€)</label>
+                  <input
+                    type="number" min="0" step="10" placeholder="ES. 200"
+                    className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]"
+                    value={priveForm.price} onChange={e => setPriveForm({ ...priveForm, price: e.target.value })}
+                  />
+                </div>
+                <div className="flex flex-col">
+                  <label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest">Incluso (Opzionale)</label>
+                  <input
+                    type="text" placeholder="ES. BOTTIGLIA DI PROSECCO INCLUSA"
+                    className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]"
+                    value={priveForm.inclusions} onChange={e => setPriveForm({ ...priveForm, inclusions: e.target.value })}
+                  />
+                </div>
+                <button
+                  onClick={() => handleSavePriveType(priveManageEvent)}
+                  className="bg-black text-[#FFEE00] font-black p-3 uppercase hover:bg-zinc-800 transition-all shadow-[3px_3px_0px_#FFEE00] flex items-center justify-center gap-2"
+                >
+                  <Plus size={16} /> AGGIUNGI TIPO
+                </button>
+              </div>
+            </div>
+
+            {/* Lista tipi esistenti */}
+            <h3 className="font-black uppercase text-xs text-zinc-500 tracking-widest mb-3 italic">Tipi Configurati</h3>
+            {(priveManageEvent.priveTypes || []).length === 0 ? (
+              <p className="text-center text-zinc-400 font-black italic uppercase text-xs py-10 border-2 border-dashed border-zinc-300">
+                Nessun tipo privé configurato
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {(priveManageEvent.priveTypes || []).map(pt => (
+                  <div key={pt.id} className={`border-2 ${pt.available !== false ? 'border-black bg-white' : 'border-zinc-300 bg-zinc-50 opacity-60'} p-4 flex items-center justify-between gap-4 text-left`}>
+                    <div className="flex-1">
+                      <p className="font-black uppercase text-lg leading-none">{pt.name}</p>
+                      <p className="text-2xl font-black mt-1">
+                        <span className="bg-black text-[#FFEE00] px-2 py-0.5 inline-block">€{pt.price}</span>
+                      </p>
+                      {pt.inclusions && <p className="text-xs font-bold text-zinc-500 mt-1 italic normal-case">{pt.inclusions}</p>}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleTogglePriveAvailability(priveManageEvent, pt.id, pt.available)}
+                        className={`text-[10px] font-black border-2 border-black p-2 uppercase min-w-[52px] text-center shadow-[2px_2px_0px_#000] ${pt.available !== false ? 'bg-green-500 text-white' : 'bg-zinc-200 text-zinc-600'}`}
+                      >
+                        {pt.available !== false ? 'ON' : 'OFF'}
+                      </button>
+                      <button
+                        onClick={() => handleDeletePriveType(priveManageEvent, pt.id)}
+                        className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <button
+              onClick={() => { setPriveManageEvent(null); setPriveForm({ name: '', price: '', inclusions: '' }); }}
+              className="w-full mt-6 bg-black text-[#FFEE00] font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#FFEE00] italic"
+            >
+              CHIUDI E SALVA
+            </button>
           </div>
         </div>
       )}
