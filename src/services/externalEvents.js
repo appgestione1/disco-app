@@ -1,6 +1,28 @@
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+export async function fetchShowtimes(filmTitle) {
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const snap = await getDoc(doc(db, 'showtimes', today));
+    if (!snap.exists()) return {};
+
+    const cinemas = snap.data().cinemas || {};
+    const normalizeT = t => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+    const needle = normalizeT(filmTitle);
+    const result = {};
+
+    for (const [cinemaId, films] of Object.entries(cinemas)) {
+      const match = films.find(f => {
+        const hay = normalizeT(f.title);
+        return hay.includes(needle) || needle.includes(hay) || needle.split(' ').filter(w => w.length > 3).every(w => hay.includes(w));
+      });
+      if (match) result[cinemaId] = match.times;
+    }
+    return result;
+  } catch { return {}; }
+}
+
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 ore
 
 const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;

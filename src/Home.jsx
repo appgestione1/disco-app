@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { fetchCinema, fetchConcerti, fetchTeatro } from './services/externalEvents';
+import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes } from './services/externalEvents';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
@@ -10,6 +10,12 @@ const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
 const FilmDetail = ({ film, onClose }) => {
   const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
+  const [showtimes, setShowtimes] = useState({});
+  const [loadingShowtimes, setLoadingShowtimes] = useState(true);
+
+  useEffect(() => {
+    fetchShowtimes(film.title).then(data => { setShowtimes(data); setLoadingShowtimes(false); });
+  }, [film.title]);
 
   return (
     <div className="min-h-screen bg-black text-white p-6 animate-in slide-in-from-right duration-500 overflow-x-hidden pb-32">
@@ -80,9 +86,20 @@ const FilmDetail = ({ film, onClose }) => {
               </a>
             </div>
 
-            {cinema.partnerId ? (
-              <div className="text-center py-2 text-[#D4AF37] text-[10px] font-black uppercase tracking-widest">
-                Orari in caricamento...
+            {loadingShowtimes ? (
+              <div className="flex justify-center py-2">
+                <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+              </div>
+            ) : showtimes[cinema.id] ? (
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Oggi in programmazione</p>
+                <div className="flex flex-wrap gap-2">
+                  {showtimes[cinema.id].map(time => (
+                    <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
+                      {time}
+                    </span>
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="flex gap-2">
