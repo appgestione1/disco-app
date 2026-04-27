@@ -6,166 +6,157 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
-// ── Mapping testo pagina → ID app ─────────────────────────────────────────────
-const CINEMA_KEYWORDS = {
-  'misterbianco':              'thespaceleporte',
-  'the space catania':         'thespaceleporte',
-  'porte di catania':          'thespaceleporte',
-  'belpasso':                  'thespaceetnapolis',
-  'the space etnapolis':       'thespaceetnapolis',
-  'etnapolis':                 'thespaceetnapolis',
-  'king multisala':            'cinemaking',
-  'king cinestudio':           'cinemaking',
-  'odeon':                     'odeon',
-  'cinestar':                  'cinestar',
-  'i portali':                 'cinestar',
-  'eplanet ariston':           'eplanetariston',
-  'ariston':                   'eplanetariston',
-  'eplanet catania':           'cinemaplanet',
-  'cinema planet':             'cinemaplanet',
-  'uci':                       'ucicentrosicilia',
-  'centro sicilia':            'ucicentrosicilia',
-  'mascalucia':                'mascalucia',
-  'san giovanni la punta':     'sangiovannilapunta',
-  'sangiovannilapunta':        'sangiovannilapunta',
-  'giarre':                    'giarre',
-  'caltagirone':               'caltagirone',
-  'acireale':                  'acireale',
-  'margherita':                'acireale',
-  'paternò':                   'paterno',
-  'paterno':                   'paterno',
-};
-
-function matchCinema(text) {
-  if (!text) return null;
-  const n = text.toLowerCase();
-  for (const [key, id] of Object.entries(CINEMA_KEYWORDS)) {
-    if (n.includes(key)) return id;
-  }
-  return null;
-}
+// ── URL diretti per cinema su MYmovies ────────────────────────────────────────
+// Per area (misterbianco, belpasso...) cerca prima i link a cinema specifici
+const CINEMA_URLS = (date) => [
+  { url: `https://www.mymovies.it/cinema/catania/5190/?data=${date}`,              id: 'eplanetariston' },
+  { url: `https://www.mymovies.it/cinema/catania/6011/?data=${date}`,              id: 'cinemaplanet' },
+  { url: `https://www.mymovies.it/cinema/catania/5004/?data=${date}`,              id: 'cinemaking' },
+  { url: `https://www.mymovies.it/cinema/catania/misterbianco/?data=${date}`,      id: 'thespaceleporte', isArea: true },
+  { url: `https://www.mymovies.it/cinema/catania/belpasso/?data=${date}`,          id: 'thespaceetnapolis', isArea: true },
+  { url: `https://www.mymovies.it/cinema/catania/mascalucia/?data=${date}`,        id: 'mascalucia', isArea: true },
+  { url: `https://www.mymovies.it/cinema/catania/sangiovannilapunta/?data=${date}`,id: 'sangiovannilapunta', isArea: true },
+  { url: `https://www.mymovies.it/cinema/catania/giarre/?data=${date}`,            id: 'giarre', isArea: true },
+  { url: `https://www.mymovies.it/cinema/catania/caltagirone/?data=${date}`,       id: 'caltagirone', isArea: true },
+];
 
 function extractTimes(text) {
   return [...new Set((String(text).match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
-    .filter(t => { const h = parseInt(t); return h >= 8 && h <= 23; })
+    .filter(t => parseInt(t.split(':')[0]) >= 8)
   )].sort();
 }
 
-// ── Scraping MYmovies: segue i link dei cinema ────────────────────────────────
-async function scrapeMYMovies(browser, today) {
-  const baseUrl = `https://www.mymovies.it/cinema/catania/?data=${today}`;
-  const showtimes = {};
+// ── Parsing per film: analizza testo riga per riga ────────────────────────────
+function parseFilmsFromText(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+  const results = [];
+  let currentTitle = null;
+
+  const isTimeLine = line => /\b([0-1]?\d|2[0-3]):[0-5]\d\b/.test(line);
+  const isFilmTitle = line =>
+    line.length >= 3 && line.length <= 80 &&
+    !isTimeLine(line) &&
+    !line.match(/^(home|film|serie|tv|festival|cinema|dvd|news|guida|cerca|accedi|cookie|lingua|provincia|dalla|scorsa|settimana)/i) &&
+    !line.includes('→') && !line.includes('http') && !line.includes('©') &&
+    !line.match(/^\d+$/) && line.split(' ').length >= 2;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (isTimeLine(line)) {
+      const times = extractTimes(line);
+      if (times.length > 0 && currentTitle) {
+        // Aggiungi orari al titolo corrente
+        const existing = results.find(r => r.title === currentTitle);
+        if (existing) {
+          existing.times = [...new Set([...existing.times, ...times])].sort();
+        } else {
+          results.push({ title: currentTitle, times });
+        }
+      }
+    } else if (isFilmTitle(line)) {
+      currentTitle = line;
+    }
+  }
+
+  // Fallback: se non trovati film specifici, prendi tutti gli orari
+  if (results.length === 0) {
+    const allTimes = extractTimes(text);
+    if (allTimes.length > 0) results.push({ title: 'Programmazione', times: allTimes });
+  }
+
+  return results;
+}
+
+// ── Scraping singola pagina cinema ────────────────────────────────────────────
+async function scrapeCinemaPage(browser, url, cinemaId, isArea = false) {
   const page = await browser.newPage();
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
   try {
-    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await new Promise(r => setTimeout(r, 2000));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 1500));
 
-    // Trova tutti i link cinema nella pagina
-    const cinemaLinks = await page.evaluate(() => {
-      const links = [];
-      document.querySelectorAll('a[href]').forEach(a => {
-        const href = a.href;
-        const text = a.innerText?.trim();
-        if (href.includes('/cinema/') && text && text.length > 2 && text.length < 60) {
-          links.push({ href, text });
-        }
-      });
-      return [...new Map(links.map(l => [l.href, l])).values()]; // deduplica
-    });
-
-    console.log(`\nLink cinema trovati: ${cinemaLinks.length}`);
-    cinemaLinks.forEach(l => console.log(`  ${l.text} → ${l.href}`));
-
-    // Visita ogni link rilevante
-    for (const { href, text } of cinemaLinks) {
-      const cinemaId = matchCinema(text) || matchCinema(href);
-      if (!cinemaId) continue;
-
-      console.log(`\nVisito: ${text} (${cinemaId}) → ${href}`);
-      const cinemaPage = await browser.newPage();
-      await cinemaPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-
-      try {
-        const url = href.includes('data=') ? href : `${href}?data=${today}`;
-        await cinemaPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-        await new Promise(r => setTimeout(r, 2000));
-
-        // Estrai film e orari dalla pagina cinema
-        const films = await cinemaPage.evaluate(() => {
-          const results = [];
-          // Cerca blocchi film
-          const selectors = [
-            '[class*="film"]', '[class*="movie"]', '[class*="spettacol"]',
-            '[class*="scheda"]', '[class*="titolo"]', 'article', '.item'
-          ];
-          for (const sel of selectors) {
-            document.querySelectorAll(sel).forEach(el => {
-              const titleEl = el.querySelector('h2,h3,h4,a,[class*="title"],[class*="titolo"]');
-              const title = titleEl?.innerText?.trim();
-              if (!title || title.length < 2 || title.length > 80) return;
-              const times = [...new Set((el.innerText.match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
-                .filter(t => parseInt(t) >= 8))].sort();
-              if (times.length > 0) results.push({ title, times });
-            });
+    // Per pagine area: cerca prima link a cinema specifici
+    if (isArea) {
+      const subLinks = await page.evaluate(() => {
+        const links = [];
+        document.querySelectorAll('a[href]').forEach(a => {
+          const href = a.href;
+          // Link a cinema specifici hanno ID numerico
+          if (/\/cinema\/catania\/\d+\//.test(href)) {
+            links.push({ href, text: a.innerText?.trim() });
           }
-          // Fallback: estrai tutti gli orari dalla pagina se nessun film trovato
-          if (results.length === 0) {
-            const allTimes = [...new Set((document.body.innerText.match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
-              .filter(t => parseInt(t) >= 8))].sort();
-            if (allTimes.length > 0) results.push({ title: 'Programmazione', times: allTimes });
-          }
-          return results;
         });
+        return [...new Map(links.map(l => [l.href, l])).values()];
+      });
 
-        if (films.length > 0) {
-          showtimes[cinemaId] = films;
-          console.log(`  ✓ ${films.length} film trovati`);
-          films.forEach(f => console.log(`    - ${f.title}: ${f.times.join(', ')}`));
-        } else {
-          console.log(`  ✗ Nessun orario trovato`);
+      if (subLinks.length > 0) {
+        console.log(`  Area ${cinemaId}: trovati ${subLinks.length} cinema specifici`);
+        // Visita il primo cinema specifico dell'area (es. The Space)
+        const subResult = [];
+        for (const { href, text } of subLinks.slice(0, 2)) {
+          console.log(`    → ${text} (${href})`);
+          const subPage = await browser.newPage();
+          await subPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
+          try {
+            await subPage.goto(href, { waitUntil: 'domcontentloaded', timeout: 12000 });
+            await new Promise(r => setTimeout(r, 1500));
+            const text2 = await subPage.evaluate(() => document.body?.innerText || '');
+            const films = parseFilmsFromText(text2);
+            subResult.push(...films);
+          } catch (e) {
+            console.error(`    Errore: ${e.message}`);
+          } finally {
+            await subPage.close();
+          }
         }
-
-      } catch (e) {
-        console.error(`  Errore: ${e.message}`);
-      } finally {
-        await cinemaPage.close();
+        if (subResult.length > 0) return subResult;
       }
     }
 
+    // Leggi testo pagina e analizza film per film
+    const pageText = await page.evaluate(() => document.body?.innerText || '');
+    const films = parseFilmsFromText(pageText);
+    return films;
+
   } catch (e) {
-    console.error(`Errore MYmovies:`, e.message);
+    console.error(`  Errore ${cinemaId}: ${e.message}`);
+    return [];
   } finally {
     await page.close();
   }
-
-  return showtimes;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const today = new Date().toISOString().split('T')[0];
-  console.log(`\n=== Scraping orari per ${today} ===`);
+  console.log(`\n=== Scraping orari per ${today} ===\n`);
 
   const browser = await puppeteer.launch({
     headless: true,
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
   });
 
-  let showtimes = {};
+  const showtimes = {};
 
   try {
-    showtimes = await scrapeMYMovies(browser, today);
+    for (const { url, id, isArea } of CINEMA_URLS(today)) {
+      console.log(`\n[${id}] ${url}`);
+      const films = await scrapeCinemaPage(browser, url, id, isArea);
+
+      if (films.length > 0) {
+        showtimes[id] = films;
+        films.forEach(f => console.log(`  ✓ ${f.title}: ${f.times.join(', ')}`));
+      } else {
+        console.log(`  ✗ Nessun dato`);
+      }
+    }
   } finally {
     await browser.close();
   }
 
   const total = Object.keys(showtimes).length;
-  console.log(`\n=== Totale cinema con orari: ${total} ===`);
-  Object.entries(showtimes).forEach(([id, films]) =>
-    console.log(`  ${id}: ${films.length} film`)
-  );
+  console.log(`\n=== Totale: ${total} cinema con orari ===`);
 
   await db.collection('showtimes').doc(today).set({
     date: today,
@@ -173,7 +164,7 @@ async function main() {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     cinemaCount: total,
   });
-  console.log(`\n✓ Salvato su Firestore: showtimes/${today}`);
+  console.log(`✓ Salvato su Firestore: showtimes/${today}`);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
