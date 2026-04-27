@@ -55,6 +55,17 @@ export const CATANIA_CINEMAS = [
     partnerId: null,
   },
 
+  {
+    id: 'ucicentrosicilia',
+    name: 'UCI Cinemas Centro Sicilia',
+    area: 'Centro Sicilia – Catania',
+    address: 'Centro Commerciale Centro Sicilia, Catania (CT)',
+    website: 'https://www.ucicinemas.it',
+    programUrl: 'https://www.ucicinemas.it/cinema/sicilia/uci-cinemas-centro-sicilia',
+    mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Catania',
+    partnerId: null,
+  },
+
   // ── CATANIA PROVINCIA ──────────────────────────────────────────────────────
 
   {
