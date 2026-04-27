@@ -6,184 +6,131 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
-// ── Mapping nomi cinema → ID app ──────────────────────────────────────────────
-const CINEMA_MAP = {
-  'the space cinema catania':    'thespaceleporte',
-  'the space catania':           'thespaceleporte',
-  'porte di catania':            'thespaceleporte',
-  'the space etnapolis':         'thespaceetnapolis',
-  'etnapolis':                   'thespaceetnapolis',
-  'cinema king':                 'cinemaking',
-  'king':                        'cinemaking',
-  'odeon':                       'odeon',
-  'cinestar':                    'cinestar',
-  'i portali':                   'cinestar',
-  'cinema planet':               'cinemaplanet',
-  'planet':                      'cinemaplanet',
-  'uci cinemas centro sicilia':  'ucicentrosicilia',
-  'uci centro sicilia':          'ucicentrosicilia',
-  'centro sicilia':              'ucicentrosicilia',
-  'margherita':                  'acireale',
+// ── Mapping testo pagina → ID app ─────────────────────────────────────────────
+const CINEMA_KEYWORDS = {
+  'misterbianco':            'thespaceleporte',
+  'the space catania':       'thespaceleporte',
+  'porte di catania':        'thespaceleporte',
+  'belpasso':                'thespaceetnapolis',
+  'the space etnapolis':     'thespaceetnapolis',
+  'king multisala':          'cinemaking',
+  'king cinestudio':         'cinemaking',
+  'odeon':                   'odeon',
+  'cinestar':                'cinestar',
+  'i portali':               'cinestar',
+  'eplanet catania':         'cinemaplanet',
+  'cinema planet':           'cinemaplanet',
+  'planet':                  'cinemaplanet',
+  'uci':                     'ucicentrosicilia',
+  'centro sicilia':          'ucicentrosicilia',
+  'acireale':                'acireale',
+  'margherita':              'acireale',
+  'paternò':                 'paterno',
+  'paterno':                 'paterno',
 };
 
-function matchCinema(name) {
-  if (!name) return null;
-  const n = name.toLowerCase().trim();
-  for (const [key, id] of Object.entries(CINEMA_MAP)) {
-    if (n.includes(key) || key.includes(n)) return id;
+function matchCinema(text) {
+  if (!text) return null;
+  const n = text.toLowerCase();
+  for (const [key, id] of Object.entries(CINEMA_KEYWORDS)) {
+    if (n.includes(key)) return id;
   }
   return null;
 }
 
 function extractTimes(text) {
-  return [...new Set((String(text).match(/\b([0-1]?\d|2[0-4]):[0-5]\d\b/g) || []).filter(t => {
-    const h = parseInt(t.split(':')[0]);
-    return h >= 8 && h <= 24;
-  }))].sort();
+  return [...new Set((String(text).match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
+    .filter(t => { const h = parseInt(t); return h >= 8 && h <= 23; })
+  )].sort();
 }
 
-// ── Intercetta chiamate API JSON della pagina ─────────────────────────────────
-async function interceptJsonApi(browser, url, label) {
+// ── Scraping MYmovies: segue i link dei cinema ────────────────────────────────
+async function scrapeMYMovies(browser, today) {
+  const baseUrl = `https://www.mymovies.it/cinema/catania/?data=${today}`;
+  const showtimes = {};
   const page = await browser.newPage();
-  const captured = [];
-
   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
 
-  page.on('response', async response => {
-    const ct = response.headers()['content-type'] || '';
-    if (!ct.includes('json')) return;
-    const u = response.url();
-    if (!u.includes('cinema') && !u.includes('program') && !u.includes('schedule') &&
-        !u.includes('film') && !u.includes('spettacol') && !u.includes('show')) return;
-    try {
-      const json = await response.json();
-      captured.push({ url: u, data: json });
-      console.log(`  [API] ${u.substring(0, 80)}`);
-    } catch {}
-  });
-
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.goto(baseUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await new Promise(r => setTimeout(r, 2000));
 
-    // Log diagnostico
-    const title = await page.title();
-    console.log(`  Titolo pagina: ${title}`);
-    console.log(`  Chiamate API intercettate: ${captured.length}`);
-
-    // Log HTML per debug struttura
-    const bodySnippet = await page.evaluate(() => document.body?.innerText?.substring(0, 300));
-    console.log(`  Contenuto pagina (300 char): ${bodySnippet?.replace(/\n+/g, ' ')}`);
-
-  } catch (e) {
-    console.error(`  Errore navigazione ${label}:`, e.message);
-  } finally {
-    await page.close();
-  }
-
-  return captured;
-}
-
-// ── Analizza JSON catturati e cerca orari ─────────────────────────────────────
-function parseApiData(captured) {
-  const showtimes = {};
-
-  for (const { url, data } of captured) {
-    const flat = JSON.stringify(data);
-
-    // Cerca nomi cinema nei dati JSON
-    for (const [key, cinemaId] of Object.entries(CINEMA_MAP)) {
-      if (!flat.toLowerCase().includes(key)) continue;
-
-      // Estrai orari vicini al nome cinema
-      const idx = flat.toLowerCase().indexOf(key);
-      const block = flat.substring(Math.max(0, idx - 200), idx + 500);
-      const times = extractTimes(block);
-
-      if (times.length > 0 && !showtimes[cinemaId]) {
-        showtimes[cinemaId] = [{ title: 'Programmazione', times }];
-        console.log(`  ✓ ${key} → ${cinemaId}: ${times.join(', ')}`);
-      }
-    }
-
-    // Cerca array di film/cinema nel JSON
-    const tryParse = (obj, depth = 0) => {
-      if (depth > 5 || !obj || typeof obj !== 'object') return;
-      if (Array.isArray(obj)) { obj.forEach(i => tryParse(i, depth + 1)); return; }
-
-      const cinemaName = obj.cinemaName || obj.cinema_name || obj.name || obj.nomeCinema || obj.teatro;
-      const filmTitle = obj.filmTitle || obj.title || obj.titolo || obj.filmName;
-      const times = obj.times || obj.orari || obj.spettacoli || obj.performances;
-
-      if (cinemaName) {
-        const id = matchCinema(String(cinemaName));
-        if (id && filmTitle && Array.isArray(times) && times.length > 0) {
-          if (!showtimes[id]) showtimes[id] = [];
-          showtimes[id].push({
-            title: String(filmTitle),
-            times: times.map(t => typeof t === 'string' ? t : t.time || t.orario || String(t)).filter(Boolean)
-          });
-          console.log(`  ✓ JSON: ${cinemaName} → ${filmTitle}: ${times.join ? times.join(', ') : times}`);
+    // Trova tutti i link cinema nella pagina
+    const cinemaLinks = await page.evaluate(() => {
+      const links = [];
+      document.querySelectorAll('a[href]').forEach(a => {
+        const href = a.href;
+        const text = a.innerText?.trim();
+        if (href.includes('/cinema/') && text && text.length > 2 && text.length < 60) {
+          links.push({ href, text });
         }
-      }
-      Object.values(obj).forEach(v => tryParse(v, depth + 1));
-    };
-    tryParse(data);
-  }
-
-  return showtimes;
-}
-
-// ── The Space Cinema diretto ──────────────────────────────────────────────────
-async function scrapeTheSpace(browser, today) {
-  const urls = [
-    { url: `https://www.thespacecinema.it/cinema/porte-di-catania/programmazione`, id: 'thespaceleporte' },
-    { url: `https://www.thespacecinema.it/cinema/etnapolis/programmazione`, id: 'thespaceetnapolis' },
-  ];
-
-  const showtimes = {};
-
-  for (const { url, id } of urls) {
-    const page = await browser.newPage();
-    const apiCalls = [];
-
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-
-    page.on('response', async response => {
-      const ct = response.headers()['content-type'] || '';
-      if (!ct.includes('json')) return;
-      try {
-        const json = await response.json();
-        apiCalls.push(json);
-      } catch {}
+      });
+      return [...new Map(links.map(l => [l.href, l])).values()]; // deduplica
     });
 
-    try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
-      await new Promise(r => setTimeout(r, 2000));
+    console.log(`\nLink cinema trovati: ${cinemaLinks.length}`);
+    cinemaLinks.forEach(l => console.log(`  ${l.text} → ${l.href}`));
 
-      console.log(`\nThe Space ${id}: ${apiCalls.length} API calls`);
+    // Visita ogni link rilevante
+    for (const { href, text } of cinemaLinks) {
+      const cinemaId = matchCinema(text) || matchCinema(href);
+      if (!cinemaId) continue;
 
-      // Cerca orari nel testo della pagina
-      const text = await page.evaluate(() => document.body?.innerText || '');
-      const times = extractTimes(text);
+      console.log(`\nVisito: ${text} (${cinemaId}) → ${href}`);
+      const cinemaPage = await browser.newPage();
+      await cinemaPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
 
-      if (times.length > 0) {
-        showtimes[id] = [{ title: 'Programmazione', times }];
-        console.log(`  Trovati orari: ${times.join(', ')}`);
+      try {
+        const url = href.includes('data=') ? href : `${href}?data=${today}`;
+        await cinemaPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+        await new Promise(r => setTimeout(r, 2000));
+
+        // Estrai film e orari dalla pagina cinema
+        const films = await cinemaPage.evaluate(() => {
+          const results = [];
+          // Cerca blocchi film
+          const selectors = [
+            '[class*="film"]', '[class*="movie"]', '[class*="spettacol"]',
+            '[class*="scheda"]', '[class*="titolo"]', 'article', '.item'
+          ];
+          for (const sel of selectors) {
+            document.querySelectorAll(sel).forEach(el => {
+              const titleEl = el.querySelector('h2,h3,h4,a,[class*="title"],[class*="titolo"]');
+              const title = titleEl?.innerText?.trim();
+              if (!title || title.length < 2 || title.length > 80) return;
+              const times = [...new Set((el.innerText.match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
+                .filter(t => parseInt(t) >= 8))].sort();
+              if (times.length > 0) results.push({ title, times });
+            });
+          }
+          // Fallback: estrai tutti gli orari dalla pagina se nessun film trovato
+          if (results.length === 0) {
+            const allTimes = [...new Set((document.body.innerText.match(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/g) || [])
+              .filter(t => parseInt(t) >= 8))].sort();
+            if (allTimes.length > 0) results.push({ title: 'Programmazione', times: allTimes });
+          }
+          return results;
+        });
+
+        if (films.length > 0) {
+          showtimes[cinemaId] = films;
+          console.log(`  ✓ ${films.length} film trovati`);
+          films.forEach(f => console.log(`    - ${f.title}: ${f.times.join(', ')}`));
+        } else {
+          console.log(`  ✗ Nessun orario trovato`);
+        }
+
+      } catch (e) {
+        console.error(`  Errore: ${e.message}`);
+      } finally {
+        await cinemaPage.close();
       }
-
-      // Analizza anche le API intercettate
-      for (const json of apiCalls) {
-        const parsed = parseApiData([{ url: '', data: json }]);
-        if (parsed[id]) showtimes[id] = parsed[id];
-      }
-
-    } catch (e) {
-      console.error(`  Errore The Space ${id}:`, e.message);
-    } finally {
-      await page.close();
     }
+
+  } catch (e) {
+    console.error(`Errore MYmovies:`, e.message);
+  } finally {
+    await page.close();
   }
 
   return showtimes;
@@ -202,30 +149,16 @@ async function main() {
   let showtimes = {};
 
   try {
-    // 1. The Space Cinema diretto
-    console.log('\n--- The Space Cinema ---');
-    const theSpace = await scrapeTheSpace(browser, today);
-    Object.assign(showtimes, theSpace);
-
-    // 2. MYmovies.it con intercettazione API
-    console.log('\n--- MYmovies.it ---');
-    const mymoviesApi = await interceptJsonApi(browser,
-      `https://www.mymovies.it/cinema/catania/?data=${today}`, 'MYmovies');
-    Object.assign(showtimes, parseApiData(mymoviesApi));
-
-    // 3. ComingSoon.it con intercettazione API
-    console.log('\n--- ComingSoon.it ---');
-    const csApi = await interceptJsonApi(browser,
-      `https://www.comingsoon.it/cinema/programmazione/catania/?data=${today}`, 'ComingSoon');
-    Object.assign(showtimes, parseApiData(csApi));
-
+    showtimes = await scrapeMYMovies(browser, today);
   } finally {
     await browser.close();
   }
 
   const total = Object.keys(showtimes).length;
   console.log(`\n=== Totale cinema con orari: ${total} ===`);
-  if (total > 0) console.log(`Cinema: ${Object.keys(showtimes).join(', ')}`);
+  Object.entries(showtimes).forEach(([id, films]) =>
+    console.log(`  ${id}: ${films.length} film`)
+  );
 
   await db.collection('showtimes').doc(today).set({
     date: today,
@@ -233,7 +166,7 @@ async function main() {
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     cinemaCount: total,
   });
-  console.log(`✓ Salvato su Firestore: showtimes/${today}`);
+  console.log(`\n✓ Salvato su Firestore: showtimes/${today}`);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
