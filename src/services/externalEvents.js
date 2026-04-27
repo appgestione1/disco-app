@@ -1,0 +1,129 @@
+import { db } from '../firebase';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+
+const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 ore
+
+const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;
+const TM_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
+
+async function getCached(type) {
+  try {
+    const snap = await getDoc(doc(db, 'external_events_cache', type));
+    if (!snap.exists()) return null;
+    const d = snap.data();
+    if (Date.now() - d.fetchedAt.toMillis() > CACHE_TTL) return null;
+    return d.events;
+  } catch { return null; }
+}
+
+async function setCache(type, events) {
+  try {
+    await setDoc(doc(db, 'external_events_cache', type), { events, fetchedAt: new Date() });
+  } catch {}
+}
+
+export async function fetchTrailer(tmdbId) {
+  if (!TMDB_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/movie/${tmdbId}/videos?api_key=${TMDB_KEY}&language=it-IT`
+    );
+    const data = await res.json();
+    let trailer = data.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+    if (!trailer) {
+      const resEn = await fetch(
+        `https://api.themoviedb.org/3/movie/${tmdbId}/videos?api_key=${TMDB_KEY}&language=en-US`
+      );
+      const dataEn = await resEn.json();
+      trailer = dataEn.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+    }
+    return trailer?.key || null;
+  } catch { return null; }
+}
+
+export async function fetchCinema() {
+  const cached = await getCached('CINEMA');
+  if (cached) return cached;
+  if (!TMDB_KEY) return [];
+
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/movie/now_playing?api_key=${TMDB_KEY}&language=it-IT&region=IT&page=1`
+    );
+    const data = await res.json();
+    const movies = (data.results || []).slice(0, 20).map(m => ({
+      id: `tmdb_${m.id}`,
+      title: m.title,
+      description: m.overview,
+      imageUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
+      backdropUrl: m.backdrop_path ? `https://image.tmdb.org/t/p/w780${m.backdrop_path}` : null,
+      rating: m.vote_average ? m.vote_average.toFixed(1) : null,
+      releaseDate: m.release_date,
+      externalUrl: `https://www.google.com/search?q=${encodeURIComponent(m.title + ' cinema Catania')}`,
+      source: 'TMDB',
+      category: 'CINEMA',
+    }));
+    await setCache('CINEMA', movies);
+    return movies;
+  } catch { return []; }
+}
+
+export async function fetchConcerti() {
+  const cached = await getCached('CONCERTI');
+  if (cached) return cached;
+  if (!TM_KEY) return [];
+
+  try {
+    const res = await fetch(
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Catania&countryCode=IT&classificationName=music&size=20&sort=date,asc`
+    );
+    const data = await res.json();
+    const events = (data._embedded?.events || []).map(e => ({
+      id: `tm_${e.id}`,
+      title: e.name,
+      description: e.info || '',
+      imageUrl: e.images?.find(i => i.ratio === '16_9' && i.width > 500)?.url || e.images?.[0]?.url || null,
+      date: e.dates?.start?.localDate,
+      time: e.dates?.start?.localTime?.substring(0, 5),
+      venue: e._embedded?.venues?.[0]?.name,
+      city: e._embedded?.venues?.[0]?.city?.name,
+      priceMin: e.priceRanges?.[0]?.min,
+      priceMax: e.priceRanges?.[0]?.max,
+      externalUrl: e.url,
+      source: 'TICKETMASTER',
+      category: 'CONCERTI',
+    }));
+    await setCache('CONCERTI', events);
+    return events;
+  } catch { return []; }
+}
+
+export async function fetchTeatro() {
+  const cached = await getCached('TEATRO');
+  if (cached) return cached;
+  if (!TM_KEY) return [];
+
+  try {
+    const res = await fetch(
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Catania&countryCode=IT&classificationName=arts%2Btheatre%2Bfilm&size=20&sort=date,asc`
+    );
+    const data = await res.json();
+    const events = (data._embedded?.events || []).map(e => ({
+      id: `tm_teatro_${e.id}`,
+      title: e.name,
+      description: e.info || '',
+      imageUrl: e.images?.find(i => i.ratio === '16_9' && i.width > 500)?.url || e.images?.[0]?.url || null,
+      date: e.dates?.start?.localDate,
+      time: e.dates?.start?.localTime?.substring(0, 5),
+      venue: e._embedded?.venues?.[0]?.name,
+      city: e._embedded?.venues?.[0]?.city?.name,
+      priceMin: e.priceRanges?.[0]?.min,
+      priceMax: e.priceRanges?.[0]?.max,
+      externalUrl: e.url,
+      source: 'TICKETMASTER',
+      category: 'TEATRO',
+    }));
+    await setCache('TEATRO', events);
+    return events;
+  } catch { return []; }
+}

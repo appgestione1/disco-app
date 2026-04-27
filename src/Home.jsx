@@ -1,6 +1,120 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
+import { fetchCinema, fetchConcerti, fetchTeatro, fetchTrailer } from './services/externalEvents';
+import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
+
+const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
+
+// ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
+const FilmDetail = ({ film, onClose }) => {
+  const [trailerKey, setTrailerKey] = useState(null);
+  const [showTrailer, setShowTrailer] = useState(false);
+
+  useEffect(() => {
+    const tmdbId = film.id.replace('tmdb_', '');
+    fetchTrailer(tmdbId).then(key => setTrailerKey(key));
+  }, [film.id]);
+
+  return (
+    <div className="min-h-screen bg-black text-white p-6 animate-in slide-in-from-right duration-500 overflow-x-hidden pb-32">
+      <button onClick={onClose} className="mb-6 flex items-center gap-2 text-zinc-500 uppercase text-[10px] tracking-widest font-black">
+        <ChevronLeft size={16} /> CHIUDI
+      </button>
+
+      {/* Poster o Trailer */}
+      <div className="w-full mb-6 rounded-[2rem] overflow-hidden shadow-2xl bg-zinc-900">
+        {showTrailer && trailerKey ? (
+          <iframe
+            src={`https://www.youtube.com/embed/${trailerKey}?rel=0&autoplay=1`}
+            className="w-full aspect-video"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        ) : (
+          <div className="relative">
+            {film.imageUrl
+              ? <img src={film.backdropUrl || film.imageUrl} alt={film.title} className="w-full aspect-video object-cover" />
+              : <div className="w-full aspect-video flex items-center justify-center"><Film size={48} className="text-zinc-700" /></div>
+            }
+            {trailerKey && (
+              <button
+                onClick={() => setShowTrailer(true)}
+                className="absolute inset-0 flex items-center justify-center bg-black/40 active:bg-black/60 transition-all group">
+                <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-2xl group-active:scale-90 transition-transform">
+                  <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-black border-b-[10px] border-b-transparent ml-1" />
+                </div>
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {showTrailer && (
+        <button onClick={() => setShowTrailer(false)} className="mb-4 text-zinc-500 font-black text-[10px] uppercase tracking-widest">
+          ✕ Chiudi trailer
+        </button>
+      )}
+
+      <h2 className="text-3xl font-black italic uppercase tracking-tighter mb-1">{film.title}</h2>
+      {film.rating && <p className="text-[#D4AF37] font-black text-sm mb-4">★ {film.rating} / 10</p>}
+
+      {film.description && (
+        <div className="mb-8 p-4 bg-zinc-900/50 border-l-4 border-[#D4AF37] rounded-r-2xl">
+          <p className="text-sm text-zinc-300 italic leading-relaxed">{film.description}</p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 mb-5">
+        <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
+        <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#D4AF37]">Cinema a Catania e Provincia</p>
+        <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
+      </div>
+
+      <div className="space-y-3">
+        {CATANIA_CINEMAS.map(cinema => (
+          <div key={cinema.id} className="bg-zinc-900/80 border border-white/5 rounded-[1.5rem] p-5">
+            <div className="flex items-start justify-between gap-3 mb-4">
+              <div>
+                <p className="font-black uppercase text-sm text-white">{cinema.name}</p>
+                <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-1">{cinema.area}</p>
+              </div>
+              <a href={cinema.mapsUrl} target="_blank" rel="noopener noreferrer"
+                className="text-[9px] font-black uppercase tracking-widest text-zinc-500 border border-zinc-700 px-3 py-1.5 rounded-full active:scale-95 transition-transform flex-shrink-0">
+                Mappa
+              </a>
+            </div>
+
+            {cinema.partnerId ? (
+              <div className="text-center py-2 text-[#D4AF37] text-[10px] font-black uppercase tracking-widest">
+                Orari in caricamento...
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <a
+                  href={`https://www.google.com/search?q=${encodeURIComponent('"' + film.title + '" ' + cinema.name + ' orari Catania')}`}
+                  target="_blank" rel="noopener noreferrer"
+                  className="flex-1 bg-white text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                  Cerca Orari
+                </a>
+                {cinema.programUrl && (
+                  <a href={cinema.programUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 border border-[#D4AF37]/40 text-[#D4AF37] text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                    Programma
+                  </a>
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <p className="text-center text-[8px] text-zinc-700 font-black uppercase tracking-widest mt-8 pb-8">
+        Fonte: TMDB · Orari soggetti a variazioni
+      </p>
+    </div>
+  );
+};
 import { collection, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/firestore';
 import { QRCodeCanvas } from 'qrcode.react';
 import html2canvas from 'html2canvas';
@@ -232,6 +346,9 @@ const Home = () => {
   const [superAdminPassword, setSuperAdminPassword] = useState('');
 
   const [starSequence, setStarSequence] = useState([]);
+  const [externalEvents, setExternalEvents] = useState([]);
+  const [loadingExternal, setLoadingExternal] = useState(false);
+  const [selectedFilm, setSelectedFilm] = useState(null);
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
   const [prPasswordInput, setPrPasswordInput] = useState('');
@@ -250,6 +367,14 @@ const Home = () => {
   ];
 
   useEffect(() => { fetchEvents(); fetchPrInfo(); }, [prRef]);
+
+  useEffect(() => {
+    if (!activeCategory || !EXTERNAL_CATS.includes(activeCategory)) return;
+    setExternalEvents([]);
+    setLoadingExternal(true);
+    const fetcher = { CINEMA: fetchCinema, TEATRO: fetchTeatro, CONCERTI: fetchConcerti }[activeCategory];
+    fetcher().then(data => { setExternalEvents(data); setLoadingExternal(false); });
+  }, [activeCategory]);
 
   const fetchEvents = async () => {
     try {
@@ -406,6 +531,11 @@ const Home = () => {
   };
 
   const availablePriveTypes = selectedEvent?.priveTypes?.filter(t => t.available !== false) || [];
+
+  // ── VISTA FILM CINEMA ──
+  if (selectedFilm) {
+    return <FilmDetail film={selectedFilm} onClose={() => setSelectedFilm(null)} />;
+  }
 
   // ── VISTA EVENTO SELEZIONATO ──
   if (selectedEvent) {
@@ -740,52 +870,125 @@ const Home = () => {
             <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-1 italic">MOOD SCELTO</p>
             <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter text-white">{categories.find(c => c.id === activeCategory)?.label}</h2>
           </div>
-          <div className="relative h-36 mt-2 mb-2 flex items-center justify-center overflow-hidden">
-            <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl" />
-            <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
-            <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
-              <div className="h-[45px]" />
-              {dates.map((d, i) => {
-                const isSel = selectedDate.toDateString() === d.toDateString();
-                return (
-                  <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
-                    <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
-                    <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
-                  </div>
-                );
-              })}
-              <div className="h-[45px]" />
-            </div>
-          </div>
-          <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
-            {getFilteredEvents().length === 0 ? (
-              <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
-            ) : getFilteredEvents().map(ev => (
-              <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 cursor-pointer">
-                <div className="h-auto min-h-[300px] bg-black flex items-center justify-center p-2 relative overflow-hidden text-center">
-                  <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105 mx-auto" />
-                  {ev.isCancelled && (
-                    <div className="absolute inset-0 bg-black/65 flex items-center justify-center z-20">
-                      <p className="text-red-500 font-black text-2xl italic uppercase rotate-[-12deg] border-4 border-red-600 px-5 py-2 shadow-2xl">EVENTO ANNULLATO</p>
-                    </div>
-                  )}
-                  {ev.isPriveSoldOut && !ev.isCancelled && (
-                    <div className="absolute bottom-3 right-3 bg-black/80 text-amber-400 font-black text-[8px] px-3 py-1.5 rounded-full border border-amber-400/40 uppercase tracking-widest z-20">Sold out Privé</div>
-                  )}
+          {EXTERNAL_CATS.includes(activeCategory) ? (
+            <div className="px-4 pb-24 mt-4">
+              {loadingExternal ? (
+                <div className="text-center py-24 flex flex-col items-center gap-4 opacity-40">
+                  <div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
+                  <p className="text-[10px] font-black uppercase tracking-widest italic">Caricamento...</p>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
-                <div className="absolute bottom-0 left-0 w-full p-10">
-                  <h3 className="text-3xl font-black italic uppercase leading-none text-white tracking-tighter mb-4">{ev.title}</h3>
-                  <div className="flex justify-between items-center text-left">
-                    <div className="flex items-center gap-2 text-zinc-500 font-black text-[10px] uppercase tracking-widest">
-                      <Calendar size={14} className="text-[#D4AF37]" /> {new Date(ev.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+              ) : externalEvents.length === 0 ? (
+                <div className="text-center py-24 flex flex-col items-center gap-4 opacity-30">
+                  {activeCategory === 'CINEMA' ? <Film size={48} /> : activeCategory === 'CONCERTI' ? <Mic2 size={48} /> : <Theater size={48} />}
+                  <p className="text-[10px] font-black uppercase tracking-widest italic">Prossimamente disponibile</p>
+                  <p className="text-[9px] text-zinc-600 font-black uppercase tracking-widest">In configurazione</p>
+                </div>
+              ) : activeCategory === 'CINEMA' ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {externalEvents.map(ev => (
+                    <div key={ev.id} onClick={() => setSelectedFilm(ev)}
+                      className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all cursor-pointer">
+                      {ev.imageUrl
+                        ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[2/3] object-cover" />
+                        : <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center"><Film size={32} className="text-zinc-600" /></div>
+                      }
+                      <div className="p-3">
+                        <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                        {ev.rating && <p className="text-[#D4AF37] text-[10px] font-black mt-1">★ {ev.rating}</p>}
+                        <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-2">→ Orari & Sale</p>
+                      </div>
                     </div>
-                    <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-2xl"><ArrowRight size={22} strokeWidth={3} /></div>
-                  </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4">
+                  {externalEvents.map(ev => (
+                    <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
+                      className="group rounded-[2rem] overflow-hidden bg-zinc-900/80 border border-white/5 active:scale-[0.98] transition-all">
+                      {ev.imageUrl && (
+                        <div className="w-full h-40 overflow-hidden">
+                          <img src={ev.imageUrl} alt={ev.title} className="w-full h-full object-cover transition-transform duration-[3s] group-hover:scale-105" />
+                        </div>
+                      )}
+                      <div className="p-5 flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <p className="font-black uppercase text-sm leading-tight text-white">{ev.title}</p>
+                          {ev.venue && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-2">{ev.venue}</p>}
+                          {ev.date && (
+                            <div className="flex items-center gap-1 mt-2 text-[#D4AF37]">
+                              <Calendar size={10} />
+                              <p className="text-[10px] font-black">
+                                {new Date(ev.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                {ev.time ? ` · ${ev.time}` : ''}
+                              </p>
+                            </div>
+                          )}
+                          {(ev.priceMin != null || ev.priceMax != null) && (
+                            <p className="text-zinc-400 text-[10px] font-black mt-1">
+                              {ev.priceMin != null ? `da €${Math.round(ev.priceMin)}` : ''}
+                              {ev.priceMax != null ? ` a €${Math.round(ev.priceMax)}` : ''}
+                            </p>
+                          )}
+                        </div>
+                        <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center flex-shrink-0 mt-1">
+                          <ArrowRight size={18} strokeWidth={3} />
+                        </div>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="relative h-36 mt-2 mb-2 flex items-center justify-center overflow-hidden">
+                <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl" />
+                <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
+                <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
+                  <div className="h-[45px]" />
+                  {dates.map((d, i) => {
+                    const isSel = selectedDate.toDateString() === d.toDateString();
+                    return (
+                      <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
+                        <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
+                        <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                      </div>
+                    );
+                  })}
+                  <div className="h-[45px]" />
                 </div>
               </div>
-            ))}
-          </div>
+              <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
+                {getFilteredEvents().length === 0 ? (
+                  <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
+                ) : getFilteredEvents().map(ev => (
+                  <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 cursor-pointer">
+                    <div className="h-auto min-h-[300px] bg-black flex items-center justify-center p-2 relative overflow-hidden text-center">
+                      <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105 mx-auto" />
+                      {ev.isCancelled && (
+                        <div className="absolute inset-0 bg-black/65 flex items-center justify-center z-20">
+                          <p className="text-red-500 font-black text-2xl italic uppercase rotate-[-12deg] border-4 border-red-600 px-5 py-2 shadow-2xl">EVENTO ANNULLATO</p>
+                        </div>
+                      )}
+                      {ev.isPriveSoldOut && !ev.isCancelled && (
+                        <div className="absolute bottom-3 right-3 bg-black/80 text-amber-400 font-black text-[8px] px-3 py-1.5 rounded-full border border-amber-400/40 uppercase tracking-widest z-20">Sold out Privé</div>
+                      )}
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-full p-10">
+                      <h3 className="text-3xl font-black italic uppercase leading-none text-white tracking-tighter mb-4">{ev.title}</h3>
+                      <div className="flex justify-between items-center text-left">
+                        <div className="flex items-center gap-2 text-zinc-500 font-black text-[10px] uppercase tracking-widest">
+                          <Calendar size={14} className="text-[#D4AF37]" /> {new Date(ev.date).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                        </div>
+                        <div className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center shadow-2xl"><ArrowRight size={22} strokeWidth={3} /></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
