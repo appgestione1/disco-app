@@ -63,8 +63,8 @@ async function interceptJsonApi(browser, url, label) {
   });
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-    await new Promise(r => setTimeout(r, 4000));
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 2000));
 
     // Log diagnostico
     const title = await page.title();
@@ -160,7 +160,7 @@ async function scrapeTheSpace(browser, today) {
 
     try {
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 2000));
 
       console.log(`\nThe Space ${id}: ${apiCalls.length} API calls`);
 
