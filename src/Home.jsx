@@ -92,7 +92,7 @@ const FilmDetail = ({ film, onClose }) => {
               </div>
             ) : showtimes[cinema.id] ? (
               <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Oggi in programmazione</p>
+                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
                 <div className="flex flex-wrap gap-2">
                   {showtimes[cinema.id].map(time => (
                     <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">

@@ -8,16 +8,27 @@ export async function fetchShowtimes(filmTitle) {
     if (!snap.exists()) return {};
 
     const cinemas = snap.data().cinemas || {};
-    const normalizeT = t => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+    const normalizeT = t => t.toLowerCase().replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
+      .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
     const needle = normalizeT(filmTitle);
     const result = {};
 
     for (const [cinemaId, films] of Object.entries(cinemas)) {
+      // Cerca match per titolo film specifico
       const match = films.find(f => {
         const hay = normalizeT(f.title);
-        return hay.includes(needle) || needle.includes(hay) || needle.split(' ').filter(w => w.length > 3).every(w => hay.includes(w));
+        return hay.includes(needle) || needle.includes(hay) ||
+          needle.split(' ').filter(w => w.length > 3).every(w => hay.includes(w));
       });
-      if (match) result[cinemaId] = match.times;
+
+      if (match) {
+        result[cinemaId] = match.times;
+      } else {
+        // Fallback: mostra tutti gli orari del cinema (senza match specifico per film)
+        const allTimes = [...new Set(films.flatMap(f => f.times))].sort();
+        if (allTimes.length > 0) result[cinemaId] = allTimes;
+      }
     }
     return result;
   } catch { return {}; }

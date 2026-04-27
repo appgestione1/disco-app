@@ -3,8 +3,6 @@
 //
 // partnerId: null → Opzione A (Google search orari)
 // partnerId: 'id' → Opzione C (orari ufficiali dal partner in Firestore)
-//
-// Per aggiungere un cinema: copia un blocco e compila i campi.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CATANIA_CINEMAS = [
@@ -28,7 +26,7 @@ export const CATANIA_CINEMAS = [
     area: 'Catania Centro',
     address: 'Via Umberto I, Catania',
     website: null,
-    programUrl: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/5004/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+King+Catania',
     partnerId: null,
   },
@@ -56,13 +54,24 @@ export const CATANIA_CINEMAS = [
   },
 
   {
-    id: 'cinemaplanet',
-    name: 'Cinema Planet',
+    id: 'eplanetariston',
+    name: 'Eplanet Ariston',
     area: 'Catania',
     address: 'Catania (CT)',
     website: null,
-    programUrl: null,
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Planet+Catania',
+    programUrl: 'https://www.mymovies.it/cinema/catania/5190/',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Ariston+Catania',
+    partnerId: null,
+  },
+
+  {
+    id: 'cinemaplanet',
+    name: 'Eplanet Catania',
+    area: 'Catania',
+    address: 'Catania (CT)',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/6011/',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Cinema+Catania',
     partnerId: null,
   },
 
@@ -87,6 +96,39 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.thespacecinema.it',
     programUrl: 'https://www.thespacecinema.it/cinema/etnapolis/programmazione',
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
+    partnerId: null,
+  },
+
+  {
+    id: 'sangiovannilapunta',
+    name: 'Cinema San Giovanni La Punta',
+    area: 'San Giovanni La Punta (CT)',
+    address: 'San Giovanni La Punta (CT)',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/sangiovannilapunta/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+San+Giovanni+La+Punta+Catania',
+    partnerId: null,
+  },
+
+  {
+    id: 'giarre',
+    name: 'Cinema Giarre',
+    area: 'Giarre (CT)',
+    address: 'Giarre (CT)',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/giarre/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Giarre+Catania',
+    partnerId: null,
+  },
+
+  {
+    id: 'mascalucia',
+    name: 'Cinema Mascalucia',
+    area: 'Mascalucia (CT)',
+    address: 'Mascalucia (CT)',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/mascalucia/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Mascalucia+Catania',
     partnerId: null,
   },
 
