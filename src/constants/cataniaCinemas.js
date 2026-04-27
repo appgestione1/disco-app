@@ -56,6 +56,17 @@ export const CATANIA_CINEMAS = [
   },
 
   {
+    id: 'cinemaplanet',
+    name: 'Cinema Planet',
+    area: 'Catania',
+    address: 'Catania (CT)',
+    website: null,
+    programUrl: null,
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Planet+Catania',
+    partnerId: null,
+  },
+
+  {
     id: 'ucicentrosicilia',
     name: 'UCI Cinemas Centro Sicilia',
     area: 'Centro Sicilia – Catania',
