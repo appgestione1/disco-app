@@ -13,7 +13,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Installa dipendenze scraper
         run: cd scripts && npm install
@@ -21,4 +21,5 @@ jobs:
       - name: Esegui scraper orari
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          PUPPETEER_SKIP_DOWNLOAD: 'false'
         run: node scripts/scrape-showtimes.js
