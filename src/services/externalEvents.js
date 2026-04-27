@@ -8,7 +8,7 @@ const TM_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
 async function getCached(type) {
   try {
-    const snap = await getDoc(doc(db, 'external_events_cache', type));
+    const snap = await getDoc(doc(db, 'external_events_cache', type + '_v2'));
     if (!snap.exists()) return null;
     const d = snap.data();
     if (Date.now() - d.fetchedAt.toMillis() > CACHE_TTL) return null;
@@ -18,11 +18,11 @@ async function getCached(type) {
 
 async function setCache(type, events) {
   try {
-    await setDoc(doc(db, 'external_events_cache', type), { events, fetchedAt: new Date() });
+    await setDoc(doc(db, 'external_events_cache', type + '_v2'), { events, fetchedAt: new Date() });
   } catch {}
 }
 
-export async function fetchTrailer(tmdbId) {
+async function getTrailerKey(tmdbId) {
   if (!TMDB_KEY) return null;
   try {
     const res = await fetch(
@@ -59,12 +59,22 @@ export async function fetchCinema() {
       backdropUrl: m.backdrop_path ? `https://image.tmdb.org/t/p/w780${m.backdrop_path}` : null,
       rating: m.vote_average ? m.vote_average.toFixed(1) : null,
       releaseDate: m.release_date,
-      externalUrl: `https://www.google.com/search?q=${encodeURIComponent(m.title + ' cinema Catania')}`,
       source: 'TMDB',
       category: 'CINEMA',
+      trailerKey: null,
     }));
-    await setCache('CINEMA', movies);
-    return movies;
+
+    // Fetch trailer keys in parallelo e li salva dentro ogni film
+    const moviesWithTrailers = await Promise.all(
+      movies.map(async m => {
+        const tmdbId = m.id.replace('tmdb_', '');
+        const trailerKey = await getTrailerKey(tmdbId);
+        return { ...m, trailerKey };
+      })
+    );
+
+    await setCache('CINEMA', moviesWithTrailers);
+    return moviesWithTrailers;
   } catch { return []; }
 }
 

@@ -1,20 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { fetchCinema, fetchConcerti, fetchTeatro, fetchTrailer } from './services/externalEvents';
+import { fetchCinema, fetchConcerti, fetchTeatro } from './services/externalEvents';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
 
 // ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
 const FilmDetail = ({ film, onClose }) => {
-  const [trailerKey, setTrailerKey] = useState(null);
+  const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
-
-  useEffect(() => {
-    const tmdbId = film.id.replace('tmdb_', '');
-    fetchTrailer(tmdbId).then(key => setTrailerKey(key));
-  }, [film.id]);
 
   return (
     <div className="min-h-screen bg-black text-white p-6 animate-in slide-in-from-right duration-500 overflow-x-hidden pb-32">
