@@ -33,7 +33,7 @@ const CINEMA_CONFIG = [
   },
   {
     id: 'eplanetlopo',
-    type: 'eplanet-debug',
+    type: 'eplanet',
     slug: 'lo-po',
     url: d => `https://www.eplanetcinemas.it/programmazione/lo-po/?data=${d}`,
   },
@@ -109,29 +109,39 @@ function parseWebtic(html) {
 }
 
 // ── Parser Eplanet (eplanetcinemas.it) ───────────────────────────────────────
-// Struttura: <h3>Titolo Film</h3>
-//            <a href="/eticket/[slug]/[filmId]/[sessionId]/">HH:MM</a>
-// Il filmId nel path collega ogni orario al film corretto.
-function parseEplanet(html, slug) {
+// Struttura: div.cal-day-card > .cal-day-header (.cal-date-num + .cal-month-name)
+//                              + .cal-times > a.cal-time-btn[href=/eticket/slug/filmId/]
+// Filtra solo il giorno corrente, poi risale a h3 per il titolo.
+function parseEplanet(html, slug, targetDate) {
   const $ = cheerio.load(html);
   const ETICKET_RE = new RegExp(`/eticket/${slug}/(\\d+)/`);
+  const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
+                     'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
+  const [, month, day] = targetDate.split('-').map(Number);
+  const todayDay   = String(day);
+  const todayMonth = MONTHS_IT[month - 1];
+
   const filmMap = {};
 
-  $(`a[href*="/eticket/${slug}/"]`).each((_, a) => {
-    const href = $(a).attr('href') || '';
-    const match = href.match(ETICKET_RE);
-    const time = $(a).text().trim();
-    if (!match || !/^\d{1,2}:\d{2}$/.test(time)) return;
-    const filmId = match[1];
-    if (!filmMap[filmId]) filmMap[filmId] = { title: null, times: [] };
-    filmMap[filmId].times.push(time);
+  $('div.cal-day-card').each((_, card) => {
+    const $card = $(card);
+    if ($card.find('.cal-date-num').text().trim()   !== todayDay)   return;
+    if ($card.find('.cal-month-name').text().trim() !== todayMonth) return;
+
+    $card.find(`a[href*="/eticket/${slug}/"]`).each((_, a) => {
+      const href = $(a).attr('href') || '';
+      const match = href.match(ETICKET_RE);
+      const time = $(a).text().trim();
+      if (!match || !/^\d{1,2}:\d{2}$/.test(time)) return;
+      const filmId = match[1];
+      if (!filmMap[filmId]) filmMap[filmId] = { title: null, times: [] };
+      filmMap[filmId].times.push(time);
+    });
   });
 
-  // Trova il titolo h3 più vicino a ciascun filmId
   for (const filmId of Object.keys(filmMap)) {
-    const firstLink = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first();
-    let $container = firstLink.parent();
-    for (let i = 0; i < 8; i++) {
+    let $container = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first().parent();
+    for (let i = 0; i < 10; i++) {
       if (!$container.length || $container.is('body')) break;
       const $h3 = $container.find('h3').first();
       if ($h3.length) { filmMap[filmId].title = $h3.text().trim(); break; }
@@ -209,16 +219,6 @@ async function scrapeCinema(config, date) {
     console.log(`  → ${url}`);
     const html = await fetchHtml(url);
 
-    if (config.type === 'eplanet-debug') {
-      const $d = cheerio.load(html);
-      const firstEticket = $d(`a[href*="/eticket/${config.slug}/"]`).first();
-      const p1 = firstEticket.parent().prop('outerHTML') || '';
-      const p2 = firstEticket.parent().parent().prop('outerHTML') || '';
-      console.log(`  [DBG] parent eticket: ${p1.slice(0,300)}`);
-      console.log(`  [DBG] grandparent: ${p2.slice(0,400)}`);
-      return null;
-    }
-
     if (config.type === 'webtic') {
       if (!html.includes('scheda-film')) {
         console.log(`  ⚠ Pagina non riconosciuta`);
@@ -232,7 +232,7 @@ async function scrapeCinema(config, date) {
         console.log(`  ⚠ Pagina senza eticket`);
         return null;
       }
-      return parseEplanet(html, config.slug);
+      return parseEplanet(html, config.slug, date);
     }
 
     return null;
