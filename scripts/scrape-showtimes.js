@@ -144,12 +144,26 @@ function parseEplanet(html, slug) {
     .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
-// ── ComingSoon.it: estrae tutti gli orari dalla pagina ticket di un film ──────
-// Il sistema usa WebTick Calendar (.btn-fab per le date) — le date non appaiono
-// come testo nel DOM stripped, quindi estraiamo tutti i HH:MM della pagina.
-// Per un film specifico è accettabile: gli orari sono tutti relativi a quel film.
-function parseComingSoonTicketPage(html) {
+// ── ComingSoon.it: estrae orari di oggi dalla pagina ticket di un film ────────
+// Struttura WebTick: <button class="btn-fab c" data-url="...">HH:MM</button>
+// I bottoni sono raggruppati in container con data-date="YYYY-MM-DD".
+// Se data-date trovato → filtra solo oggi; altrimenti prende tutti gli orari.
+function parseComingSoonTicketPage(html, targetDate) {
+  const $ = cheerio.load(html);
   const TIME_RE = /\b([0-1]?\d|2[0-3]):[0-5]\d\b/g;
+
+  // Prova con data-date (formato YYYY-MM-DD o varianti)
+  for (const fmt of [targetDate, targetDate.split('-').reverse().join('/'), targetDate.replace(/-/g, '/')]) {
+    const section = $(`[data-date="${fmt}"]`);
+    if (section.length > 0) {
+      const times = [...new Set(
+        (section.text().match(TIME_RE) || []).filter(t => parseInt(t) >= 8)
+      )].sort();
+      if (times.length > 0) return times;
+    }
+  }
+
+  // Fallback: tutti gli HH:MM della pagina (settimana intera)
   const text = html.replace(/<[^>]+>/g, ' ');
   return [...new Set((text.match(TIME_RE) || []).filter(t => parseInt(t) >= 8))].sort();
 }
@@ -174,17 +188,10 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
-  let debugDone = false;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
-      // Debug: mostra 300 char di HTML intorno al primo HH:MM trovato
-      if (!debugDone) {
-        debugDone = true;
-        const tIdx = ticketHtml.search(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/);
-        if (tIdx > -1) console.log(`  [DBG] contesto orario: ...${ticketHtml.slice(Math.max(0,tIdx-150), tIdx+150)}...`);
-      }
-      const times = parseComingSoonTicketPage(ticketHtml);
+      const times = parseComingSoonTicketPage(ticketHtml, date);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
     } catch (e) { console.log(`  ✗ ticket ${idf}: ${e.message}`); }
