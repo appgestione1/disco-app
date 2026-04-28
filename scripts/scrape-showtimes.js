@@ -33,7 +33,7 @@ const CINEMA_CONFIG = [
   },
   {
     id: 'eplanetlopo',
-    type: 'eplanet',
+    type: 'eplanet-debug',
     slug: 'lo-po',
     url: d => `https://www.eplanetcinemas.it/programmazione/lo-po/?data=${d}`,
   },
@@ -208,6 +208,16 @@ async function scrapeCinema(config, date) {
     const url = config.url(date);
     console.log(`  → ${url}`);
     const html = await fetchHtml(url);
+
+    if (config.type === 'eplanet-debug') {
+      const $d = cheerio.load(html);
+      const firstEticket = $d(`a[href*="/eticket/${config.slug}/"]`).first();
+      const p1 = firstEticket.parent().prop('outerHTML') || '';
+      const p2 = firstEticket.parent().parent().prop('outerHTML') || '';
+      console.log(`  [DBG] parent eticket: ${p1.slice(0,300)}`);
+      console.log(`  [DBG] grandparent: ${p2.slice(0,400)}`);
+      return null;
+    }
 
     if (config.type === 'webtic') {
       if (!html.includes('scheda-film')) {
