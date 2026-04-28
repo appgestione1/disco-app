@@ -144,27 +144,14 @@ function parseEplanet(html, slug) {
     .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
-// ── ComingSoon.it: estrae orari di oggi dalla pagina ticket per singolo film ──
-// Struttura ticket: testo "martedì 28 APR ... 16:00 17:40 ..." per ogni data.
-// Approccio: strip HTML → trova sezione di oggi → estrai HH:MM.
-function parseComingSoonTicketPage(html, targetDate) {
-  const [, month, day] = targetDate.split('-').map(Number);
-  const MONTHS = ['GEN','FEB','MAR','APR','MAG','GIU','LUG','AGO','SET','OTT','NOV','DIC'];
-  const todayLabel = `${day} ${MONTHS[month - 1]}`; // es. "28 APR"
-
-  // Strip tag HTML, normalizza spazi
-  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
-
-  const todayPos = text.indexOf(todayLabel);
-  if (todayPos === -1) return [];
-
-  const afterToday = text.slice(todayPos + todayLabel.length);
-  // Trova il prossimo label data (es. "29 APR")
-  const nextDate = afterToday.match(/\b\d{1,2}\s+(?:GEN|FEB|MAR|APR|MAG|GIU|LUG|AGO|SET|OTT|NOV|DIC)\b/);
-  const section = nextDate ? afterToday.slice(0, afterToday.indexOf(nextDate[0])) : afterToday;
-
+// ── ComingSoon.it: estrae tutti gli orari dalla pagina ticket di un film ──────
+// Il sistema usa WebTick Calendar (.btn-fab per le date) — le date non appaiono
+// come testo nel DOM stripped, quindi estraiamo tutti i HH:MM della pagina.
+// Per un film specifico è accettabile: gli orari sono tutti relativi a quel film.
+function parseComingSoonTicketPage(html) {
   const TIME_RE = /\b([0-1]?\d|2[0-3]):[0-5]\d\b/g;
-  return [...new Set((section.match(TIME_RE) || []).filter(t => parseInt(t) >= 8))].sort();
+  const text = html.replace(/<[^>]+>/g, ' ');
+  return [...new Set((text.match(TIME_RE) || []).filter(t => parseInt(t) >= 8))].sort();
 }
 
 // ── ComingSoon.it multi-step: main page → idf → ticket page per ogni film ────
@@ -187,18 +174,10 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
-  let firstTicket = true;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
-      // Diagnostica solo sul primo film: mostra testo grezzo e presenza orari
-      if (firstTicket) {
-        firstTicket = false;
-        const stripped = ticketHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 600);
-        const hasTime = /\d{1,2}:\d{2}/.test(ticketHtml);
-        console.log(`  [DEBUG] "${title}" — orari HH:MM: ${hasTime} — testo inizio: ${stripped}`);
-      }
-      const times = parseComingSoonTicketPage(ticketHtml, date);
+      const times = parseComingSoonTicketPage(ticketHtml);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
     } catch (e) { console.log(`  ✗ ticket ${idf}: ${e.message}`); }
