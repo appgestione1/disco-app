@@ -56,23 +56,21 @@ const CINEMA_CONFIG = [
     baseUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
   },
 
-  // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
-  { id: 'eplanetaalfieri',       type: null },
-  { id: 'thespaceetnapolis',     type: null },
-  { id: 'acireale',              type: null },
-  { id: 'spadaro',               type: null },
-  { id: 'artanis',               type: null },
-  { id: 'politeamacaltagirone',  type: null },
-  { id: 'macherione',            type: null },
-  { id: 'garibaldi',             type: null },
-  { id: 'rex',                   type: null },
-  { id: 'eden',                  type: null },
-  { id: 'moderno',               type: null },
-  { id: 'trinacria',             type: null },
-  { id: 'ucicentrosicilia',      type: null },
-  { id: 'musmeci',               type: null },
-  { id: 'centrale',              type: null },
-  { id: 'metropol',              type: null },
+  // ── ComingSoon.it ticket — cinema minori (funziona se vendono online) ─────────
+  { id: 'eplanetaalfieri',      type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-alfieri-catania/1263/' },
+  { id: 'acireale',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/margherita-acireale/1233/' },
+  { id: 'spadaro',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/spadaro-acireale/1235/' },
+  { id: 'artanis',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/artanis-caltagirone/1248/' },
+  { id: 'politeamacaltagirone', type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/multisala-politeama-caltagirone/1247/' },
+  { id: 'macherione',           type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/multisala-macherione-fiumefreddo-di-sicilia/1286/' },
+  { id: 'garibaldi',            type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-garibaldi-giarre/1289/' },
+  { id: 'rex',                  type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-rex-giarre/6150/' },
+  { id: 'eden',                 type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/eden-giarre/3461/' },
+  { id: 'moderno',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/' },
+  { id: 'trinacria',            type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/trinacria-misterbianco/1302/' },
+  { id: 'musmeci',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cinema-musmeci-riposto/3481/' },
+  { id: 'centrale',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/centrale-san-giovanni-la-punta/1347/' },
+  { id: 'metropol',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/' },
 ];
 
 const HEADERS = {
