@@ -1,8 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// CINEMA CATANIA E PROVINCIA
-//
-// partnerId: null → Opzione A (Google search orari)
-// partnerId: 'id' → Opzione C (orari ufficiali dal partner in Firestore)
+// CINEMA CATANIA E PROVINCIA — fonte: ComingSoon.it (16 cinema)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CATANIA_CINEMAS = [
@@ -10,56 +7,34 @@ export const CATANIA_CINEMAS = [
   // ── CATANIA CITTÀ ──────────────────────────────────────────────────────────
 
   {
-    id: 'thespaceleporte',
-    name: 'The Space Cinema',
-    area: 'Le Porte di Catania – Misterbianco',
-    address: 'Via Duca D\'Aosta 37, Misterbianco (CT)',
-    website: 'https://www.thespacecinema.it',
-    programUrl: 'https://www.thespacecinema.it/cinema/porte-di-catania/programmazione',
-    mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Le+Porte+di+Catania+Misterbianco',
-    partnerId: null,
-  },
-
-  {
-    id: 'cinemaking',
-    name: 'Cinema King Multisala',
-    area: 'Catania Centro',
-    address: 'Via Umberto I, Catania',
+    id: 'cinestar',
+    name: 'Cinestar Catania',
+    area: 'Catania',
+    address: 'Via Domenico Tempio, Catania (CT)',
     website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/5004/',
-    mapsUrl: 'https://maps.google.com/?q=Cinema+King+Catania',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/cinestar-catania/4968/',
+    mapsUrl: 'https://maps.google.com/?q=Cinestar+Catania',
     partnerId: null,
   },
 
   {
-    id: 'odeon',
-    name: 'Odeon Multisala',
+    id: 'eplanetaalfieri',
+    name: 'Eplanet Alfieri Catania',
     area: 'Catania',
     address: 'Catania (CT)',
     website: null,
-    programUrl: null,
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Odeon+Catania',
-    partnerId: null,
-  },
-
-  {
-    id: 'cinestar',
-    name: 'Cinestar I Portali',
-    area: 'I Portali – Catania',
-    address: 'Via Domenico Tempio, Catania (CT)',
-    website: null,
-    programUrl: null,
-    mapsUrl: 'https://maps.google.com/?q=Cinestar+I+Portali+Catania',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-alfieri-catania/1263/',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Alfieri+Catania',
     partnerId: null,
   },
 
   {
     id: 'eplanetariston',
-    name: 'Eplanet Ariston',
+    name: 'Eplanet Ariston Catania',
     area: 'Catania',
     address: 'Catania (CT)',
     website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/5190/',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-ariston-catania/1266/',
     mapsUrl: 'https://maps.google.com/?q=Eplanet+Ariston+Catania',
     partnerId: null,
   },
@@ -70,67 +45,45 @@ export const CATANIA_CINEMAS = [
     area: 'Catania',
     address: 'Catania (CT)',
     website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/6011/',
-    mapsUrl: 'https://maps.google.com/?q=Eplanet+Cinema+Catania',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-catania/1255/',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Catania',
     partnerId: null,
   },
 
   {
-    id: 'ucicentrosicilia',
-    name: 'UCI Cinemas Centro Sicilia',
-    area: 'Centro Sicilia – Catania',
-    address: 'Centro Commerciale Centro Sicilia, Catania (CT)',
-    website: 'https://www.ucicinemas.it',
-    programUrl: 'https://www.ucicinemas.it/cinema/sicilia/uci-cinemas-centro-sicilia',
-    mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Catania',
+    id: 'eplanetlopo',
+    name: 'Eplanet Lo Po',
+    area: 'Catania',
+    address: 'Catania (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-lo-po/1272/',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Lo+Po+Catania',
     partnerId: null,
   },
 
-  // ── CATANIA PROVINCIA ──────────────────────────────────────────────────────
+  {
+    id: 'cinemaking',
+    name: 'King Multisala',
+    area: 'Catania Centro',
+    address: 'Via Umberto I, Catania (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/king/1271/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+King+Catania',
+    partnerId: null,
+  },
 
   {
     id: 'thespaceetnapolis',
-    name: 'The Space Cinema Etnapolis',
+    name: 'The Space Cinema Belpasso',
     area: 'Etnapolis – Belpasso (CT)',
     address: 'SS 121, Belpasso (CT)',
     website: 'https://www.thespacecinema.it',
-    programUrl: 'https://www.thespacecinema.it/cinema/etnapolis/programmazione',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
     partnerId: null,
   },
 
-  {
-    id: 'sangiovannilapunta',
-    name: 'Cinema San Giovanni La Punta',
-    area: 'San Giovanni La Punta (CT)',
-    address: 'San Giovanni La Punta (CT)',
-    website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/sangiovannilapunta/',
-    mapsUrl: 'https://maps.google.com/?q=Cinema+San+Giovanni+La+Punta+Catania',
-    partnerId: null,
-  },
-
-  {
-    id: 'giarre',
-    name: 'Cinema Giarre',
-    area: 'Giarre (CT)',
-    address: 'Giarre (CT)',
-    website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/giarre/',
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Giarre+Catania',
-    partnerId: null,
-  },
-
-  {
-    id: 'mascalucia',
-    name: 'Cinema Mascalucia',
-    area: 'Mascalucia (CT)',
-    address: 'Mascalucia (CT)',
-    website: null,
-    programUrl: 'https://www.mymovies.it/cinema/catania/mascalucia/',
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Mascalucia+Catania',
-    partnerId: null,
-  },
+  // ── ACIREALE ───────────────────────────────────────────────────────────────
 
   {
     id: 'acireale',
@@ -138,19 +91,167 @@ export const CATANIA_CINEMAS = [
     area: 'Acireale (CT)',
     address: 'Acireale (CT)',
     website: null,
-    programUrl: null,
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Acireale+Catania',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/margherita-acireale/1233/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Margherita+Acireale',
     partnerId: null,
   },
 
   {
-    id: 'paterno',
-    name: 'Cinema Multisala',
-    area: 'Paternò (CT)',
-    address: 'Paternò (CT)',
+    id: 'spadaro',
+    name: 'Cinema Spadaro',
+    area: 'Acireale (CT)',
+    address: 'Acireale (CT)',
     website: null,
-    programUrl: null,
-    mapsUrl: 'https://maps.google.com/?q=Cinema+Paternò+Catania',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/spadaro-acireale/1235/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Spadaro+Acireale',
+    partnerId: null,
+  },
+
+  // ── CALTAGIRONE ────────────────────────────────────────────────────────────
+
+  {
+    id: 'artanis',
+    name: 'Cinema Artanis',
+    area: 'Caltagirone (CT)',
+    address: 'Caltagirone (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/artanis-caltagirone/1248/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Artanis+Caltagirone',
+    partnerId: null,
+  },
+
+  {
+    id: 'politeamacaltagirone',
+    name: 'Multisala Politeama Caltagirone',
+    area: 'Caltagirone (CT)',
+    address: 'Caltagirone (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/multisala-politeama-caltagirone/1247/',
+    mapsUrl: 'https://maps.google.com/?q=Multisala+Politeama+Caltagirone',
+    partnerId: null,
+  },
+
+  // ── FIUMEFREDDO DI SICILIA ─────────────────────────────────────────────────
+
+  {
+    id: 'macherione',
+    name: 'Multisala Macherione',
+    area: 'Fiumefreddo di Sicilia (CT)',
+    address: 'Fiumefreddo di Sicilia (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/multisala-macherione-fiumefreddo-di-sicilia/1286/',
+    mapsUrl: 'https://maps.google.com/?q=Multisala+Macherione+Fiumefreddo+di+Sicilia',
+    partnerId: null,
+  },
+
+  // ── GIARRE ─────────────────────────────────────────────────────────────────
+
+  {
+    id: 'garibaldi',
+    name: 'Cine Teatro Garibaldi',
+    area: 'Giarre (CT)',
+    address: 'Giarre (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-garibaldi-giarre/1289/',
+    mapsUrl: 'https://maps.google.com/?q=Cine+Teatro+Garibaldi+Giarre',
+    partnerId: null,
+  },
+
+  {
+    id: 'rex',
+    name: 'Cine Teatro Rex',
+    area: 'Giarre (CT)',
+    address: 'Giarre (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-rex-giarre/6150/',
+    mapsUrl: 'https://maps.google.com/?q=Cine+Teatro+Rex+Giarre',
+    partnerId: null,
+  },
+
+  {
+    id: 'eden',
+    name: 'Cinema Eden',
+    area: 'Giarre (CT)',
+    address: 'Giarre (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/eden-giarre/3461/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Eden+Giarre',
+    partnerId: null,
+  },
+
+  // ── MASCALUCIA ─────────────────────────────────────────────────────────────
+
+  {
+    id: 'moderno',
+    name: 'Cinema Moderno',
+    area: 'Mascalucia (CT)',
+    address: 'Mascalucia (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Moderno+Mascalucia',
+    partnerId: null,
+  },
+
+  // ── MISTERBIANCO ───────────────────────────────────────────────────────────
+
+  {
+    id: 'trinacria',
+    name: 'Cinema Trinacria',
+    area: 'Misterbianco (CT)',
+    address: 'Misterbianco (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/trinacria-misterbianco/1302/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Trinacria+Misterbianco',
+    partnerId: null,
+  },
+
+  {
+    id: 'ucicentrosicilia',
+    name: 'UCI Cinemas Catania',
+    area: 'Misterbianco (CT)',
+    address: 'Misterbianco (CT)',
+    website: 'https://www.ucicinemas.it',
+    programUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
+    mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Catania+Misterbianco',
+    partnerId: null,
+  },
+
+  // ── RIPOSTO ────────────────────────────────────────────────────────────────
+
+  {
+    id: 'musmeci',
+    name: 'Cinema Musmeci',
+    area: 'Riposto (CT)',
+    address: 'Riposto (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/cinema-musmeci-riposto/3481/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Musmeci+Riposto',
+    partnerId: null,
+  },
+
+  // ── SAN GIOVANNI LA PUNTA ──────────────────────────────────────────────────
+
+  {
+    id: 'centrale',
+    name: 'Cinema Centrale',
+    area: 'San Giovanni La Punta (CT)',
+    address: 'San Giovanni La Punta (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/centrale-san-giovanni-la-punta/1347/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Centrale+San+Giovanni+La+Punta',
+    partnerId: null,
+  },
+
+  // ── SCORDIA ────────────────────────────────────────────────────────────────
+
+  {
+    id: 'metropol',
+    name: 'Cinema Metropol',
+    area: 'Scordia (CT)',
+    address: 'Scordia (CT)',
+    website: null,
+    programUrl: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/',
+    mapsUrl: 'https://maps.google.com/?q=Cinema+Metropol+Scordia',
     partnerId: null,
   },
 
