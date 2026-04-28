@@ -50,6 +50,11 @@ const CINEMA_CONFIG = [
     type: 'comingsoon-ticket',
     baseUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
   },
+  {
+    id: 'ucicentrosicilia',
+    type: 'comingsoon-ticket',
+    baseUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
+  },
 
   // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
   { id: 'eplanetaalfieri',       type: null },
