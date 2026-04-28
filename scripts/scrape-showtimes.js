@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+const cheerio = require('cheerio');
 const admin = require('firebase-admin');
 
 // ── Firebase ──────────────────────────────────────────────────────────────────
@@ -31,67 +31,79 @@ const CINEMA_URLS = [
   { url: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/',                           id: 'metropol' },
 ];
 
-// ── Estrazione film via DOM (ComingSoon.it) ───────────────────────────────────
-// Film link: <a href="/cinema/catania/?idf=XXXXX">
-// Orari formato HH.MM → convertiamo in HH:MM
-async function extractFilmsFromPage(page) {
-  return await page.evaluate(() => {
-    const TIME_RE = /\b([0-1]?\d|2[0-3])\.\d{2}\b/g;
-    const FILM_HREF_RE = /\/cinema\/catania\/\?idf=\d+/;
-    const results = [];
-    const seenTitles = new Set();
+const HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Encoding': 'gzip, deflate, br',
+};
 
-    const filmLinks = [...document.querySelectorAll('a[href]')]
-      .filter(a => FILM_HREF_RE.test(a.href));
-
-    for (const link of filmLinks) {
-      const title = link.textContent?.trim().replace(/\s+/g, ' ');
-      if (!title || title.length < 2 || title.length > 120) continue;
-      if (seenTitles.has(title)) continue;
-
-      let container = link.parentElement;
-      for (let level = 0; level < 10 && container; level++) {
-        const containerText = container.textContent || '';
-        const rawTimes = containerText.match(TIME_RE) || [];
-        const times = [...new Set(
-          rawTimes
-            .filter(t => parseInt(t.split('.')[0]) >= 8)
-            .map(t => t.replace('.', ':'))
-        )].sort();
-
-        if (times.length === 0) { container = container.parentElement; continue; }
-
-        const otherFilmLinks = [...container.querySelectorAll('a[href]')]
-          .filter(a => FILM_HREF_RE.test(a.href) && a !== link);
-
-        if (otherFilmLinks.length === 0) {
-          seenTitles.add(title);
-          results.push({ title, times });
-          break;
-        }
-
-        container = container.parentElement;
-      }
-    }
-
-    return results;
-  });
+// ── Fetch HTML statico ────────────────────────────────────────────────────────
+async function fetchHtml(url) {
+  const res = await fetch(url, { headers: HEADERS });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
 }
 
-// ── Scraping singola pagina cinema ────────────────────────────────────────────
-async function scrapeCinemaPage(browser, url, cinemaId) {
-  const page = await browser.newPage();
-  await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+// ── Estrazione film via cheerio ───────────────────────────────────────────────
+// Film link: <a href="...?idf=XXXXX">
+// Orari formato HH.MM → convertiamo in HH:MM
+function extractFilms(html) {
+  const $ = cheerio.load(html);
+  const TIME_RE = /\b([0-1]?\d|2[0-3])\.\d{2}\b/g;
+  const results = [];
+  const seenTitles = new Set();
 
+  $('a[href*="?idf="]').each((_, linkEl) => {
+    const $link = $(linkEl);
+    const title = $link.text().trim().replace(/\s+/g, ' ');
+    if (!title || title.length < 2 || title.length > 120) return;
+    if (seenTitles.has(title)) return;
+
+    // Risali il DOM cercando il contenitore più piccolo con orari ma senza altri film
+    let $container = $link.parent();
+    for (let level = 0; level < 10; level++) {
+      if (!$container.length || $container.is('body')) break;
+
+      const containerText = $container.text() || '';
+      const rawTimes = containerText.match(TIME_RE) || [];
+      const times = [...new Set(
+        rawTimes
+          .filter(t => parseInt(t.split('.')[0]) >= 8)
+          .map(t => t.replace('.', ':'))
+      )].sort();
+
+      if (times.length === 0) { $container = $container.parent(); continue; }
+
+      const otherLinks = $container.find('a[href*="?idf="]').filter((_, el) => el !== linkEl);
+      if (otherLinks.length === 0) {
+        seenTitles.add(title);
+        results.push({ title, times });
+        break;
+      }
+
+      $container = $container.parent();
+    }
+  });
+
+  return results;
+}
+
+// ── Scraping singolo cinema ───────────────────────────────────────────────────
+async function scrapeCinema(url, id) {
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    await new Promise(r => setTimeout(r, 1500));
-    return await extractFilmsFromPage(page);
+    const html = await fetchHtml(url);
+
+    // Diagnostica: se la pagina non ha link film, segnala
+    if (!html.includes('?idf=')) {
+      console.log(`  ⚠ Pagina senza film (redirect o cookie wall?)`);
+      return [];
+    }
+
+    return extractFilms(html);
   } catch (e) {
-    console.error(`  Errore ${cinemaId}: ${e.message}`);
+    console.error(`  Errore ${id}: ${e.message}`);
     return [];
-  } finally {
-    await page.close();
   }
 }
 
@@ -100,27 +112,21 @@ async function main() {
   const today = new Date().toISOString().split('T')[0];
   console.log(`\n=== Scraping orari per ${today} (ComingSoon.it) ===\n`);
 
-  const browser = await puppeteer.launch({
-    headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage', '--disable-gpu'],
-  });
-
   const showtimes = {};
 
-  try {
-    for (const { url, id } of CINEMA_URLS) {
-      console.log(`\n[${id}] ${url}`);
-      const films = await scrapeCinemaPage(browser, url, id);
+  for (const { url, id } of CINEMA_URLS) {
+    console.log(`\n[${id}] ${url}`);
+    const films = await scrapeCinema(url, id);
 
-      if (films.length > 0) {
-        showtimes[id] = films;
-        films.forEach(f => console.log(`  ✓ ${f.title}: ${f.times.join(', ')}`));
-      } else {
-        console.log(`  ✗ Nessun dato`);
-      }
+    if (films.length > 0) {
+      showtimes[id] = films;
+      films.forEach(f => console.log(`  ✓ ${f.title}: ${f.times.join(', ')}`));
+    } else {
+      console.log(`  ✗ Nessun dato`);
     }
-  } finally {
-    await browser.close();
+
+    // Pausa cortese tra richieste
+    await new Promise(r => setTimeout(r, 500));
   }
 
   const total = Object.keys(showtimes).length;
