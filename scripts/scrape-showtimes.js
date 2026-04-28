@@ -7,8 +7,9 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 // ── Configurazione cinema ─────────────────────────────────────────────────────
-// type: 'webtic' → usa il parser Webtic (cinestarweb.it e simili)
-// type: null     → nessun sito disponibile, skip
+// type: 'webtic'   → cinestarweb.it (h5+scheda-film+film-ricercato)
+// type: 'eplanet'  → eplanetcinemas.it (h3+/eticket/slug/)
+// type: null       → nessun sito disponibile, skip
 const CINEMA_CONFIG = [
   // ── Webtic ──────────────────────────────────────────────────────────────────
   {
@@ -17,12 +18,29 @@ const CINEMA_CONFIG = [
     url: d => `https://www.cinestarweb.it/programmazione/?d=${d}%2000%3A00%3A00`,
   },
 
+  // ── Eplanet (eplanetcinemas.it) ──────────────────────────────────────────────
+  {
+    id: 'cinemaking',
+    type: 'eplanet',
+    slug: 'king',
+    url: d => `https://www.eplanetcinemas.it/programmazione/king/?data=${d}`,
+  },
+  {
+    id: 'eplanetariston',
+    type: 'eplanet',
+    slug: 'ariston',
+    url: d => `https://www.eplanetcinemas.it/programmazione/ariston/?data=${d}`,
+  },
+  {
+    id: 'eplanetlopo',
+    type: 'eplanet',
+    slug: 'lo-po',
+    url: d => `https://www.eplanetcinemas.it/programmazione/lo-po/?data=${d}`,
+  },
+
   // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
   { id: 'eplanetaalfieri',       type: null },
-  { id: 'eplanetariston',        type: null },
   { id: 'cinemaplanet',          type: null },
-  { id: 'eplanetlopo',           type: null },
-  { id: 'cinemaking',            type: null },
   { id: 'thespaceetnapolis',     type: null },
   { id: 'acireale',              type: null },
   { id: 'spadaro',               type: null },
@@ -78,6 +96,42 @@ function parseWebtic(html) {
     .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
+// ── Parser Eplanet (eplanetcinemas.it) ───────────────────────────────────────
+// Struttura: <h3>Titolo Film</h3>
+//            <a href="/eticket/[slug]/[filmId]/[sessionId]/">HH:MM</a>
+// Il filmId nel path collega ogni orario al film corretto.
+function parseEplanet(html, slug) {
+  const $ = cheerio.load(html);
+  const ETICKET_RE = new RegExp(`/eticket/${slug}/(\\d+)/`);
+  const filmMap = {};
+
+  $(`a[href*="/eticket/${slug}/"]`).each((_, a) => {
+    const href = $(a).attr('href') || '';
+    const match = href.match(ETICKET_RE);
+    const time = $(a).text().trim();
+    if (!match || !/^\d{1,2}:\d{2}$/.test(time)) return;
+    const filmId = match[1];
+    if (!filmMap[filmId]) filmMap[filmId] = { title: null, times: [] };
+    filmMap[filmId].times.push(time);
+  });
+
+  // Trova il titolo h3 più vicino a ciascun filmId
+  for (const filmId of Object.keys(filmMap)) {
+    const firstLink = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first();
+    let $container = firstLink.parent();
+    for (let i = 0; i < 8; i++) {
+      if (!$container.length || $container.is('body')) break;
+      const $h3 = $container.find('h3').first();
+      if ($h3.length) { filmMap[filmId].title = $h3.text().trim(); break; }
+      $container = $container.parent();
+    }
+  }
+
+  return Object.values(filmMap)
+    .filter(f => f.title && f.times.length > 0)
+    .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
+}
+
 // ── Scraping per cinema ───────────────────────────────────────────────────────
 async function scrapeCinema(config, date) {
   if (!config.type) return null;
@@ -93,6 +147,14 @@ async function scrapeCinema(config, date) {
         return null;
       }
       return parseWebtic(html);
+    }
+
+    if (config.type === 'eplanet') {
+      if (!html.includes('/eticket/')) {
+        console.log(`  ⚠ Pagina senza eticket`);
+        return null;
+      }
+      return parseEplanet(html, config.slug);
     }
 
     return null;
