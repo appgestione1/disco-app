@@ -195,10 +195,11 @@ async function scrapeComingSoonTickets(baseUrl, date) {
       if (!debugDone) {
         debugDone = true;
         const $d = cheerio.load(ticketHtml);
-        const sessionParent = $d('button.btn-fab.c').first().parent().prop('outerHTML') || '';
-        const dateBtn = $d('button.btn-fab:not(.c)').first().prop('outerHTML') || '';
-        console.log(`  [DBG] parent sessione: ${sessionParent.slice(0,300)}`);
-        console.log(`  [DBG] date-btn: ${dateBtn.slice(0,200)}`);
+        const $mediaBody = $d('button.btn-fab.c').first().closest('.media-body, .media');
+        const $mediaLeft = $mediaBody.siblings('.media-left, .media-heading').first();
+        const $mediaParent = $d('button.btn-fab.c').first().closest('.media');
+        console.log(`  [DBG] media-left: ${($mediaLeft.prop('outerHTML') || 'none').slice(0,200)}`);
+        console.log(`  [DBG] media parent HTML: ${($mediaParent.prop('outerHTML') || 'none').slice(0,400)}`);
       }
       const times = parseComingSoonTicketPage(ticketHtml, date);
       if (times.length > 0) results.push({ title, times });
