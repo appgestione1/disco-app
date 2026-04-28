@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes } from './services/externalEvents';
+import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
@@ -11,13 +11,11 @@ const FilmDetail = ({ film, onClose }) => {
   const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
   const [showtimes, setShowtimes] = useState({});
-  const [allFilms, setAllFilms] = useState({});
   const [loadingShowtimes, setLoadingShowtimes] = useState(true);
 
   useEffect(() => {
-    fetchShowtimes(film.title).then(({ times, allFilms }) => {
+    fetchShowtimes(film.title).then(({ times }) => {
       setShowtimes(times);
-      setAllFilms(allFilms);
       setLoadingShowtimes(false);
     });
   }, [film.title]);
@@ -138,35 +136,6 @@ const FilmDetail = ({ film, onClose }) => {
                   </span>
                 )}
 
-                {/* Altri film in programmazione oggi */}
-                {(() => {
-                  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-                  const normT = t => t.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
-                  const others = (allFilms[cinema.id] || []).filter(f => {
-                    const h = normT(f.title), n = normT(film.title);
-                    if (h.includes(n) || n.includes(h)) return false;
-                    return f.times.some(t => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm > nowMin; });
-                  });
-                  if (others.length === 0) return null;
-                  return (
-                    <div className="border-t border-white/5 pt-3 mt-1">
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Anche oggi</p>
-                      <div className="space-y-2">
-                        {others.map(f => {
-                          const ft = f.times.filter(t => { const [hh, mm] = t.split(':').map(Number); return hh * 60 + mm > nowMin; });
-                          return (
-                            <div key={f.title}>
-                              <p className="text-[10px] font-black text-zinc-300 mb-1 truncate">{f.title}</p>
-                              <div className="flex flex-wrap gap-1">
-                                {ft.map(t => <span key={t} className="bg-zinc-800 text-zinc-400 font-black text-[9px] px-2 py-1 rounded-full">{t}</span>)}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })()}
               </div>
             )}
           </div>
@@ -436,8 +405,16 @@ const Home = () => {
     if (!activeCategory || !EXTERNAL_CATS.includes(activeCategory)) return;
     setExternalEvents([]);
     setLoadingExternal(true);
-    const fetcher = { CINEMA: fetchCinema, TEATRO: fetchTeatro, CONCERTI: fetchConcerti }[activeCategory];
-    fetcher().then(data => { setExternalEvents(data); setLoadingExternal(false); });
+    if (activeCategory === 'CINEMA') {
+      fetchCinema().then(async tmdb => {
+        const local = await fetchLocalCinemaFilms(tmdb);
+        setExternalEvents([...tmdb, ...local]);
+        setLoadingExternal(false);
+      });
+    } else {
+      const fetcher = { TEATRO: fetchTeatro, CONCERTI: fetchConcerti }[activeCategory];
+      fetcher().then(data => { setExternalEvents(data); setLoadingExternal(false); });
+    }
   }, [activeCategory]);
 
   const fetchEvents = async () => {

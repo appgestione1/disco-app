@@ -76,6 +76,70 @@ async function getTrailerKey(tmdbId) {
   } catch { return null; }
 }
 
+// ── Cerca singolo film su TMDB per titolo ────────────────────────────────────
+async function searchTmdbByTitle(title) {
+  if (!TMDB_KEY) return null;
+  try {
+    const res = await fetch(
+      `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(title)}&language=it-IT`
+    );
+    const data = await res.json();
+    const m = data.results?.[0];
+    if (!m) return null;
+    return {
+      id: `tmdb_${m.id}`,
+      title: m.title,
+      description: m.overview,
+      imageUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
+      backdropUrl: m.backdrop_path ? `https://image.tmdb.org/t/p/w780${m.backdrop_path}` : null,
+      rating: m.vote_average ? m.vote_average.toFixed(1) : null,
+      releaseDate: m.release_date,
+      source: 'TMDB', category: 'CINEMA', trailerKey: null,
+    };
+  } catch { return null; }
+}
+
+// ── Film locali (da scraper Firestore) non presenti in TMDB now_playing ───────
+let _localCache = null, _localCacheDate = null;
+export async function fetchLocalCinemaFilms(existingFilms) {
+  const today = new Date().toISOString().split('T')[0];
+  if (_localCache && _localCacheDate === today) return _localCache;
+
+  try {
+    const snap = await getDoc(doc(db, 'showtimes', today));
+    if (!snap.exists()) return (_localCache = [], _localCacheDate = today, []);
+
+    const normalizeT = t => t.toLowerCase()
+      .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
+      .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
+      .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+    // Raccogli tutti i titoli unici dallo scraper
+    const scraped = new Map();
+    for (const films of Object.values(snap.data().cinemas || {})) {
+      for (const f of films) {
+        const n = normalizeT(f.title);
+        if (!scraped.has(n)) scraped.set(n, f.title);
+      }
+    }
+
+    // Escludi titoli già presenti in TMDB
+    const missing = [...scraped.entries()].filter(([norm]) =>
+      !existingFilms.some(ef => {
+        const en = normalizeT(ef.title);
+        return en.includes(norm) || norm.includes(en);
+      })
+    );
+
+    const results = (await Promise.all(
+      missing.slice(0, 12).map(([, orig]) => searchTmdbByTitle(orig))
+    )).filter(Boolean);
+
+    _localCache = results; _localCacheDate = today;
+    return results;
+  } catch { return []; }
+}
+
 export async function fetchCinema() {
   const cached = await getCached('CINEMA');
   if (cached) return cached;
