@@ -174,9 +174,16 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
+  let debugDone = false;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
+      // Debug: mostra 300 char di HTML intorno al primo HH:MM trovato
+      if (!debugDone) {
+        debugDone = true;
+        const tIdx = ticketHtml.search(/\b([0-1]?\d|2[0-3]):[0-5]\d\b/);
+        if (tIdx > -1) console.log(`  [DBG] contesto orario: ...${ticketHtml.slice(Math.max(0,tIdx-150), tIdx+150)}...`);
+      }
       const times = parseComingSoonTicketPage(ticketHtml);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
