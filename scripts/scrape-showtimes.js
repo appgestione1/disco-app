@@ -188,9 +188,18 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
+  let debugDone = false;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
+      if (!debugDone) {
+        debugDone = true;
+        const $d = cheerio.load(ticketHtml);
+        const sessionParent = $d('button.btn-fab.c').first().parent().prop('outerHTML') || '';
+        const dateBtn = $d('button.btn-fab:not(.c)').first().prop('outerHTML') || '';
+        console.log(`  [DBG] parent sessione: ${sessionParent.slice(0,300)}`);
+        console.log(`  [DBG] date-btn: ${dateBtn.slice(0,200)}`);
+      }
       const times = parseComingSoonTicketPage(ticketHtml, date);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
