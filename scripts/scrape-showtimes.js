@@ -187,13 +187,21 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
+  let firstTicket = true;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
+      // Diagnostica solo sul primo film: mostra testo grezzo e presenza orari
+      if (firstTicket) {
+        firstTicket = false;
+        const stripped = ticketHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 600);
+        const hasTime = /\d{1,2}:\d{2}/.test(ticketHtml);
+        console.log(`  [DEBUG] "${title}" — orari HH:MM: ${hasTime} — testo inizio: ${stripped}`);
+      }
       const times = parseComingSoonTicketPage(ticketHtml, date);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
-    } catch { /* film non disponibile, skip */ }
+    } catch (e) { console.log(`  ✗ ticket ${idf}: ${e.message}`); }
   }
   return results;
 }
