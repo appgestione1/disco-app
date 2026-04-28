@@ -37,10 +37,15 @@ const CINEMA_CONFIG = [
     slug: 'lo-po',
     url: d => `https://www.eplanetcinemas.it/programmazione/lo-po/?data=${d}`,
   },
+  {
+    id: 'cinemaplanet',
+    type: 'eplanet',
+    slug: 'canalicchio',
+    url: d => `https://www.eplanetcinemas.it/programmazione/canalicchio/?data=${d}`,
+  },
 
   // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
   { id: 'eplanetaalfieri',       type: null },
-  { id: 'cinemaplanet',          type: null },
   { id: 'thespaceetnapolis',     type: null },
   { id: 'acireale',              type: null },
   { id: 'spadaro',               type: null },
