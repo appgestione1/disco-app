@@ -90,33 +90,35 @@ const FilmDetail = ({ film, onClose }) => {
               <div className="flex justify-center py-2">
                 <div className="w-4 h-4 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" />
               </div>
-            ) : showtimes[cinema.id] ? (
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
-                <div className="flex flex-wrap gap-2">
-                  {showtimes[cinema.id].map(time => (
-                    <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
-                      {time}
-                    </span>
-                  ))}
-                </div>
-              </div>
             ) : (
-              <div className="flex gap-2">
-                <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent('"' + film.title + '" ' + cinema.name + ' orari Catania')}`}
-                  target="_blank" rel="noopener noreferrer"
-                  className="flex-1 bg-white text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
-                  Cerca Orari
-                </a>
+              <div className="space-y-3">
+                {showtimes[cinema.id] ? (
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
+                    <div className="flex flex-wrap gap-2">
+                      {showtimes[cinema.id].map(time => (
+                        <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
+                          {time}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent('"' + film.title + '" ' + cinema.name + ' orari Catania')}`}
+                    target="_blank" rel="noopener noreferrer"
+                    className="block w-full bg-white text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                    Cerca Orari
+                  </a>
+                )}
                 {cinema.ticketUrl ? (
                   <a href={cinema.ticketUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
-                    Acquista
+                    className="block w-full bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                    Acquista Biglietto
                   </a>
                 ) : (
-                  <span className="flex-1 border border-zinc-700 text-zinc-600 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest cursor-not-allowed">
-                    Acquista
+                  <span className="block w-full border border-zinc-700 text-zinc-600 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest cursor-not-allowed">
+                    Acquista Biglietto
                   </span>
                 )}
               </div>
