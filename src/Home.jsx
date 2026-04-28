@@ -92,18 +92,29 @@ const FilmDetail = ({ film, onClose }) => {
               </div>
             ) : (
               <div className="space-y-3">
-                {showtimes[cinema.id] ? (
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
-                    <div className="flex flex-wrap gap-2">
-                      {showtimes[cinema.id].map(time => (
-                        <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
-                          {time}
-                        </span>
-                      ))}
+                {showtimes[cinema.id] ? (() => {
+                  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
+                  const future = showtimes[cinema.id].filter(t => {
+                    const [h, m] = t.split(':').map(Number);
+                    return h * 60 + m > nowMin;
+                  });
+                  return future.length > 0 ? (
+                    <div>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
+                      <div className="flex flex-wrap gap-2">
+                        {future.map(time => (
+                          <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
+                            {time}
+                          </span>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ) : (
+                  ) : (
+                    <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 py-1">
+                      Fine programmazione odierna
+                    </p>
+                  );
+                })() : (
                   <a
                     href={`https://www.google.com/search?q=${encodeURIComponent('"' + film.title + '" ' + cinema.name + ' orari Catania')}`}
                     target="_blank" rel="noopener noreferrer"
