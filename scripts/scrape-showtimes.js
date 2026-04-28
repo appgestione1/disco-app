@@ -44,11 +44,11 @@ const CINEMA_CONFIG = [
     url: d => `https://www.eplanetcinemas.it/programmazione/canalicchio/?data=${d}`,
   },
 
-  // ── ComingSoon.it ─────────────────────────────────────────────────────────────
+  // ── ComingSoon.it (ticket pages per film) ────────────────────────────────────
   {
     id: 'thespaceetnapolis',
-    type: 'comingsoon',
-    url: () => 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
+    type: 'comingsoon-ticket',
+    baseUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
   },
 
   // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
@@ -144,44 +144,57 @@ function parseEplanet(html, slug) {
     .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
-// ── Parser ComingSoon.it ──────────────────────────────────────────────────────
-// Struttura: <a href="/cinema/catania/?idf=ID">Titolo</a>
-// Orari in testo: "Sala X | Posti Y → 19.10 / 5,70€ - 22.15 / 5,70€"
-// Usa idf= per isolare il container del singolo film.
-function parseComingSoon(html) {
-  const $ = cheerio.load(html);
-  const TIME_RE = /\b([0-1]?\d|2[0-3])\.\d{2}\b/g;
-  const results = [];
-  const seenTitles = new Set();
+// ── ComingSoon.it: estrae orari di oggi dalla pagina ticket per singolo film ──
+// Struttura ticket: testo "martedì 28 APR ... 16:00 17:40 ..." per ogni data.
+// Approccio: strip HTML → trova sezione di oggi → estrai HH:MM.
+function parseComingSoonTicketPage(html, targetDate) {
+  const [, month, day] = targetDate.split('-').map(Number);
+  const MONTHS = ['GEN','FEB','MAR','APR','MAG','GIU','LUG','AGO','SET','OTT','NOV','DIC'];
+  const todayLabel = `${day} ${MONTHS[month - 1]}`; // es. "28 APR"
 
-  $('a[href*="?idf="]').each((_, linkEl) => {
-    const $link = $(linkEl);
-    const title = $link.text().trim().replace(/\s+/g, ' ');
-    if (!title || title.length < 2 || title.length > 120 || seenTitles.has(title)) return;
+  // Strip tag HTML, normalizza spazi
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 
-    // Trova il contenitore più piccolo con orari e senza altri link film
-    let $container = $link.parent();
-    for (let level = 0; level < 10; level++) {
-      if (!$container.length || $container.is('body')) break;
+  const todayPos = text.indexOf(todayLabel);
+  if (todayPos === -1) return [];
 
-      const containerText = $container.text();
-      const rawTimes = containerText.match(TIME_RE) || [];
-      const times = [...new Set(
-        rawTimes.filter(t => parseInt(t) >= 8).map(t => t.replace('.', ':'))
-      )].sort();
+  const afterToday = text.slice(todayPos + todayLabel.length);
+  // Trova il prossimo label data (es. "29 APR")
+  const nextDate = afterToday.match(/\b\d{1,2}\s+(?:GEN|FEB|MAR|APR|MAG|GIU|LUG|AGO|SET|OTT|NOV|DIC)\b/);
+  const section = nextDate ? afterToday.slice(0, afterToday.indexOf(nextDate[0])) : afterToday;
 
-      if (times.length === 0) { $container = $container.parent(); continue; }
+  const TIME_RE = /\b([0-1]?\d|2[0-3]):[0-5]\d\b/g;
+  return [...new Set((section.match(TIME_RE) || []).filter(t => parseInt(t) >= 8))].sort();
+}
 
-      const otherLinks = $container.find('a[href*="?idf="]').filter((_, el) => el !== linkEl);
-      if (otherLinks.length === 0) {
-        seenTitles.add(title);
-        results.push({ title, times });
-        break;
-      }
-      $container = $container.parent();
+// ── ComingSoon.it multi-step: main page → idf → ticket page per ogni film ────
+async function scrapeComingSoonTickets(baseUrl, date) {
+  // Step 1: estrai idf e titoli dalla pagina principale
+  const mainHtml = await fetchHtml(baseUrl);
+  const $ = cheerio.load(mainHtml);
+  const filmMap = new Map();
+
+  $('a[href*="?idf="]').each((_, a) => {
+    const match = ($(a).attr('href') || '').match(/\?idf=(\d+)/);
+    const title = $(a).text().trim().replace(/\s+/g, ' ');
+    if (match && title && title.length >= 2 && title.length <= 120 && !filmMap.has(match[1])) {
+      filmMap.set(match[1], title);
     }
   });
 
+  if (filmMap.size === 0) { console.log(`  ⚠ Nessun idf trovato`); return []; }
+  console.log(`  ℹ ${filmMap.size} film trovati, fetching ticket pages...`);
+
+  // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
+  const results = [];
+  for (const [idf, title] of filmMap) {
+    try {
+      const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
+      const times = parseComingSoonTicketPage(ticketHtml, date);
+      if (times.length > 0) results.push({ title, times });
+      await new Promise(r => setTimeout(r, 200));
+    } catch { /* film non disponibile, skip */ }
+  }
   return results;
 }
 
@@ -210,16 +223,6 @@ async function scrapeCinema(config, date) {
       return parseEplanet(html, config.slug);
     }
 
-    if (config.type === 'comingsoon') {
-      if (!html.includes('?idf=')) {
-        console.log(`  ⚠ Pagina senza film`);
-        return null;
-      }
-      const timeMatches = (html.match(/\b([0-1]?\d|2[0-3])\.\d{2}\b/g) || []).length;
-      console.log(`  ℹ idf links trovati, orari HH.MM nel testo: ${timeMatches}`);
-      return parseComingSoon(html);
-    }
-
     return null;
   } catch (e) {
     console.error(`  ✗ Errore: ${e.message}`);
@@ -237,7 +240,16 @@ async function main() {
   for (const config of CINEMA_CONFIG) {
     if (!config.type) continue;
     process.stdout.write(`[${config.id}] `);
-    const films = await scrapeCinema(config, today);
+
+    let films;
+    if (config.type === 'comingsoon-ticket') {
+      console.log('');
+      films = await scrapeComingSoonTickets(config.baseUrl, today).catch(e => {
+        console.error(`  ✗ Errore: ${e.message}`); return [];
+      });
+    } else {
+      films = await scrapeCinema(config, today);
+    }
 
     if (films && films.length > 0) {
       showtimes[config.id] = films;
