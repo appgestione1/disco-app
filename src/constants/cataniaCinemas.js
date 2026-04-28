@@ -9,11 +9,11 @@ export const CATANIA_CINEMAS = [
   {
     id: 'cinestar',
     name: 'Cinestar Catania',
-    area: 'Catania',
-    address: 'Via Domenico Tempio, Catania (CT)',
-    website: null,
+    area: 'I Portali – San Giovanni La Punta (CT)',
+    address: 'Parco Commerciale I Portali, San Giovanni La Punta (CT)',
+    website: 'https://www.cinestarweb.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/cinestar-catania/4968/',
-    mapsUrl: 'https://maps.google.com/?q=Cinestar+Catania',
+    mapsUrl: 'https://maps.google.com/?q=Cinestar+I+Portali+San+Giovanni+La+Punta',
     partnerId: null,
   },
 
@@ -42,11 +42,11 @@ export const CATANIA_CINEMAS = [
   {
     id: 'cinemaplanet',
     name: 'Eplanet Catania',
-    area: 'Catania',
-    address: 'Catania (CT)',
+    area: 'Canalicchio – Catania (CT)',
+    address: 'Canalicchio, Catania (CT)',
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-catania/1255/',
-    mapsUrl: 'https://maps.google.com/?q=Eplanet+Catania',
+    mapsUrl: 'https://maps.google.com/?q=Eplanet+Cinema+Canalicchio+Catania',
     partnerId: null,
   },
 
@@ -208,11 +208,11 @@ export const CATANIA_CINEMAS = [
   {
     id: 'ucicentrosicilia',
     name: 'UCI Cinemas Catania',
-    area: 'Misterbianco (CT)',
-    address: 'Misterbianco (CT)',
+    area: 'Centro Sicilia – Misterbianco (CT)',
+    address: 'C.C. Centro Sicilia, Misterbianco (CT)',
     website: 'https://www.ucicinemas.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
-    mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Catania+Misterbianco',
+    mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Misterbianco',
     partnerId: null,
   },
 
