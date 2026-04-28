@@ -44,6 +44,13 @@ const CINEMA_CONFIG = [
     url: d => `https://www.eplanetcinemas.it/programmazione/canalicchio/?data=${d}`,
   },
 
+  // ── ComingSoon.it ─────────────────────────────────────────────────────────────
+  {
+    id: 'thespaceetnapolis',
+    type: 'comingsoon',
+    url: () => 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
+  },
+
   // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
   { id: 'eplanetaalfieri',       type: null },
   { id: 'thespaceetnapolis',     type: null },
@@ -137,6 +144,47 @@ function parseEplanet(html, slug) {
     .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
+// ── Parser ComingSoon.it ──────────────────────────────────────────────────────
+// Struttura: <a href="/cinema/catania/?idf=ID">Titolo</a>
+// Orari in testo: "Sala X | Posti Y → 19.10 / 5,70€ - 22.15 / 5,70€"
+// Usa idf= per isolare il container del singolo film.
+function parseComingSoon(html) {
+  const $ = cheerio.load(html);
+  const TIME_RE = /\b([0-1]?\d|2[0-3])\.\d{2}\b/g;
+  const results = [];
+  const seenTitles = new Set();
+
+  $('a[href*="?idf="]').each((_, linkEl) => {
+    const $link = $(linkEl);
+    const title = $link.text().trim().replace(/\s+/g, ' ');
+    if (!title || title.length < 2 || title.length > 120 || seenTitles.has(title)) return;
+
+    // Trova il contenitore più piccolo con orari e senza altri link film
+    let $container = $link.parent();
+    for (let level = 0; level < 10; level++) {
+      if (!$container.length || $container.is('body')) break;
+
+      const containerText = $container.text();
+      const rawTimes = containerText.match(TIME_RE) || [];
+      const times = [...new Set(
+        rawTimes.filter(t => parseInt(t) >= 8).map(t => t.replace('.', ':'))
+      )].sort();
+
+      if (times.length === 0) { $container = $container.parent(); continue; }
+
+      const otherLinks = $container.find('a[href*="?idf="]').filter((_, el) => el !== linkEl);
+      if (otherLinks.length === 0) {
+        seenTitles.add(title);
+        results.push({ title, times });
+        break;
+      }
+      $container = $container.parent();
+    }
+  });
+
+  return results;
+}
+
 // ── Scraping per cinema ───────────────────────────────────────────────────────
 async function scrapeCinema(config, date) {
   if (!config.type) return null;
@@ -160,6 +208,14 @@ async function scrapeCinema(config, date) {
         return null;
       }
       return parseEplanet(html, config.slug);
+    }
+
+    if (config.type === 'comingsoon') {
+      if (!html.includes('?idf=')) {
+        console.log(`  ⚠ Pagina senza film`);
+        return null;
+      }
+      return parseComingSoon(html);
     }
 
     return null;
