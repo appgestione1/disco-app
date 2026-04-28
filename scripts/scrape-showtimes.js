@@ -266,8 +266,9 @@ async function main() {
       films = await scrapeCinema(config, today);
     }
 
+    // Salva sempre (anche [] = tentato ma nessuna programmazione oggi)
+    showtimes[config.id] = films || [];
     if (films && films.length > 0) {
-      showtimes[config.id] = films;
       console.log(`${films.length} film trovati`);
       films.forEach(f => console.log(`    ✓ ${f.title}: ${f.times.join(', ')}`));
     } else {

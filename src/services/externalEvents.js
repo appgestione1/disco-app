@@ -15,7 +15,9 @@ export async function fetchShowtimes(filmTitle) {
     const result = {};
 
     for (const [cinemaId, films] of Object.entries(cinemas)) {
-      // Cerca match per titolo film specifico
+      // [] = cinema tentato oggi ma senza programmazione → "Fine programmazione odierna"
+      if (films.length === 0) { result[cinemaId] = []; continue; }
+
       const match = films.find(f => {
         const hay = normalizeT(f.title);
         return hay.includes(needle) || needle.includes(hay) ||
@@ -25,7 +27,6 @@ export async function fetchShowtimes(filmTitle) {
       if (match) {
         result[cinemaId] = match.times;
       } else {
-        // Fallback: mostra tutti gli orari del cinema (senza match specifico per film)
         const allTimes = [...new Set(films.flatMap(f => f.times))].sort();
         if (allTimes.length > 0) result[cinemaId] = allTimes;
       }
