@@ -215,6 +215,8 @@ async function scrapeCinema(config, date) {
         console.log(`  ⚠ Pagina senza film`);
         return null;
       }
+      const timeMatches = (html.match(/\b([0-1]?\d|2[0-3])\.\d{2}\b/g) || []).length;
+      console.log(`  ℹ idf links trovati, orari HH.MM nel testo: ${timeMatches}`);
       return parseComingSoon(html);
     }
 
