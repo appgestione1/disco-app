@@ -5,18 +5,19 @@ export async function fetchShowtimes(filmTitle) {
   try {
     const today = new Date().toISOString().split('T')[0];
     const snap = await getDoc(doc(db, 'showtimes', today));
-    if (!snap.exists()) return {};
+    if (!snap.exists()) return { times: {}, allFilms: {} };
 
     const cinemas = snap.data().cinemas || {};
     const normalizeT = t => t.toLowerCase().replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
       .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
       .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
     const needle = normalizeT(filmTitle);
-    const result = {};
+    const times = {};
+    const allFilms = {};
 
     for (const [cinemaId, films] of Object.entries(cinemas)) {
-      // [] = cinema tentato oggi ma senza programmazione → "Fine programmazione odierna"
-      if (films.length === 0) { result[cinemaId] = []; continue; }
+      allFilms[cinemaId] = films;
+      if (films.length === 0) { times[cinemaId] = []; continue; }
 
       const match = films.find(f => {
         const hay = normalizeT(f.title);
@@ -25,14 +26,14 @@ export async function fetchShowtimes(filmTitle) {
       });
 
       if (match) {
-        result[cinemaId] = match.times;
+        times[cinemaId] = match.times;
       } else {
         const allTimes = [...new Set(films.flatMap(f => f.times))].sort();
-        if (allTimes.length > 0) result[cinemaId] = allTimes;
+        if (allTimes.length > 0) times[cinemaId] = allTimes;
       }
     }
-    return result;
-  } catch { return {}; }
+    return { times, allFilms };
+  } catch { return { times: {}, allFilms: {} }; }
 }
 
 const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 ore
