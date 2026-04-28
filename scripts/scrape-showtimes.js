@@ -145,27 +145,28 @@ function parseEplanet(html, slug) {
 }
 
 // ── ComingSoon.it: estrae orari di oggi dalla pagina ticket di un film ────────
-// Struttura WebTick: <button class="btn-fab c" data-url="...">HH:MM</button>
-// I bottoni sono raggruppati in container con data-date="YYYY-MM-DD".
-// Se data-date trovato → filtra solo oggi; altrimenti prende tutti gli orari.
+// Struttura WebTick Bootstrap media object:
+//   div.media → div.media-left (.day + .month) + div.media-body (btn-fab.c HH:MM)
 function parseComingSoonTicketPage(html, targetDate) {
   const $ = cheerio.load(html);
   const TIME_RE = /\b([0-1]?\d|2[0-3]):[0-5]\d\b/g;
+  const MONTHS_IT = ['GEN','FEB','MAR','APR','MAG','GIU','LUG','AGO','SET','OTT','NOV','DIC'];
+  const [, month, day] = targetDate.split('-').map(Number);
+  const todayDay   = String(day);                 // es. "28"
+  const todayMonth = MONTHS_IT[month - 1];        // es. "APR"
 
-  // Prova con data-date (formato YYYY-MM-DD o varianti)
-  for (const fmt of [targetDate, targetDate.split('-').reverse().join('/'), targetDate.replace(/-/g, '/')]) {
-    const section = $(`[data-date="${fmt}"]`);
-    if (section.length > 0) {
-      const times = [...new Set(
-        (section.text().match(TIME_RE) || []).filter(t => parseInt(t) >= 8)
-      )].sort();
-      if (times.length > 0) return times;
+  const times = [];
+  $('div.media').each((_, el) => {
+    const $m = $(el);
+    if ($m.find('.day').text().trim()         === todayDay &&
+        $m.find('.month').text().trim().toUpperCase() === todayMonth) {
+      const t = ($m.find('.media-body').text().match(TIME_RE) || [])
+        .filter(t => parseInt(t) >= 8);
+      times.push(...t);
     }
-  }
+  });
 
-  // Fallback: tutti gli HH:MM della pagina (settimana intera)
-  const text = html.replace(/<[^>]+>/g, ' ');
-  return [...new Set((text.match(TIME_RE) || []).filter(t => parseInt(t) >= 8))].sort();
+  return [...new Set(times)].sort();
 }
 
 // ── ComingSoon.it multi-step: main page → idf → ticket page per ogni film ────
@@ -188,19 +189,9 @@ async function scrapeComingSoonTickets(baseUrl, date) {
 
   // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
   const results = [];
-  let debugDone = false;
   for (const [idf, title] of filmMap) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
-      if (!debugDone) {
-        debugDone = true;
-        const $d = cheerio.load(ticketHtml);
-        const $mediaBody = $d('button.btn-fab.c').first().closest('.media-body, .media');
-        const $mediaLeft = $mediaBody.siblings('.media-left, .media-heading').first();
-        const $mediaParent = $d('button.btn-fab.c').first().closest('.media');
-        console.log(`  [DBG] media-left: ${($mediaLeft.prop('outerHTML') || 'none').slice(0,200)}`);
-        console.log(`  [DBG] media parent HTML: ${($mediaParent.prop('outerHTML') || 'none').slice(0,400)}`);
-      }
       const times = parseComingSoonTicketPage(ticketHtml, date);
       if (times.length > 0) results.push({ title, times });
       await new Promise(r => setTimeout(r, 200));
