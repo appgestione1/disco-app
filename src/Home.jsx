@@ -109,11 +109,15 @@ const FilmDetail = ({ film, onClose }) => {
                   className="flex-1 bg-white text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
                   Cerca Orari
                 </a>
-                {cinema.programUrl && (
-                  <a href={cinema.programUrl} target="_blank" rel="noopener noreferrer"
-                    className="flex-1 border border-[#D4AF37]/40 text-[#D4AF37] text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
-                    Programma
+                {cinema.ticketUrl ? (
+                  <a href={cinema.ticketUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex-1 bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                    Acquista
                   </a>
+                ) : (
+                  <span className="flex-1 border border-zinc-700 text-zinc-600 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest cursor-not-allowed">
+                    Acquista
+                  </span>
                 )}
               </div>
             )}

@@ -1,4 +1,4 @@
-// ─────────────────────────────────────────────────────────────────────────────
+﻿// ─────────────────────────────────────────────────────────────────────────────
 // CINEMA CATANIA E PROVINCIA — fonte: ComingSoon.it (16 cinema)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.cinestarweb.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/cinestar-catania/4968/',
     mapsUrl: 'https://maps.google.com/?q=Cinestar+I+Portali+San+Giovanni+La+Punta',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -25,6 +26,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-alfieri-catania/1263/',
     mapsUrl: 'https://maps.google.com/?q=Eplanet+Alfieri+Catania',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -36,6 +38,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-ariston-catania/1266/',
     mapsUrl: 'https://maps.google.com/?q=Eplanet+Ariston+Catania',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -47,6 +50,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-catania/1255/',
     mapsUrl: 'https://maps.google.com/?q=Eplanet+Cinema+Canalicchio+Catania',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -58,6 +62,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-lo-po/1272/',
     mapsUrl: 'https://maps.google.com/?q=Eplanet+Lo+Po+Catania',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -69,6 +74,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/king/1271/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+King+Catania',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -80,6 +86,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.thespacecinema.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -93,6 +100,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/margherita-acireale/1233/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Margherita+Acireale',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -104,6 +112,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/spadaro-acireale/1235/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Spadaro+Acireale',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -117,6 +126,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/artanis-caltagirone/1248/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Artanis+Caltagirone',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -128,6 +138,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/multisala-politeama-caltagirone/1247/',
     mapsUrl: 'https://maps.google.com/?q=Multisala+Politeama+Caltagirone',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -141,6 +152,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/multisala-macherione-fiumefreddo-di-sicilia/1286/',
     mapsUrl: 'https://maps.google.com/?q=Multisala+Macherione+Fiumefreddo+di+Sicilia',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -154,6 +166,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-garibaldi-giarre/1289/',
     mapsUrl: 'https://maps.google.com/?q=Cine+Teatro+Garibaldi+Giarre',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -165,6 +178,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-rex-giarre/6150/',
     mapsUrl: 'https://maps.google.com/?q=Cine+Teatro+Rex+Giarre',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -176,6 +190,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/eden-giarre/3461/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Eden+Giarre',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -189,6 +204,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Moderno+Mascalucia',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -202,6 +218,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/trinacria-misterbianco/1302/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Trinacria+Misterbianco',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -213,6 +230,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.ucicinemas.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
     mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Misterbianco',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -226,6 +244,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/cinema-musmeci-riposto/3481/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Musmeci+Riposto',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -239,6 +258,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/centrale-san-giovanni-la-punta/1347/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Centrale+San+Giovanni+La+Punta',
+    ticketUrl: null,
     partnerId: null,
   },
 
@@ -252,6 +272,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Metropol+Scordia',
+    ticketUrl: null,
     partnerId: null,
   },
 
