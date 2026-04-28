@@ -6,127 +6,123 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
-// ── Cinema Catania e provincia — fonte: ComingSoon.it ─────────────────────────
-const CINEMA_URLS = [
-  { url: 'https://www.comingsoon.it/cinema/catania/cinestar-catania/4968/',                            id: 'cinestar' },
-  { url: 'https://www.comingsoon.it/cinema/catania/eplanet-alfieri-catania/1263/',                     id: 'eplanetaalfieri' },
-  { url: 'https://www.comingsoon.it/cinema/catania/eplanet-ariston-catania/1266/',                     id: 'eplanetariston' },
-  { url: 'https://www.comingsoon.it/cinema/catania/eplanet-catania/1255/',                             id: 'cinemaplanet' },
-  { url: 'https://www.comingsoon.it/cinema/catania/eplanet-lo-po/1272/',                               id: 'eplanetlopo' },
-  { url: 'https://www.comingsoon.it/cinema/catania/king/1271/',                                        id: 'cinemaking' },
-  { url: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',                   id: 'thespaceetnapolis' },
-  { url: 'https://www.comingsoon.it/cinema/catania/margherita-acireale/1233/',                         id: 'acireale' },
-  { url: 'https://www.comingsoon.it/cinema/catania/spadaro-acireale/1235/',                            id: 'spadaro' },
-  { url: 'https://www.comingsoon.it/cinema/catania/artanis-caltagirone/1248/',                         id: 'artanis' },
-  { url: 'https://www.comingsoon.it/cinema/catania/multisala-politeama-caltagirone/1247/',             id: 'politeamacaltagirone' },
-  { url: 'https://www.comingsoon.it/cinema/catania/multisala-macherione-fiumefreddo-di-sicilia/1286/', id: 'macherione' },
-  { url: 'https://www.comingsoon.it/cinema/catania/cine-teatro-garibaldi-giarre/1289/',                id: 'garibaldi' },
-  { url: 'https://www.comingsoon.it/cinema/catania/cine-teatro-rex-giarre/6150/',                     id: 'rex' },
-  { url: 'https://www.comingsoon.it/cinema/catania/eden-giarre/3461/',                                id: 'eden' },
-  { url: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/',                         id: 'moderno' },
-  { url: 'https://www.comingsoon.it/cinema/catania/trinacria-misterbianco/1302/',                     id: 'trinacria' },
-  { url: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',           id: 'ucicentrosicilia' },
-  { url: 'https://www.comingsoon.it/cinema/catania/cinema-musmeci-riposto/3481/',                     id: 'musmeci' },
-  { url: 'https://www.comingsoon.it/cinema/catania/centrale-san-giovanni-la-punta/1347/',             id: 'centrale' },
-  { url: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/',                           id: 'metropol' },
+// ── Configurazione cinema ─────────────────────────────────────────────────────
+// type: 'webtic' → usa il parser Webtic (cinestarweb.it e simili)
+// type: null     → nessun sito disponibile, skip
+const CINEMA_CONFIG = [
+  // ── Webtic ──────────────────────────────────────────────────────────────────
+  {
+    id: 'cinestar',
+    type: 'webtic',
+    url: d => `https://www.cinestarweb.it/programmazione/?d=${d}%2000%3A00%3A00`,
+  },
+
+  // ── Nessun sito disponibile (acquista/cerca orari via Google) ───────────────
+  { id: 'eplanetaalfieri',       type: null },
+  { id: 'eplanetariston',        type: null },
+  { id: 'cinemaplanet',          type: null },
+  { id: 'eplanetlopo',           type: null },
+  { id: 'cinemaking',            type: null },
+  { id: 'thespaceetnapolis',     type: null },
+  { id: 'acireale',              type: null },
+  { id: 'spadaro',               type: null },
+  { id: 'artanis',               type: null },
+  { id: 'politeamacaltagirone',  type: null },
+  { id: 'macherione',            type: null },
+  { id: 'garibaldi',             type: null },
+  { id: 'rex',                   type: null },
+  { id: 'eden',                  type: null },
+  { id: 'moderno',               type: null },
+  { id: 'trinacria',             type: null },
+  { id: 'ucicentrosicilia',      type: null },
+  { id: 'musmeci',               type: null },
+  { id: 'centrale',              type: null },
+  { id: 'metropol',              type: null },
 ];
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
-  'Accept-Encoding': 'gzip, deflate, br',
 };
 
-// ── Fetch HTML statico ────────────────────────────────────────────────────────
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
 }
 
-// ── Estrazione film via cheerio ───────────────────────────────────────────────
-// Film link: <a href="...?idf=XXXXX">
-// Orari formato HH.MM → convertiamo in HH:MM
-function extractFilms(html) {
+// ── Parser Webtic (cinestarweb.it e compatibili) ──────────────────────────────
+// Struttura: <h5><a href="/scheda-film/?id_pro=ID">Titolo</a></h5>
+//            <a href="film-ricercato/?mult=X&per=Y&pro=ID">HH:MM</a>
+// Il parametro pro= collega ogni orario al film corretto.
+function parseWebtic(html) {
   const $ = cheerio.load(html);
-  const TIME_RE = /\b([0-1]?\d|2[0-3])\.\d{2}\b/g;
-  const results = [];
-  const seenTitles = new Set();
+  const filmMap = {};
 
-  $('a[href*="?idf="]').each((_, linkEl) => {
-    const $link = $(linkEl);
-    const title = $link.text().trim().replace(/\s+/g, ' ');
-    if (!title || title.length < 2 || title.length > 120) return;
-    if (seenTitles.has(title)) return;
+  $('h5 a[href*="scheda-film"]').each((_, a) => {
+    const match = ($(a).attr('href') || '').match(/id_pro=(\d+)/);
+    if (match) filmMap[match[1]] = { title: $(a).text().trim(), times: [] };
+  });
 
-    // Risali il DOM cercando il contenitore più piccolo con orari ma senza altri film
-    let $container = $link.parent();
-    for (let level = 0; level < 10; level++) {
-      if (!$container.length || $container.is('body')) break;
-
-      const containerText = $container.text() || '';
-      const rawTimes = containerText.match(TIME_RE) || [];
-      const times = [...new Set(
-        rawTimes
-          .filter(t => parseInt(t.split('.')[0]) >= 8)
-          .map(t => t.replace('.', ':'))
-      )].sort();
-
-      if (times.length === 0) { $container = $container.parent(); continue; }
-
-      const otherLinks = $container.find('a[href*="?idf="]').filter((_, el) => el !== linkEl);
-      if (otherLinks.length === 0) {
-        seenTitles.add(title);
-        results.push({ title, times });
-        break;
-      }
-
-      $container = $container.parent();
+  $('a[href*="film-ricercato"]').each((_, a) => {
+    const proMatch = ($(a).attr('href') || '').match(/[?&]pro=(\d+)/);
+    const time = $(a).text().trim();
+    if (proMatch && filmMap[proMatch[1]] && /^\d{1,2}:\d{2}$/.test(time)) {
+      filmMap[proMatch[1]].times.push(time);
     }
   });
 
-  return results;
+  return Object.values(filmMap)
+    .filter(f => f.times.length > 0)
+    .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
 }
 
-// ── Scraping singolo cinema ───────────────────────────────────────────────────
-async function scrapeCinema(url, id) {
+// ── Scraping per cinema ───────────────────────────────────────────────────────
+async function scrapeCinema(config, date) {
+  if (!config.type) return null;
+
   try {
+    const url = config.url(date);
+    console.log(`  → ${url}`);
     const html = await fetchHtml(url);
 
-    // Diagnostica: se la pagina non ha link film, segnala
-    if (!html.includes('?idf=')) {
-      console.log(`  ⚠ Pagina senza film (redirect o cookie wall?)`);
-      return [];
+    if (config.type === 'webtic') {
+      if (!html.includes('scheda-film')) {
+        console.log(`  ⚠ Pagina non riconosciuta`);
+        return null;
+      }
+      return parseWebtic(html);
     }
 
-    return extractFilms(html);
+    return null;
   } catch (e) {
-    console.error(`  Errore ${id}: ${e.message}`);
-    return [];
+    console.error(`  ✗ Errore: ${e.message}`);
+    return null;
   }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const today = new Date().toISOString().split('T')[0];
-  console.log(`\n=== Scraping orari per ${today} (ComingSoon.it) ===\n`);
+  console.log(`\n=== Scraping orari per ${today} ===\n`);
 
   const showtimes = {};
 
-  for (const { url, id } of CINEMA_URLS) {
-    console.log(`\n[${id}] ${url}`);
-    const films = await scrapeCinema(url, id);
+  for (const config of CINEMA_CONFIG) {
+    if (!config.type) continue;
+    process.stdout.write(`[${config.id}] `);
+    const films = await scrapeCinema(config, today);
 
-    if (films.length > 0) {
-      showtimes[id] = films;
-      films.forEach(f => console.log(`  ✓ ${f.title}: ${f.times.join(', ')}`));
+    if (films && films.length > 0) {
+      showtimes[config.id] = films;
+      console.log(`${films.length} film trovati`);
+      films.forEach(f => console.log(`    ✓ ${f.title}: ${f.times.join(', ')}`));
     } else {
-      console.log(`  ✗ Nessun dato`);
+      console.log(`nessun dato`);
     }
 
-    // Pausa cortese tra richieste
-    await new Promise(r => setTimeout(r, 500));
+    await new Promise(r => setTimeout(r, 300));
   }
 
   const total = Object.keys(showtimes).length;
