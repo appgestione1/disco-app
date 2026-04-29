@@ -100,8 +100,6 @@ async function searchTmdbByTitle(title) {
 }
 
 // ── Film locali (da scraper Firestore) non presenti in TMDB now_playing ───────
-// I metadati (poster, trailer, descrizione) vengono arricchiti dallo scraper
-// alle 7:00 ogni giorno e salvati direttamente in showtimes/{today}.
 let _localCache = null, _localCacheDate = null;
 export async function fetchLocalCinemaFilms(existingFilms) {
   const today = new Date().toISOString().split('T')[0];
@@ -116,12 +114,13 @@ export async function fetchLocalCinemaFilms(existingFilms) {
       .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
       .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 
-    // Raccogli tutti i titoli unici con i loro metadati arricchiti dallo scraper
+    // Raccogli tutti i titoli unici con i loro metadati (arricchiti dallo scraper se disponibili)
     const scraped = new Map(); // normalized → primo oggetto film completo
     for (const films of Object.values(snap.data().cinemas || {})) {
       for (const f of films) {
         const n = normalizeT(f.title);
         if (!scraped.has(n)) scraped.set(n, f);
+        else if (!scraped.get(n).posterUrl && f.posterUrl) scraped.set(n, f);
       }
     }
 
@@ -133,19 +132,45 @@ export async function fetchLocalCinemaFilms(existingFilms) {
       })
     );
 
-    // Costruisce oggetti film dai dati arricchiti in Firestore (nessuna chiamata TMDB live)
-    const results = missing.map(([norm, f]) => ({
-      id: `local_${norm.replace(/\s+/g, '_')}`,
-      title: f.title,
-      description: f.description || null,
-      imageUrl: f.posterUrl || null,
-      backdropUrl: f.backdropUrl || null,
-      rating: null,
-      releaseDate: null,
-      source: f.tmdbId ? 'TMDB' : 'LOCAL',
-      category: 'CINEMA',
-      trailerKey: f.trailerKey || null,
-      trailerSearchUrl: f.trailerSearchUrl || null,
+    // Per ogni film: usa posterUrl da Firestore se disponibile, altrimenti cerca su TMDB live
+    const results = await Promise.all(missing.map(async ([norm, f]) => {
+      let imageUrl = f.posterUrl || null;
+      let backdropUrl = f.backdropUrl || null;
+      let trailerKey = f.trailerKey || null;
+      let description = f.description || null;
+      let trailerSearchUrl = f.trailerSearchUrl || null;
+      let source = f.tmdbId ? 'TMDB' : 'LOCAL';
+
+      if (!imageUrl) {
+        // Fallback: ricerca TMDB live (rimuove ... iniziali che ingannano la ricerca)
+        const cleanTitle = f.title.replace(/^\.+\s*/, '').trim();
+        const tmdb = await searchTmdbByTitle(cleanTitle) || await searchTmdbByTitle(f.title);
+        if (tmdb) {
+          imageUrl = tmdb.imageUrl;
+          backdropUrl = tmdb.backdropUrl;
+          description = tmdb.description;
+          source = 'TMDB';
+          const tmdbId = tmdb.id.replace('tmdb_', '');
+          trailerKey = await getTrailerKey(tmdbId);
+        }
+        trailerSearchUrl = !trailerKey
+          ? `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`
+          : null;
+      }
+
+      return {
+        id: `local_${norm.replace(/\s+/g, '_')}`,
+        title: f.title,
+        description,
+        imageUrl,
+        backdropUrl,
+        rating: null,
+        releaseDate: null,
+        source,
+        category: 'CINEMA',
+        trailerKey,
+        trailerSearchUrl,
+      };
     }));
 
     _localCache = results;
