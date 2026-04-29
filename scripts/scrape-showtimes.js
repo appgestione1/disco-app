@@ -7,10 +7,10 @@ admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 const TMDB_KEY = process.env.TMDB_API_KEY;
+const DAYS_AHEAD = 6; // oggi + 6 giorni
 
 // ── MYmovies.it — pagine da scrapare ─────────────────────────────────────────
-// La provincia non include la città di Catania, quindi fetchiamo entrambe.
-const MYMOVIES_URLS = [
+const MYMOVIES_BASE_URLS = [
   'https://www.mymovies.it/cinema/catania/provincia/',
   'https://www.mymovies.it/cinema/catania/',
 ];
@@ -35,7 +35,7 @@ const MYMOVIES_CINEMA_MAP = {
   // '24660': Sala Karol Caltagirone — non nel nostro elenco
 };
 
-// Cinema nel nostro elenco non presenti su MYmovies → salviamo [] (tentato, nessun dato)
+// Cinema nel nostro elenco non presenti su MYmovies → salviamo []
 const CINEMAS_NOT_ON_MYMOVIES = [
   'eplanetaalfieri', 'garibaldi', 'rex', 'musmeci', 'trinacria', 'metropol',
 ];
@@ -45,6 +45,8 @@ const HEADERS = {
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
   'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8',
 };
+
+const delay = ms => new Promise(r => setTimeout(r, ms));
 
 async function fetchHtml(url) {
   const res = await fetch(url, { headers: HEADERS });
@@ -79,7 +81,7 @@ async function enrichWithTmdb(title) {
       const vidData = await vidRes.json();
       const v = vidData.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
       if (v) { trailerKey = v.key; break; }
-      await new Promise(r => setTimeout(r, 150));
+      await delay(150);
     }
 
     return {
@@ -96,19 +98,10 @@ async function enrichWithTmdb(title) {
 }
 
 // ── Parser MYmovies.it ────────────────────────────────────────────────────────
-// Struttura pagina:
-//   <img id="imgSplash_N" src="POSTER_URL" alt="TITLE"
-//        onclick="GetVideo(N, FILM_ID, ...)">
-//
-//   Per ogni cinema che proietta il film:
-//   <div id="mappa_CINEMA_ID_FILM_ID" style="display:none;"></div>
-//   <div class="... orari-dettaglio ...">
-//     <span class="mm-medium mm-weight-700">HH:MM</span> ...
-//   </div>
 function parseMYmovies(html) {
   const $ = cheerio.load(html);
 
-  // Step 1: film_id → {title, posterUrl}
+  // film_id → {title, posterUrl}
   const filmMap = new Map();
   $('img[id^="imgSplash_"]').each((_, img) => {
     const $img = $(img);
@@ -117,16 +110,13 @@ function parseMYmovies(html) {
     if (!match) return;
     const filmId = match[1];
     const title = ($img.attr('alt') || '').trim();
-    // Usa la versione large del poster quando disponibile
     let posterUrl = ($img.attr('src') || '').replace('covermd_home.jpg', 'coverlg_home.jpg');
     if (!posterUrl.startsWith('http') || posterUrl.includes('nondisponibile')) posterUrl = null;
-    if (title && !filmMap.has(filmId)) {
-      filmMap.set(filmId, { title, posterUrl });
-    }
+    if (title && !filmMap.has(filmId)) filmMap.set(filmId, { title, posterUrl });
   });
 
-  // Step 2: div.orari-dettaglio → il prev() sibling è sempre div[id^="mappa_"]
-  const result = {}; // internalCinemaId → [{title, times, siteImgUrl, filmId}]
+  // internalCinemaId → [{title, times, siteImgUrl, filmId}]
+  const result = {};
 
   $('div.orari-dettaglio').each((_, orariEl) => {
     const $orari = $(orariEl);
@@ -150,7 +140,6 @@ function parseMYmovies(html) {
     if (times.length === 0) return;
 
     if (!result[internalId]) result[internalId] = [];
-    // Evita duplicati dello stesso film nello stesso cinema
     if (!result[internalId].some(f => f.filmId === filmId)) {
       result[internalId].push({
         title: filmInfo.title,
@@ -164,105 +153,101 @@ function parseMYmovies(html) {
   return result;
 }
 
-// ── Main ──────────────────────────────────────────────────────────────────────
-async function main() {
-  const today = new Date().toISOString().split('T')[0];
-  console.log(`\n=== Scraping MYmovies.it per ${today} ===\n`);
+// ── Scraping di un singolo giorno (due pagine in parallelo) ───────────────────
+async function scrapeDay(date, isToday) {
+  const param = isToday ? '' : `?data=${date}`;
+  const urls = MYMOVIES_BASE_URLS.map(base => base + param);
 
-  // Fetch provincia + città in parallelo
   const htmlPages = await Promise.all(
-    MYMOVIES_URLS.map(async url => {
-      console.log(`  → ${url}`);
+    urls.map(async url => {
       try { return await fetchHtml(url); }
       catch (e) { console.error(`  ✗ ${url}: ${e.message}`); return ''; }
     })
   );
 
-  // Parsing e merge delle due pagine
   const showtimes = {};
   for (const html of htmlPages) {
     if (!html) continue;
     const parsed = parseMYmovies(html);
     for (const [cinemaId, films] of Object.entries(parsed)) {
-      if (!showtimes[cinemaId]) {
-        showtimes[cinemaId] = [...films];
-      } else {
-        // Aggiungi film non ancora presenti (stesso filmId)
-        for (const f of films) {
-          if (!showtimes[cinemaId].some(e => e.filmId === f.filmId)) {
-            showtimes[cinemaId].push(f);
-          }
-        }
-      }
+      if (!showtimes[cinemaId]) showtimes[cinemaId] = [...films];
+      else for (const f of films) if (!showtimes[cinemaId].some(e => e.filmId === f.filmId)) showtimes[cinemaId].push(f);
     }
   }
 
-  // Cinema mappati ma senza dati oggi → salva []
-  for (const internalId of Object.values(MYMOVIES_CINEMA_MAP)) {
-    if (!showtimes[internalId]) showtimes[internalId] = [];
-  }
-  // Cinema non su MYmovies → salva [] (tentato, nessun dato disponibile)
-  for (const id of CINEMAS_NOT_ON_MYMOVIES) {
-    showtimes[id] = [];
+  // Cinema mappati senza dati → []
+  for (const id of Object.values(MYMOVIES_CINEMA_MAP)) if (!showtimes[id]) showtimes[id] = [];
+  for (const id of CINEMAS_NOT_ON_MYMOVIES) showtimes[id] = [];
+
+  return showtimes;
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+async function main() {
+  const today = new Date().toISOString().split('T')[0];
+  const dates = Array.from({ length: DAYS_AHEAD + 1 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return d.toISOString().split('T')[0];
+  });
+
+  console.log(`\n=== Scraping MYmovies.it: ${dates[0]} → ${dates[dates.length - 1]} ===\n`);
+
+  // ── Scraping giorno per giorno ─────────────────────────────────────────────
+  const allDaysData = {}; // date → showtimes map
+  for (let i = 0; i < dates.length; i++) {
+    const date = dates[i];
+    process.stdout.write(`[${date}] fetching... `);
+    const showtimes = await scrapeDay(date, i === 0);
+    allDaysData[date] = showtimes;
+    const withData = Object.values(showtimes).filter(f => f.length > 0).length;
+    console.log(`${withData} cinema con dati`);
+    if (i < dates.length - 1) await delay(600); // rispetta rate limit MYmovies
   }
 
-  // Riepilogo
-  console.log('');
-  let totalFilms = 0;
-  for (const [id, films] of Object.entries(showtimes).sort()) {
-    if (films.length > 0) {
-      console.log(`[${id}] ${films.length} film`);
-      films.forEach(f => console.log(`    ✓ ${f.title}: ${f.times.join(', ')}`));
-      totalFilms += films.length;
-    }
-  }
-  const withData = Object.values(showtimes).filter(f => f.length > 0).length;
-  console.log(`\nCinema con dati: ${withData}/${Object.keys(showtimes).length} — Film totali: ${totalFilms}`);
-
-  // ── Arricchimento TMDB ────────────────────────────────────────────────────
-  if (TMDB_KEY) {
-    console.log('\n=== Arricchimento metadati TMDB ===\n');
-
-    // Raccogli titoli unici con il miglior poster disponibile (MYmovies)
-    const uniqueTitles = new Map(); // norm → {title, siteImgUrl}
+  // ── Arricchimento TMDB (una sola volta per tutti i giorni) ────────────────
+  const uniqueTitles = new Map(); // norm → {title, siteImgUrl}
+  for (const showtimes of Object.values(allDaysData)) {
     for (const films of Object.values(showtimes)) {
       for (const f of films) {
         const n = normalizeTitle(f.title);
         if (!n) continue;
         if (!uniqueTitles.has(n)) uniqueTitles.set(n, { title: f.title, siteImgUrl: f.siteImgUrl || null });
-        else if (!uniqueTitles.get(n).siteImgUrl && f.siteImgUrl) {
-          uniqueTitles.get(n).siteImgUrl = f.siteImgUrl;
-        }
+        else if (!uniqueTitles.get(n).siteImgUrl && f.siteImgUrl) uniqueTitles.get(n).siteImgUrl = f.siteImgUrl;
       }
     }
-    console.log(`  ${uniqueTitles.size} titoli unici\n`);
+  }
+  console.log(`\n=== Arricchimento TMDB: ${uniqueTitles.size} titoli unici ===\n`);
 
-    const metadataMap = new Map();
+  const metadataMap = new Map(); // norm → metadata
+  if (TMDB_KEY) {
     for (const [norm, info] of uniqueTitles) {
       process.stdout.write(`  [${info.title}] `);
       const tmdb = await enrichWithTmdb(info.title);
       if (tmdb) {
-        metadataMap.set(norm, {
-          posterUrl: tmdb.posterUrl || info.siteImgUrl,
-          backdropUrl: tmdb.backdropUrl,
-          tmdbId: tmdb.tmdbId,
-          trailerKey: tmdb.trailerKey,
-          description: tmdb.description,
-        });
+        metadataMap.set(norm, { posterUrl: tmdb.posterUrl || info.siteImgUrl, backdropUrl: tmdb.backdropUrl, tmdbId: tmdb.tmdbId, trailerKey: tmdb.trailerKey, description: tmdb.description });
         console.log(`✓ TMDB${tmdb.trailerKey ? ' + trailer' : ''}`);
       } else {
-        metadataMap.set(norm, {
-          posterUrl: info.siteImgUrl || null,
-          backdropUrl: null, tmdbId: null, trailerKey: null, description: null,
-        });
+        metadataMap.set(norm, { posterUrl: info.siteImgUrl || null, backdropUrl: null, tmdbId: null, trailerKey: null, description: null });
         console.log(info.siteImgUrl ? '◐ poster MYmovies' : '✗ nessuna locandina');
       }
-      await new Promise(r => setTimeout(r, 350));
+      await delay(350);
     }
+  } else {
+    console.log('⚠ TMDB_API_KEY non configurata — uso poster MYmovies');
+    for (const [norm, info] of uniqueTitles) {
+      metadataMap.set(norm, { posterUrl: info.siteImgUrl || null, backdropUrl: null, tmdbId: null, trailerKey: null, description: null });
+    }
+  }
 
-    // Applica metadati e rimuovi campo interno filmId
-    for (const [cinemaId, films] of Object.entries(showtimes)) {
-      showtimes[cinemaId] = films.map(f => {
+  // ── Applica metadati e salva su Firestore ─────────────────────────────────
+  console.log('\n=== Salvataggio Firestore ===\n');
+  const batch = db.batch();
+
+  for (const [date, rawShowtimes] of Object.entries(allDaysData)) {
+    const cinemas = {};
+    for (const [cinemaId, films] of Object.entries(rawShowtimes)) {
+      cinemas[cinemaId] = films.map(({ filmId, siteImgUrl, ...f }) => {
         const n = normalizeTitle(f.title);
         const meta = (n && metadataMap.get(n)) || {};
         return {
@@ -278,27 +263,19 @@ async function main() {
         };
       });
     }
-    console.log('\n=== Arricchimento completato ===');
-  } else {
-    console.log('\n⚠ TMDB_API_KEY non configurata — uso poster MYmovies dove disponibili');
-    for (const [cinemaId, films] of Object.entries(showtimes)) {
-      showtimes[cinemaId] = films.map(({ filmId, siteImgUrl, ...f }) => ({
-        ...f,
-        posterUrl: siteImgUrl || null,
-        backdropUrl: null, tmdbId: null, trailerKey: null, description: null,
-        trailerSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
-      }));
-    }
+
+    const ref = db.collection('showtimes').doc(date);
+    batch.set(ref, {
+      date,
+      cinemas,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      cinemaCount: Object.keys(cinemas).length,
+    });
+    console.log(`  ✓ showtimes/${date}`);
   }
 
-  const total = Object.keys(showtimes).length;
-  await db.collection('showtimes').doc(today).set({
-    date: today,
-    cinemas: showtimes,
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    cinemaCount: total,
-  });
-  console.log(`\n✓ Salvato su Firestore: showtimes/${today} (${total} cinema)`);
+  await batch.commit();
+  console.log(`\n✓ ${dates.length} giorni salvati su Firestore (${dates[0]} → ${dates[dates.length - 1]})`);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
