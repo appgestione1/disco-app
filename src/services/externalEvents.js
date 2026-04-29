@@ -1,9 +1,9 @@
 import { db } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
-export async function fetchShowtimes(filmTitle) {
+export async function fetchShowtimes(filmTitle, date) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = date || new Date().toISOString().split('T')[0];
     const snap = await getDoc(doc(db, 'showtimes', today));
     if (!snap.exists()) return { times: {}, allFilms: {} };
 

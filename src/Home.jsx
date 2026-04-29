@@ -7,18 +7,34 @@ import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
 
 // ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
+const PRIORITY_CINEMA_IDS = ['cinestar', 'thespaceetnapolis', 'ucicentrosicilia', 'cinemaplanet'];
+
 const FilmDetail = ({ film, onClose }) => {
   const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
   const [showtimes, setShowtimes] = useState({});
   const [loadingShowtimes, setLoadingShowtimes] = useState(true);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [selectedDate, setSelectedDate] = useState(todayStr);
+
+  const dateChips = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return d.toISOString().split('T')[0];
+  });
+
+  const sortedCinemas = [
+    ...PRIORITY_CINEMA_IDS.map(id => CATANIA_CINEMAS.find(c => c.id === id)).filter(Boolean),
+    ...CATANIA_CINEMAS.filter(c => !PRIORITY_CINEMA_IDS.includes(c.id)),
+  ];
 
   useEffect(() => {
-    fetchShowtimes(film.title).then(({ times }) => {
+    setLoadingShowtimes(true);
+    fetchShowtimes(film.title, selectedDate).then(({ times }) => {
       setShowtimes(times);
       setLoadingShowtimes(false);
     });
-  }, [film.title]);
+  }, [film.title, selectedDate]);
 
   return (
     <div className="min-h-screen bg-black text-white p-6 animate-in slide-in-from-right duration-500 overflow-x-hidden pb-32">
@@ -77,14 +93,35 @@ const FilmDetail = ({ film, onClose }) => {
         </div>
       )}
 
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-4">
         <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
         <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#D4AF37]">Cinema a Catania e Provincia</p>
         <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
       </div>
 
+      {/* Selettore data */}
+      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-5 pb-1 -mx-1 px-1">
+        {dateChips.map(d => {
+          const date = new Date(d + 'T12:00:00');
+          const isSelected = d === selectedDate;
+          const isToday = d === todayStr;
+          return (
+            <button
+              key={d}
+              onClick={() => setSelectedDate(d)}
+              className={`flex-shrink-0 flex flex-col items-center px-4 py-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 ${
+                isSelected ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'
+              }`}
+            >
+              <span>{isToday ? 'OGGI' : date.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase().replace('.', '')}</span>
+              <span className="text-[10px] font-black">{date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="space-y-3">
-        {CATANIA_CINEMAS.map(cinema => (
+        {sortedCinemas.map(cinema => (
           <div key={cinema.id} className="bg-zinc-900/80 border border-white/5 rounded-[1.5rem] p-5">
             <div className="flex items-start justify-between gap-3 mb-4">
               <div>
@@ -104,16 +141,18 @@ const FilmDetail = ({ film, onClose }) => {
             ) : (
               <div className="space-y-3">
                 {showtimes[cinema.id] ? (() => {
-                  const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
-                  const future = showtimes[cinema.id].filter(t => {
+                  const nowMin = selectedDate === todayStr
+                    ? new Date().getHours() * 60 + new Date().getMinutes()
+                    : 0;
+                  const visible = showtimes[cinema.id].filter(t => {
                     const [h, m] = t.split(':').map(Number);
                     return h * 60 + m > nowMin;
                   });
-                  return future.length > 0 ? (
+                  return visible.length > 0 ? (
                     <div>
-                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari di oggi</p>
+                      <p className="text-[9px] font-black uppercase tracking-widest text-zinc-500 mb-2">Orari</p>
                       <div className="flex flex-wrap gap-2">
-                        {future.map(time => (
+                        {visible.map(time => (
                           <span key={time} className="bg-[#D4AF37] text-black font-black text-xs px-3 py-1.5 rounded-full">
                             {time}
                           </span>
@@ -122,7 +161,7 @@ const FilmDetail = ({ film, onClose }) => {
                     </div>
                   ) : (
                     <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 py-1">
-                      Fine programmazione odierna
+                      {selectedDate === todayStr ? 'Fine programmazione odierna' : 'Nessuno spettacolo'}
                     </p>
                   );
                 })() : (
