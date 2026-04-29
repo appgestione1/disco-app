@@ -989,71 +989,29 @@ const Home = () => {
                   ))}
                 </div>
               ) : (
-                <>
-                  {/* Selettore data — identico a quello della sezione discoteca */}
-                  <div className="relative h-36 mt-2 mb-2 flex items-center justify-center overflow-hidden">
-                    <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] bg-transparent pointer-events-none z-20 rounded-2xl" />
-                    <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
-                    <div onScroll={handleDateChange} className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center">
-                      <div className="h-[45px]" />
-                      {dates.map((d, i) => {
-                        const isSel = selectedDate.toDateString() === d.toDateString();
-                        return (
-                          <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
-                            <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
-                            <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                <div className="grid grid-cols-2 gap-4">
+                  {externalEvents.map(ev => (
+                    <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
+                      className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
+                      {ev.imageUrl
+                        ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[2/3] object-cover" />
+                        : <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center">
+                            {activeCategory === 'CONCERTI' ? <Mic2 size={32} className="text-zinc-600" /> : <Theater size={32} className="text-zinc-600" />}
                           </div>
-                        );
-                      })}
-                      <div className="h-[45px]" />
-                    </div>
-                  </div>
-                  {/* Lista eventi filtrata per data */}
-                  {(() => {
-                    const selStr = selectedDate.toISOString().split('T')[0];
-                    const filtered = externalEvents.filter(ev => ev.date === selStr);
-                    return filtered.length === 0 ? (
-                      <div className="text-center py-16 flex flex-col items-center gap-4 opacity-30">
-                        {activeCategory === 'CONCERTI' ? <Mic2 size={48} /> : <Theater size={48} />}
-                        <p className="text-[10px] font-black uppercase tracking-widest italic">Nessun evento disponibile</p>
+                      }
+                      <div className="p-3">
+                        <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                        {ev.date && (
+                          <p className="text-[#D4AF37] text-[10px] font-black mt-1">
+                            {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                            {ev.time ? ` · ${ev.time}` : ''}
+                          </p>
+                        )}
+                        {ev.venue && <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.venue}</p>}
                       </div>
-                    ) : (
-                      <div className="flex flex-col gap-4">
-                        {filtered.map(ev => (
-                          <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
-                            className="group rounded-[2rem] overflow-hidden bg-zinc-900/80 border border-white/5 active:scale-[0.98] transition-all">
-                            {ev.imageUrl && (
-                              <div className="w-full h-40 overflow-hidden">
-                                <img src={ev.imageUrl} alt={ev.title} className="w-full h-full object-cover transition-transform duration-[3s] group-hover:scale-105" />
-                              </div>
-                            )}
-                            <div className="p-5 flex items-start justify-between gap-3">
-                              <div className="flex-1">
-                                <p className="font-black uppercase text-sm leading-tight text-white">{ev.title}</p>
-                                {ev.venue && <p className="text-zinc-500 text-[10px] font-black uppercase tracking-widest mt-2">{ev.venue}</p>}
-                                {ev.time && (
-                                  <div className="flex items-center gap-1 mt-2 text-[#D4AF37]">
-                                    <Calendar size={10} />
-                                    <p className="text-[10px] font-black">{ev.time}</p>
-                                  </div>
-                                )}
-                                {(ev.priceMin != null || ev.priceMax != null) && (
-                                  <p className="text-zinc-400 text-[10px] font-black mt-1">
-                                    {ev.priceMin != null ? `da €${Math.round(ev.priceMin)}` : ''}
-                                    {ev.priceMax != null ? ` a €${Math.round(ev.priceMax)}` : ''}
-                                  </p>
-                                )}
-                              </div>
-                              <div className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center flex-shrink-0 mt-1">
-                                <ArrowRight size={18} strokeWidth={3} />
-                              </div>
-                            </div>
-                          </a>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </>
+                    </a>
+                  ))}
+                </div>
               )}
             </div>
           ) : (
