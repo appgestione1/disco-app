@@ -27,9 +27,6 @@ export async function fetchShowtimes(filmTitle) {
 
       if (match) {
         times[cinemaId] = match.times;
-      } else {
-        const allTimes = [...new Set(films.flatMap(f => f.times))].sort();
-        if (allTimes.length > 0) times[cinemaId] = allTimes;
       }
     }
     return { times, allFilms };
