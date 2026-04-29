@@ -100,6 +100,8 @@ async function searchTmdbByTitle(title) {
 }
 
 // ── Film locali (da scraper Firestore) non presenti in TMDB now_playing ───────
+// I metadati (poster, trailer, descrizione) vengono arricchiti dallo scraper
+// alle 7:00 ogni giorno e salvati direttamente in showtimes/{today}.
 let _localCache = null, _localCacheDate = null;
 export async function fetchLocalCinemaFilms(existingFilms) {
   const today = new Date().toISOString().split('T')[0];
@@ -114,16 +116,16 @@ export async function fetchLocalCinemaFilms(existingFilms) {
       .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
       .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
 
-    // Raccogli tutti i titoli unici dallo scraper
-    const scraped = new Map();
+    // Raccogli tutti i titoli unici con i loro metadati arricchiti dallo scraper
+    const scraped = new Map(); // normalized → primo oggetto film completo
     for (const films of Object.values(snap.data().cinemas || {})) {
       for (const f of films) {
         const n = normalizeT(f.title);
-        if (!scraped.has(n)) scraped.set(n, f.title);
+        if (!scraped.has(n)) scraped.set(n, f);
       }
     }
 
-    // Escludi titoli già presenti in TMDB
+    // Escludi titoli già presenti in TMDB now_playing
     const missing = [...scraped.entries()].filter(([norm]) =>
       !existingFilms.some(ef => {
         const en = normalizeT(ef.title);
@@ -131,11 +133,23 @@ export async function fetchLocalCinemaFilms(existingFilms) {
       })
     );
 
-    const results = (await Promise.all(
-      missing.slice(0, 12).map(([, orig]) => searchTmdbByTitle(orig))
-    )).filter(Boolean);
+    // Costruisce oggetti film dai dati arricchiti in Firestore (nessuna chiamata TMDB live)
+    const results = missing.map(([norm, f]) => ({
+      id: `local_${norm.replace(/\s+/g, '_')}`,
+      title: f.title,
+      description: f.description || null,
+      imageUrl: f.posterUrl || null,
+      backdropUrl: f.backdropUrl || null,
+      rating: null,
+      releaseDate: null,
+      source: f.tmdbId ? 'TMDB' : 'LOCAL',
+      category: 'CINEMA',
+      trailerKey: f.trailerKey || null,
+      trailerSearchUrl: f.trailerSearchUrl || null,
+    }));
 
-    _localCache = results; _localCacheDate = today;
+    _localCache = results;
+    _localCacheDate = today;
     return results;
   } catch { return []; }
 }

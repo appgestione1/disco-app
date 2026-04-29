@@ -8,7 +8,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -22,5 +22,6 @@ jobs:
       - name: Esegui scraper orari
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
           PUPPETEER_SKIP_DOWNLOAD: 'false'
         run: node scripts/scrape-showtimes.js

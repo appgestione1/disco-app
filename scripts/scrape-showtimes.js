@@ -6,6 +6,8 @@ const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
 admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
+const TMDB_KEY = process.env.TMDB_API_KEY;
+
 // ── Configurazione cinema ─────────────────────────────────────────────────────
 // type: 'webtic'   → cinestarweb.it (h5+scheda-film+film-ricercato)
 // type: 'eplanet'  → eplanetcinemas.it (h3+/eticket/slug/)
@@ -83,6 +85,69 @@ async function fetchHtml(url) {
   const res = await fetch(url, { headers: HEADERS });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
+}
+
+// ── Normalizzazione titolo (stessa logica del frontend) ───────────────────────
+const normalizeTitle = t => t.toLowerCase()
+  .replace(/[àáâãäå]/g, 'a').replace(/[èéêë]/g, 'e')
+  .replace(/[ìíîï]/g, 'i').replace(/[òóôõö]/g, 'o').replace(/[ùúûü]/g, 'u')
+  .replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
+
+// ── TMDB: cerca film e recupera poster + trailer ──────────────────────────────
+async function enrichWithTmdb(title) {
+  if (!TMDB_KEY) return null;
+  try {
+    const searchRes = await fetch(
+      `https://api.themoviedb.org/3/search/movie?api_key=${TMDB_KEY}&query=${encodeURIComponent(title)}&language=it-IT`,
+      { headers: { Accept: 'application/json' } }
+    );
+    const searchData = await searchRes.json();
+    const m = searchData.results?.[0];
+    if (!m) return null;
+
+    // Trailer: prima in italiano, poi in inglese
+    let trailerKey = null;
+    for (const lang of ['it-IT', 'en-US']) {
+      const vidRes = await fetch(
+        `https://api.themoviedb.org/3/movie/${m.id}/videos?api_key=${TMDB_KEY}&language=${lang}`,
+        { headers: { Accept: 'application/json' } }
+      );
+      const vidData = await vidRes.json();
+      const t = vidData.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+      if (t) { trailerKey = t.key; break; }
+      await new Promise(r => setTimeout(r, 150));
+    }
+
+    return {
+      posterUrl: m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : null,
+      backdropUrl: m.backdrop_path ? `https://image.tmdb.org/t/p/w780${m.backdrop_path}` : null,
+      tmdbId: m.id,
+      trailerKey,
+      description: m.overview || null,
+    };
+  } catch (e) {
+    console.log(`    ⚠ TMDB: ${e.message}`);
+    return null;
+  }
+}
+
+// ── ComingSoon.it: fallback poster per film non trovati su TMDB ───────────────
+async function fetchComingSoonPoster(title) {
+  try {
+    const html = await fetchHtml(
+      `https://www.comingsoon.it/film/?q=${encodeURIComponent(title)}`
+    );
+    const $ = cheerio.load(html);
+    // og:image dei risultati di ricerca
+    const ogImg = $('meta[property="og:image"]').attr('content');
+    if (ogImg && !ogImg.includes('logo') && !ogImg.includes('default') && ogImg.startsWith('http')) {
+      return ogImg;
+    }
+    // Prima locandina nei risultati
+    const src = $('img[src*="/locandine/"], img[src*="/poster/"], img[data-src*="/locandine/"]')
+      .first().attr('src') || null;
+    return src;
+  } catch { return null; }
 }
 
 // ── Parser Webtic (cinestarweb.it e compatibili) ──────────────────────────────
@@ -280,6 +345,68 @@ async function main() {
 
   const total = Object.keys(showtimes).length;
   console.log(`\n=== Totale: ${total} cinema con orari ===`);
+
+  // ── Arricchimento TMDB ────────────────────────────────────────────────────
+  if (TMDB_KEY) {
+    console.log('\n=== Arricchimento metadati film ===\n');
+
+    // Raccogli titoli unici da tutte le sale
+    const uniqueTitles = new Map(); // normalized → original
+    for (const films of Object.values(showtimes)) {
+      for (const f of films) {
+        const n = normalizeTitle(f.title);
+        if (!uniqueTitles.has(n)) uniqueTitles.set(n, f.title);
+      }
+    }
+    console.log(`  ${uniqueTitles.size} titoli unici da arricchire\n`);
+
+    const metadataMap = new Map(); // normalized → metadata
+    for (const [norm, orig] of uniqueTitles) {
+      process.stdout.write(`  [${orig}] `);
+      const meta = await enrichWithTmdb(orig);
+      if (meta) {
+        metadataMap.set(norm, meta);
+        console.log(`✓ TMDB${meta.trailerKey ? ' + trailer' : ''}`);
+      } else {
+        // Fallback: prova poster su ComingSoon.it
+        const posterUrl = await fetchComingSoonPoster(orig);
+        metadataMap.set(norm, {
+          posterUrl: posterUrl || null,
+          backdropUrl: null,
+          tmdbId: null,
+          trailerKey: null,
+          description: null,
+        });
+        console.log(posterUrl ? '◐ ComingSoon poster' : '✗ nessuna locandina');
+        await new Promise(r => setTimeout(r, 300));
+      }
+      await new Promise(r => setTimeout(r, 350));
+    }
+
+    // Applica metadati a ogni film in ogni sala
+    for (const [cinemaId, films] of Object.entries(showtimes)) {
+      showtimes[cinemaId] = films.map(f => {
+        const n = normalizeTitle(f.title);
+        const meta = metadataMap.get(n) || {};
+        return {
+          title: f.title,
+          times: f.times,
+          posterUrl: meta.posterUrl || null,
+          backdropUrl: meta.backdropUrl || null,
+          tmdbId: meta.tmdbId || null,
+          trailerKey: meta.trailerKey || null,
+          description: meta.description || null,
+          trailerSearchUrl: meta.trailerKey
+            ? null
+            : `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
+        };
+      });
+    }
+
+    console.log(`\n=== Arricchimento completato ===`);
+  } else {
+    console.log('\n⚠ TMDB_API_KEY non configurata — orari salvati senza metadati');
+  }
 
   await db.collection('showtimes').doc(today).set({
     date: today,

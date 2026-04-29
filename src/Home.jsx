@@ -41,7 +41,7 @@ const FilmDetail = ({ film, onClose }) => {
               ? <img src={film.backdropUrl || film.imageUrl} alt={film.title} className="w-full aspect-video object-cover" />
               : <div className="w-full aspect-video flex items-center justify-center"><Film size={48} className="text-zinc-700" /></div>
             }
-            {trailerKey && (
+            {trailerKey ? (
               <button
                 onClick={() => setShowTrailer(true)}
                 className="absolute inset-0 flex items-center justify-center bg-black/40 active:bg-black/60 transition-all group">
@@ -49,7 +49,15 @@ const FilmDetail = ({ film, onClose }) => {
                   <div className="w-0 h-0 border-t-[10px] border-t-transparent border-l-[18px] border-l-black border-b-[10px] border-b-transparent ml-1" />
                 </div>
               </button>
-            )}
+            ) : film.trailerSearchUrl ? (
+              <a
+                href={film.trailerSearchUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="absolute bottom-3 right-3 bg-black/70 backdrop-blur-sm text-white text-[9px] font-black uppercase tracking-widest px-3 py-2 rounded-full border border-white/20 active:scale-95 transition-transform flex items-center gap-1.5">
+                <span>▶</span> Cerca Trailer
+              </a>
+            ) : null}
           </div>
         )}
       </div>
@@ -143,7 +151,7 @@ const FilmDetail = ({ film, onClose }) => {
       </div>
 
       <p className="text-center text-[8px] text-zinc-700 font-black uppercase tracking-widest mt-8 pb-8">
-        Fonte: TMDB · Orari soggetti a variazioni
+        Orari rilevati dai siti ufficiali · Soggetti a variazioni
       </p>
     </div>
   );
