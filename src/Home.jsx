@@ -994,8 +994,8 @@ const Home = () => {
                     <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
                       className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
                       {ev.imageUrl
-                        ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[2/3] object-cover" />
-                        : <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center">
+                        ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-video object-cover object-center" />
+                        : <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
                             {activeCategory === 'CONCERTI' ? <Mic2 size={32} className="text-zinc-600" /> : <Theater size={32} className="text-zinc-600" />}
                           </div>
                       }

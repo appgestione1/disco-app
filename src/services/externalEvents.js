@@ -33,24 +33,25 @@ export async function fetchShowtimes(filmTitle, date) {
   } catch { return { times: {}, allFilms: {} }; }
 }
 
-const CACHE_TTL = 6 * 60 * 60 * 1000; // 6 ore
+const CACHE_TTL = 6 * 60 * 60 * 1000;   // 6 ore — Cinema (TMDB)
+const EVENTS_TTL = 26 * 60 * 60 * 1000; // 26 ore — Concerti/Teatro (scraper giornaliero)
 
 const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TM_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
-async function getCached(type) {
+async function getCached(type, ttl = CACHE_TTL) {
   try {
-    const snap = await getDoc(doc(db, 'external_events_cache', type + '_v2'));
+    const snap = await getDoc(doc(db, 'external_events_cache', type + '_v4'));
     if (!snap.exists()) return null;
     const d = snap.data();
-    if (Date.now() - d.fetchedAt.toMillis() > CACHE_TTL) return null;
+    if (Date.now() - d.fetchedAt.toMillis() > ttl) return null;
     return d.events;
   } catch { return null; }
 }
 
 async function setCache(type, events) {
   try {
-    await setDoc(doc(db, 'external_events_cache', type + '_v2'), { events, fetchedAt: new Date() });
+    await setDoc(doc(db, 'external_events_cache', type + '_v4'), { events, fetchedAt: new Date() });
   } catch {}
 }
 
@@ -215,13 +216,13 @@ export async function fetchCinema() {
 }
 
 export async function fetchConcerti() {
-  const cached = await getCached('CONCERTI');
+  const cached = await getCached('CONCERTI', EVENTS_TTL);
   if (cached) return cached;
   if (!TM_KEY) return [];
 
   try {
     const res = await fetch(
-      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Catania&countryCode=IT&classificationName=music&size=20&sort=date,asc`
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&latlong=37.5079,15.0830&radius=150&unit=km&countryCode=IT&segmentName=Music&size=20&sort=date,asc`
     );
     const data = await res.json();
     const events = (data._embedded?.events || []).map(e => ({
@@ -245,13 +246,13 @@ export async function fetchConcerti() {
 }
 
 export async function fetchTeatro() {
-  const cached = await getCached('TEATRO');
+  const cached = await getCached('TEATRO', EVENTS_TTL);
   if (cached) return cached;
   if (!TM_KEY) return [];
 
   try {
     const res = await fetch(
-      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&city=Catania&countryCode=IT&classificationName=arts%2Btheatre%2Bfilm&size=20&sort=date,asc`
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&latlong=37.5079,15.0830&radius=150&unit=km&countryCode=IT&segmentName=Arts+%26+Theatre&size=20&sort=date,asc`
     );
     const data = await res.json();
     const events = (data._embedded?.events || []).map(e => ({

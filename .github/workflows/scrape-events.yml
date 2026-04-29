@@ -1,0 +1,25 @@
+name: Scrape Events (Concerti & Teatro)
+
+on:
+  schedule:
+    - cron: '30 5 * * *'  # Ogni giorno alle 7:30 ora italiana (05:30 UTC)
+  workflow_dispatch:       # Avvio manuale da GitHub
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Installa dipendenze scraper
+        run: cd scripts && npm install
+
+      - name: Esegui scraper eventi
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node scripts/scrape-events.js
