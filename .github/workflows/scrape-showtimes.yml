@@ -23,5 +23,4 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
-          PUPPETEER_SKIP_DOWNLOAD: 'false'
         run: node scripts/scrape-showtimes.js

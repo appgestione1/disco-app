@@ -8,77 +8,42 @@ const db = admin.firestore();
 
 const TMDB_KEY = process.env.TMDB_API_KEY;
 
-// ── Configurazione cinema ─────────────────────────────────────────────────────
-// type: 'webtic'   → cinestarweb.it (h5+scheda-film+film-ricercato)
-// type: 'eplanet'  → eplanetcinemas.it (h3+/eticket/slug/)
-// type: null       → nessun sito disponibile, skip
-const CINEMA_CONFIG = [
-  // ── Webtic ──────────────────────────────────────────────────────────────────
-  {
-    id: 'cinestar',
-    type: 'webtic',
-    url: d => `https://www.cinestarweb.it/programmazione/?d=${d}%2000%3A00%3A00`,
-  },
+// ── MYmovies.it — pagine da scrapare ─────────────────────────────────────────
+// La provincia non include la città di Catania, quindi fetchiamo entrambe.
+const MYMOVIES_URLS = [
+  'https://www.mymovies.it/cinema/catania/provincia/',
+  'https://www.mymovies.it/cinema/catania/',
+];
 
-  // ── Eplanet (eplanetcinemas.it) ──────────────────────────────────────────────
-  {
-    id: 'cinemaking',
-    type: 'eplanet',
-    slug: 'king',
-    url: d => `https://www.eplanetcinemas.it/programmazione/king/?data=${d}`,
-  },
-  {
-    id: 'eplanetariston',
-    type: 'eplanet',
-    slug: 'ariston',
-    url: d => `https://www.eplanetcinemas.it/programmazione/ariston/?data=${d}`,
-  },
-  {
-    id: 'eplanetlopo',
-    type: 'eplanet',
-    slug: 'lo-po',
-    url: d => `https://www.eplanetcinemas.it/programmazione/lo-po/?data=${d}`,
-  },
-  {
-    id: 'cinemaplanet',
-    type: 'eplanet',
-    slug: 'canalicchio',
-    url: d => `https://www.eplanetcinemas.it/programmazione/canalicchio/?data=${d}`,
-  },
+// MYmovies cinema ID (stringa) → nostro ID interno
+const MYMOVIES_CINEMA_MAP = {
+  '5000':  'politeamacaltagirone',
+  '5004':  'cinemaking',
+  '5005':  'eplanetlopo',
+  '5006':  'moderno',
+  '5190':  'eplanetariston',
+  '5543':  'spadaro',
+  '5700':  'artanis',
+  '5877':  'eden',
+  '5997':  'macherione',
+  '6011':  'cinemaplanet',
+  '6333':  'centrale',
+  '20036': 'acireale',
+  '20169': 'thespaceetnapolis',
+  '20562': 'cinestar',
+  '21433': 'ucicentrosicilia',
+  // '24660': Sala Karol Caltagirone — non nel nostro elenco
+};
 
-  // ── ComingSoon.it (ticket pages per film) ────────────────────────────────────
-  {
-    id: 'thespaceetnapolis',
-    type: 'comingsoon-ticket',
-    baseUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
-  },
-  {
-    id: 'ucicentrosicilia',
-    type: 'comingsoon-ticket',
-    baseUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
-  },
-
-  // ── ComingSoon.it ticket — cinema minori (funziona se vendono online) ─────────
-  { id: 'eplanetaalfieri',      type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/eplanet-alfieri-catania/1263/' },
-  { id: 'acireale',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/margherita-acireale/1233/' },
-  { id: 'spadaro',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/spadaro-acireale/1235/' },
-  { id: 'artanis',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/artanis-caltagirone/1248/' },
-  { id: 'politeamacaltagirone', type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/multisala-politeama-caltagirone/1247/' },
-  { id: 'macherione',           type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/multisala-macherione-fiumefreddo-di-sicilia/1286/' },
-  { id: 'garibaldi',            type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-garibaldi-giarre/1289/' },
-  { id: 'rex',                  type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cine-teatro-rex-giarre/6150/' },
-  { id: 'eden',                 type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/eden-giarre/3461/' },
-  { id: 'moderno',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/' },
-  { id: 'trinacria',            type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/trinacria-misterbianco/1302/' },
-  { id: 'musmeci',              type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/cinema-musmeci-riposto/3481/' },
-  { id: 'centrale',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/centrale-san-giovanni-la-punta/1347/' },
-  { id: 'metropol',             type: 'comingsoon-ticket', baseUrl: 'https://www.comingsoon.it/cinema/catania/metropol-scordia/2063/' },
+// Cinema nel nostro elenco non presenti su MYmovies → salviamo [] (tentato, nessun dato)
+const CINEMAS_NOT_ON_MYMOVIES = [
+  'eplanetaalfieri', 'garibaldi', 'rex', 'musmeci', 'trinacria', 'metropol',
 ];
 
 const HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8,en;q=0.7',
+  'Accept-Language': 'it-IT,it;q=0.9,en-US;q=0.8',
 };
 
 async function fetchHtml(url) {
@@ -105,7 +70,6 @@ async function enrichWithTmdb(title) {
     const m = searchData.results?.[0];
     if (!m) return null;
 
-    // Trailer: prima in italiano, poi in inglese
     let trailerKey = null;
     for (const lang of ['it-IT', 'en-US']) {
       const vidRes = await fetch(
@@ -113,8 +77,8 @@ async function enrichWithTmdb(title) {
         { headers: { Accept: 'application/json' } }
       );
       const vidData = await vidRes.json();
-      const t = vidData.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
-      if (t) { trailerKey = t.key; break; }
+      const v = vidData.results?.find(v => v.type === 'Trailer' && v.site === 'YouTube');
+      if (v) { trailerKey = v.key; break; }
       await new Promise(r => setTimeout(r, 150));
     }
 
@@ -131,293 +95,176 @@ async function enrichWithTmdb(title) {
   }
 }
 
-// ── Estrai src da un elemento img (gestisce src e data-src) ──────────────────
-function extractImgSrc($el) {
-  if (!$el || !$el.length) return null;
-  const src = $el.attr('src') || $el.attr('data-src') || $el.attr('data-lazy-src') || '';
-  if (!src || src.startsWith('data:') || src.length < 10) return null;
-  return src.startsWith('http') ? src : null;
-}
-
-// ── Parser Webtic (cinestarweb.it e compatibili) ──────────────────────────────
-// Struttura: <h5><a href="/scheda-film/?id_pro=ID">Titolo</a></h5>
-//            <a href="film-ricercato/?mult=X&per=Y&pro=ID">HH:MM</a>
-// Il parametro pro= collega ogni orario al film corretto.
-function parseWebtic(html, baseUrl) {
+// ── Parser MYmovies.it ────────────────────────────────────────────────────────
+// Struttura pagina:
+//   <img id="imgSplash_N" src="POSTER_URL" alt="TITLE"
+//        onclick="GetVideo(N, FILM_ID, ...)">
+//
+//   Per ogni cinema che proietta il film:
+//   <div id="mappa_CINEMA_ID_FILM_ID" style="display:none;"></div>
+//   <div class="... orari-dettaglio ...">
+//     <span class="mm-medium mm-weight-700">HH:MM</span> ...
+//   </div>
+function parseMYmovies(html) {
   const $ = cheerio.load(html);
-  const filmMap = {};
 
-  $('h5 a[href*="scheda-film"]').each((_, a) => {
-    const match = ($(a).attr('href') || '').match(/id_pro=(\d+)/);
-    if (!match) return;
-    // Cerca img nel contenitore del film (risale fino a 5 livelli)
-    let siteImgUrl = null;
-    let $c = $(a).parent();
-    for (let i = 0; i < 5 && $c.length && !$c.is('body'); i++) {
-      const $img = $c.find('img').first();
-      siteImgUrl = extractImgSrc($img);
-      if (siteImgUrl) break;
-      $c = $c.parent();
-    }
-    filmMap[match[1]] = { title: $(a).text().trim(), times: [], siteImgUrl };
-  });
-
-  $('a[href*="film-ricercato"]').each((_, a) => {
-    const proMatch = ($(a).attr('href') || '').match(/[?&]pro=(\d+)/);
-    const time = $(a).text().trim();
-    if (proMatch && filmMap[proMatch[1]] && /^\d{1,2}:\d{2}$/.test(time)) {
-      filmMap[proMatch[1]].times.push(time);
-    }
-  });
-
-  return Object.values(filmMap)
-    .filter(f => f.times.length > 0)
-    .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
-}
-
-// ── Parser Eplanet (eplanetcinemas.it) ───────────────────────────────────────
-// Struttura: div.cal-day-card > .cal-day-header (.cal-date-num + .cal-month-name)
-//                              + .cal-times > a.cal-time-btn[href=/eticket/slug/filmId/]
-// Filtra solo il giorno corrente, poi risale a h3 per il titolo.
-function parseEplanet(html, slug, targetDate) {
-  const $ = cheerio.load(html);
-  const ETICKET_RE = new RegExp(`/eticket/${slug}/(\\d+)/`);
-  const MONTHS_IT = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno',
-                     'Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-  const [, month, day] = targetDate.split('-').map(Number);
-  const todayDay   = String(day);
-  const todayMonth = MONTHS_IT[month - 1];
-
-  const filmMap = {};
-
-  $('div.cal-day-card').each((_, card) => {
-    const $card = $(card);
-    if ($card.find('.cal-date-num').text().trim()   !== todayDay)   return;
-    if ($card.find('.cal-month-name').text().trim() !== todayMonth) return;
-
-    $card.find(`a[href*="/eticket/${slug}/"]`).each((_, a) => {
-      const href = $(a).attr('href') || '';
-      const match = href.match(ETICKET_RE);
-      const time = $(a).text().trim();
-      if (!match || !/^\d{1,2}:\d{2}$/.test(time)) return;
-      const filmId = match[1];
-      if (!filmMap[filmId]) filmMap[filmId] = { title: null, times: [] };
-      filmMap[filmId].times.push(time);
-    });
-  });
-
-  for (const filmId of Object.keys(filmMap)) {
-    let $container = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first().parent();
-    for (let i = 0; i < 10; i++) {
-      if (!$container.length || $container.is('body')) break;
-      const $h3 = $container.find('h3').first();
-      if ($h3.length) {
-        filmMap[filmId].title = $h3.text().trim();
-        // Cerca img nel contenitore del film (locandina Eplanet)
-        const $img = $container.find('img').first();
-        const src = extractImgSrc($img);
-        if (src) filmMap[filmId].siteImgUrl = src;
-        break;
-      }
-      $container = $container.parent();
-    }
-    // Se non trovata nel contenitore, prova a risalire ulteriormente per l'img
-    if (!filmMap[filmId].siteImgUrl) {
-      let $c = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first().parent();
-      for (let i = 0; i < 15; i++) {
-        if (!$c.length || $c.is('body')) break;
-        const src = extractImgSrc($c.find('img[src*="locandine"], img[src*="poster"], img[src*="film"]').first());
-        if (src) { filmMap[filmId].siteImgUrl = src; break; }
-        $c = $c.parent();
-      }
-    }
-  }
-
-  return Object.values(filmMap)
-    .filter(f => f.title && f.times.length > 0)
-    .map(f => ({ ...f, times: [...new Set(f.times)].sort() }));
-}
-
-// ── ComingSoon.it: estrae orari di oggi dalla pagina ticket di un film ────────
-// Struttura WebTick Bootstrap media object:
-//   div.media → div.media-left (.day + .month) + div.media-body (btn-fab.c HH:MM)
-function parseComingSoonTicketPage(html, targetDate) {
-  const $ = cheerio.load(html);
-  const TIME_RE = /\b([0-1]?\d|2[0-3]):[0-5]\d\b/g;
-  const MONTHS_IT = ['GEN','FEB','MAR','APR','MAG','GIU','LUG','AGO','SET','OTT','NOV','DIC'];
-  const [, month, day] = targetDate.split('-').map(Number);
-  const todayDay   = String(day);                 // es. "28"
-  const todayMonth = MONTHS_IT[month - 1];        // es. "APR"
-
-  const times = [];
-  $('div.media').each((_, el) => {
-    const $m = $(el);
-    if ($m.find('.day').text().trim()         === todayDay &&
-        $m.find('.month').text().trim().toUpperCase() === todayMonth) {
-      const t = ($m.find('.media-body').text().match(TIME_RE) || [])
-        .filter(t => parseInt(t) >= 8);
-      times.push(...t);
-    }
-  });
-
-  return [...new Set(times)].sort();
-}
-
-// ── ComingSoon.it multi-step: main page → idf → ticket page per ogni film ────
-async function scrapeComingSoonTickets(baseUrl, date) {
-  // Step 1: estrai idf e titoli dalla pagina principale
-  const mainHtml = await fetchHtml(baseUrl);
-  const $ = cheerio.load(mainHtml);
+  // Step 1: film_id → {title, posterUrl}
   const filmMap = new Map();
-
-  // Mappa idf → {title, siteImgUrl}
-  const filmMeta = new Map();
-  $('a[href*="?idf="]').each((_, a) => {
-    const match = ($(a).attr('href') || '').match(/\?idf=(\d+)/);
-    const title = $(a).text().trim().replace(/\s+/g, ' ');
-    if (!match || !title || title.length < 2 || title.length > 120 || filmMeta.has(match[1])) return;
-    // Cerca img nel contenitore del link (locandina ComingSoon)
-    let siteImgUrl = null;
-    let $c = $(a).parent();
-    for (let i = 0; i < 6 && $c.length && !$c.is('body'); i++) {
-      const src = extractImgSrc($c.find('img').first());
-      if (src) { siteImgUrl = src; break; }
-      $c = $c.parent();
+  $('img[id^="imgSplash_"]').each((_, img) => {
+    const $img = $(img);
+    const onclick = $img.attr('onclick') || '';
+    const match = onclick.match(/GetVideo\(\d+,\s*(\d+),/);
+    if (!match) return;
+    const filmId = match[1];
+    const title = ($img.attr('alt') || '').trim();
+    // Usa la versione large del poster quando disponibile
+    let posterUrl = ($img.attr('src') || '').replace('covermd_home.jpg', 'coverlg_home.jpg');
+    if (!posterUrl.startsWith('http') || posterUrl.includes('nondisponibile')) posterUrl = null;
+    if (title && !filmMap.has(filmId)) {
+      filmMap.set(filmId, { title, posterUrl });
     }
-    filmMeta.set(match[1], { title, siteImgUrl });
-    filmMap.set(match[1], title);
   });
 
-  if (filmMap.size === 0) { console.log(`  ⚠ Nessun idf trovato`); return []; }
-  console.log(`  ℹ ${filmMap.size} film trovati, fetching ticket pages...`);
+  // Step 2: div.orari-dettaglio → il prev() sibling è sempre div[id^="mappa_"]
+  const result = {}; // internalCinemaId → [{title, times, siteImgUrl, filmId}]
 
-  // Step 2: per ogni film, fetcha /ticket/?idf=ID ed estrai orari di oggi
-  const results = [];
-  for (const [idf, title] of filmMap) {
-    try {
-      const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
-      const times = parseComingSoonTicketPage(ticketHtml, date);
-      if (times.length > 0) {
-        const meta = filmMeta.get(idf) || {};
-        results.push({ title, times, siteImgUrl: meta.siteImgUrl || null });
-      }
-      await new Promise(r => setTimeout(r, 200));
-    } catch (e) { console.log(`  ✗ ticket ${idf}: ${e.message}`); }
-  }
-  return results;
-}
+  $('div.orari-dettaglio').each((_, orariEl) => {
+    const $orari = $(orariEl);
+    const $mappa = $orari.prev();
+    const mappaId = $mappa.attr('id') || '';
+    const m = mappaId.match(/^mappa_(\d+)_(\d+)$/);
+    if (!m) return;
 
-// ── Scraping per cinema ───────────────────────────────────────────────────────
-async function scrapeCinema(config, date) {
-  if (!config.type) return null;
+    const [, cinemaId, filmId] = m;
+    const internalId = MYMOVIES_CINEMA_MAP[cinemaId];
+    if (!internalId) return;
 
-  try {
-    const url = config.url(date);
-    console.log(`  → ${url}`);
-    const html = await fetchHtml(url);
+    const filmInfo = filmMap.get(filmId);
+    if (!filmInfo) return;
 
-    if (config.type === 'webtic') {
-      if (!html.includes('scheda-film')) {
-        console.log(`  ⚠ Pagina non riconosciuta`);
-        return null;
-      }
-      return parseWebtic(html);
+    const times = [];
+    $orari.find('span.mm-weight-700').each((_, span) => {
+      const t = $(span).text().trim();
+      if (/^\d{1,2}:\d{2}$/.test(t)) times.push(t);
+    });
+    if (times.length === 0) return;
+
+    if (!result[internalId]) result[internalId] = [];
+    // Evita duplicati dello stesso film nello stesso cinema
+    if (!result[internalId].some(f => f.filmId === filmId)) {
+      result[internalId].push({
+        title: filmInfo.title,
+        times: [...new Set(times)].sort(),
+        siteImgUrl: filmInfo.posterUrl,
+        filmId,
+      });
     }
+  });
 
-    if (config.type === 'eplanet') {
-      if (!html.includes('/eticket/')) {
-        console.log(`  ⚠ Pagina senza eticket`);
-        return null;
-      }
-      return parseEplanet(html, config.slug, date);
-    }
-
-    return null;
-  } catch (e) {
-    console.error(`  ✗ Errore: ${e.message}`);
-    return null;
-  }
+  return result;
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const today = new Date().toISOString().split('T')[0];
-  console.log(`\n=== Scraping orari per ${today} ===\n`);
+  console.log(`\n=== Scraping MYmovies.it per ${today} ===\n`);
 
+  // Fetch provincia + città in parallelo
+  const htmlPages = await Promise.all(
+    MYMOVIES_URLS.map(async url => {
+      console.log(`  → ${url}`);
+      try { return await fetchHtml(url); }
+      catch (e) { console.error(`  ✗ ${url}: ${e.message}`); return ''; }
+    })
+  );
+
+  // Parsing e merge delle due pagine
   const showtimes = {};
-
-  for (const config of CINEMA_CONFIG) {
-    if (!config.type) continue;
-    process.stdout.write(`[${config.id}] `);
-
-    let films;
-    if (config.type === 'comingsoon-ticket') {
-      console.log('');
-      films = await scrapeComingSoonTickets(config.baseUrl, today).catch(e => {
-        console.error(`  ✗ Errore: ${e.message}`); return [];
-      });
-    } else {
-      films = await scrapeCinema(config, today);
-    }
-
-    // Salva sempre (anche [] = tentato ma nessuna programmazione oggi)
-    showtimes[config.id] = films || [];
-    if (films && films.length > 0) {
-      console.log(`${films.length} film trovati`);
-      films.forEach(f => console.log(`    ✓ ${f.title}: ${f.times.join(', ')}`));
-    } else {
-      console.log(`nessun dato`);
-    }
-
-    await new Promise(r => setTimeout(r, 300));
-  }
-
-  const total = Object.keys(showtimes).length;
-  console.log(`\n=== Totale: ${total} cinema con orari ===`);
-
-  // ── Arricchimento TMDB ────────────────────────────────────────────────────
-  if (TMDB_KEY) {
-    console.log('\n=== Arricchimento metadati film ===\n');
-
-    // Raccogli titoli unici + il miglior siteImgUrl disponibile per quel titolo
-    const uniqueTitles = new Map(); // normalized → {title, siteImgUrl}
-    for (const films of Object.values(showtimes)) {
-      for (const f of films) {
-        const n = normalizeTitle(f.title);
-        if (!uniqueTitles.has(n)) uniqueTitles.set(n, { title: f.title, siteImgUrl: f.siteImgUrl || null });
-        else if (!uniqueTitles.get(n).siteImgUrl && f.siteImgUrl) {
-          uniqueTitles.get(n).siteImgUrl = f.siteImgUrl; // prendi il primo siteImgUrl valido
+  for (const html of htmlPages) {
+    if (!html) continue;
+    const parsed = parseMYmovies(html);
+    for (const [cinemaId, films] of Object.entries(parsed)) {
+      if (!showtimes[cinemaId]) {
+        showtimes[cinemaId] = [...films];
+      } else {
+        // Aggiungi film non ancora presenti (stesso filmId)
+        for (const f of films) {
+          if (!showtimes[cinemaId].some(e => e.filmId === f.filmId)) {
+            showtimes[cinemaId].push(f);
+          }
         }
       }
     }
-    console.log(`  ${uniqueTitles.size} titoli unici da arricchire\n`);
+  }
 
-    const metadataMap = new Map(); // normalized → metadata
+  // Cinema mappati ma senza dati oggi → salva []
+  for (const internalId of Object.values(MYMOVIES_CINEMA_MAP)) {
+    if (!showtimes[internalId]) showtimes[internalId] = [];
+  }
+  // Cinema non su MYmovies → salva [] (tentato, nessun dato disponibile)
+  for (const id of CINEMAS_NOT_ON_MYMOVIES) {
+    showtimes[id] = [];
+  }
+
+  // Riepilogo
+  console.log('');
+  let totalFilms = 0;
+  for (const [id, films] of Object.entries(showtimes).sort()) {
+    if (films.length > 0) {
+      console.log(`[${id}] ${films.length} film`);
+      films.forEach(f => console.log(`    ✓ ${f.title}: ${f.times.join(', ')}`));
+      totalFilms += films.length;
+    }
+  }
+  const withData = Object.values(showtimes).filter(f => f.length > 0).length;
+  console.log(`\nCinema con dati: ${withData}/${Object.keys(showtimes).length} — Film totali: ${totalFilms}`);
+
+  // ── Arricchimento TMDB ────────────────────────────────────────────────────
+  if (TMDB_KEY) {
+    console.log('\n=== Arricchimento metadati TMDB ===\n');
+
+    // Raccogli titoli unici con il miglior poster disponibile (MYmovies)
+    const uniqueTitles = new Map(); // norm → {title, siteImgUrl}
+    for (const films of Object.values(showtimes)) {
+      for (const f of films) {
+        const n = normalizeTitle(f.title);
+        if (!n) continue;
+        if (!uniqueTitles.has(n)) uniqueTitles.set(n, { title: f.title, siteImgUrl: f.siteImgUrl || null });
+        else if (!uniqueTitles.get(n).siteImgUrl && f.siteImgUrl) {
+          uniqueTitles.get(n).siteImgUrl = f.siteImgUrl;
+        }
+      }
+    }
+    console.log(`  ${uniqueTitles.size} titoli unici\n`);
+
+    const metadataMap = new Map();
     for (const [norm, info] of uniqueTitles) {
       process.stdout.write(`  [${info.title}] `);
       const tmdb = await enrichWithTmdb(info.title);
       if (tmdb) {
-        metadataMap.set(norm, tmdb);
+        metadataMap.set(norm, {
+          posterUrl: tmdb.posterUrl || info.siteImgUrl,
+          backdropUrl: tmdb.backdropUrl,
+          tmdbId: tmdb.tmdbId,
+          trailerKey: tmdb.trailerKey,
+          description: tmdb.description,
+        });
         console.log(`✓ TMDB${tmdb.trailerKey ? ' + trailer' : ''}`);
       } else {
-        // Fallback: usa locandina già estratta dalla pagina del cinema
         metadataMap.set(norm, {
           posterUrl: info.siteImgUrl || null,
-          backdropUrl: null,
-          tmdbId: null,
-          trailerKey: null,
-          description: null,
+          backdropUrl: null, tmdbId: null, trailerKey: null, description: null,
         });
-        console.log(info.siteImgUrl ? '◐ poster dal sito cinema' : '✗ nessuna locandina');
+        console.log(info.siteImgUrl ? '◐ poster MYmovies' : '✗ nessuna locandina');
       }
       await new Promise(r => setTimeout(r, 350));
     }
 
-    // Applica metadati a ogni film in ogni sala
+    // Applica metadati e rimuovi campo interno filmId
     for (const [cinemaId, films] of Object.entries(showtimes)) {
       showtimes[cinemaId] = films.map(f => {
         const n = normalizeTitle(f.title);
-        const meta = metadataMap.get(n) || {};
+        const meta = (n && metadataMap.get(n)) || {};
         return {
           title: f.title,
           times: f.times,
@@ -426,38 +273,32 @@ async function main() {
           tmdbId: meta.tmdbId || null,
           trailerKey: meta.trailerKey || null,
           description: meta.description || null,
-          trailerSearchUrl: meta.trailerKey
-            ? null
+          trailerSearchUrl: meta.trailerKey ? null
             : `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
         };
       });
     }
-
-    console.log(`\n=== Arricchimento completato ===`);
+    console.log('\n=== Arricchimento completato ===');
   } else {
-    // Senza TMDB: salva almeno il poster dal sito cinema (siteImgUrl) e trailerSearchUrl
-    console.log('\n⚠ TMDB_API_KEY non configurata — salvo poster dai siti cinema dove disponibili');
+    console.log('\n⚠ TMDB_API_KEY non configurata — uso poster MYmovies dove disponibili');
     for (const [cinemaId, films] of Object.entries(showtimes)) {
-      showtimes[cinemaId] = films.map(f => ({
-        title: f.title,
-        times: f.times,
-        posterUrl: f.siteImgUrl || null,
-        backdropUrl: null,
-        tmdbId: null,
-        trailerKey: null,
-        description: null,
+      showtimes[cinemaId] = films.map(({ filmId, siteImgUrl, ...f }) => ({
+        ...f,
+        posterUrl: siteImgUrl || null,
+        backdropUrl: null, tmdbId: null, trailerKey: null, description: null,
         trailerSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
       }));
     }
   }
 
+  const total = Object.keys(showtimes).length;
   await db.collection('showtimes').doc(today).set({
     date: today,
     cinemas: showtimes,
     updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     cinemaCount: total,
   });
-  console.log(`✓ Salvato su Firestore: showtimes/${today}`);
+  console.log(`\n✓ Salvato su Firestore: showtimes/${today} (${total} cinema)`);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
