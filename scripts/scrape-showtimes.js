@@ -131,36 +131,35 @@ async function enrichWithTmdb(title) {
   }
 }
 
-// ── ComingSoon.it: fallback poster per film non trovati su TMDB ───────────────
-async function fetchComingSoonPoster(title) {
-  try {
-    const html = await fetchHtml(
-      `https://www.comingsoon.it/film/?q=${encodeURIComponent(title)}`
-    );
-    const $ = cheerio.load(html);
-    // og:image dei risultati di ricerca
-    const ogImg = $('meta[property="og:image"]').attr('content');
-    if (ogImg && !ogImg.includes('logo') && !ogImg.includes('default') && ogImg.startsWith('http')) {
-      return ogImg;
-    }
-    // Prima locandina nei risultati
-    const src = $('img[src*="/locandine/"], img[src*="/poster/"], img[data-src*="/locandine/"]')
-      .first().attr('src') || null;
-    return src;
-  } catch { return null; }
+// ── Estrai src da un elemento img (gestisce src e data-src) ──────────────────
+function extractImgSrc($el) {
+  if (!$el || !$el.length) return null;
+  const src = $el.attr('src') || $el.attr('data-src') || $el.attr('data-lazy-src') || '';
+  if (!src || src.startsWith('data:') || src.length < 10) return null;
+  return src.startsWith('http') ? src : null;
 }
 
 // ── Parser Webtic (cinestarweb.it e compatibili) ──────────────────────────────
 // Struttura: <h5><a href="/scheda-film/?id_pro=ID">Titolo</a></h5>
 //            <a href="film-ricercato/?mult=X&per=Y&pro=ID">HH:MM</a>
 // Il parametro pro= collega ogni orario al film corretto.
-function parseWebtic(html) {
+function parseWebtic(html, baseUrl) {
   const $ = cheerio.load(html);
   const filmMap = {};
 
   $('h5 a[href*="scheda-film"]').each((_, a) => {
     const match = ($(a).attr('href') || '').match(/id_pro=(\d+)/);
-    if (match) filmMap[match[1]] = { title: $(a).text().trim(), times: [] };
+    if (!match) return;
+    // Cerca img nel contenitore del film (risale fino a 5 livelli)
+    let siteImgUrl = null;
+    let $c = $(a).parent();
+    for (let i = 0; i < 5 && $c.length && !$c.is('body'); i++) {
+      const $img = $c.find('img').first();
+      siteImgUrl = extractImgSrc($img);
+      if (siteImgUrl) break;
+      $c = $c.parent();
+    }
+    filmMap[match[1]] = { title: $(a).text().trim(), times: [], siteImgUrl };
   });
 
   $('a[href*="film-ricercato"]').each((_, a) => {
@@ -212,8 +211,25 @@ function parseEplanet(html, slug, targetDate) {
     for (let i = 0; i < 10; i++) {
       if (!$container.length || $container.is('body')) break;
       const $h3 = $container.find('h3').first();
-      if ($h3.length) { filmMap[filmId].title = $h3.text().trim(); break; }
+      if ($h3.length) {
+        filmMap[filmId].title = $h3.text().trim();
+        // Cerca img nel contenitore del film (locandina Eplanet)
+        const $img = $container.find('img').first();
+        const src = extractImgSrc($img);
+        if (src) filmMap[filmId].siteImgUrl = src;
+        break;
+      }
       $container = $container.parent();
+    }
+    // Se non trovata nel contenitore, prova a risalire ulteriormente per l'img
+    if (!filmMap[filmId].siteImgUrl) {
+      let $c = $(`a[href*="/eticket/${slug}/${filmId}/"]`).first().parent();
+      for (let i = 0; i < 15; i++) {
+        if (!$c.length || $c.is('body')) break;
+        const src = extractImgSrc($c.find('img[src*="locandine"], img[src*="poster"], img[src*="film"]').first());
+        if (src) { filmMap[filmId].siteImgUrl = src; break; }
+        $c = $c.parent();
+      }
     }
   }
 
@@ -254,12 +270,22 @@ async function scrapeComingSoonTickets(baseUrl, date) {
   const $ = cheerio.load(mainHtml);
   const filmMap = new Map();
 
+  // Mappa idf → {title, siteImgUrl}
+  const filmMeta = new Map();
   $('a[href*="?idf="]').each((_, a) => {
     const match = ($(a).attr('href') || '').match(/\?idf=(\d+)/);
     const title = $(a).text().trim().replace(/\s+/g, ' ');
-    if (match && title && title.length >= 2 && title.length <= 120 && !filmMap.has(match[1])) {
-      filmMap.set(match[1], title);
+    if (!match || !title || title.length < 2 || title.length > 120 || filmMeta.has(match[1])) return;
+    // Cerca img nel contenitore del link (locandina ComingSoon)
+    let siteImgUrl = null;
+    let $c = $(a).parent();
+    for (let i = 0; i < 6 && $c.length && !$c.is('body'); i++) {
+      const src = extractImgSrc($c.find('img').first());
+      if (src) { siteImgUrl = src; break; }
+      $c = $c.parent();
     }
+    filmMeta.set(match[1], { title, siteImgUrl });
+    filmMap.set(match[1], title);
   });
 
   if (filmMap.size === 0) { console.log(`  ⚠ Nessun idf trovato`); return []; }
@@ -271,7 +297,10 @@ async function scrapeComingSoonTickets(baseUrl, date) {
     try {
       const ticketHtml = await fetchHtml(`${baseUrl}ticket/?idf=${idf}`);
       const times = parseComingSoonTicketPage(ticketHtml, date);
-      if (times.length > 0) results.push({ title, times });
+      if (times.length > 0) {
+        const meta = filmMeta.get(idf) || {};
+        results.push({ title, times, siteImgUrl: meta.siteImgUrl || null });
+      }
       await new Promise(r => setTimeout(r, 200));
     } catch (e) { console.log(`  ✗ ticket ${idf}: ${e.message}`); }
   }
@@ -350,35 +379,36 @@ async function main() {
   if (TMDB_KEY) {
     console.log('\n=== Arricchimento metadati film ===\n');
 
-    // Raccogli titoli unici da tutte le sale
-    const uniqueTitles = new Map(); // normalized → original
+    // Raccogli titoli unici + il miglior siteImgUrl disponibile per quel titolo
+    const uniqueTitles = new Map(); // normalized → {title, siteImgUrl}
     for (const films of Object.values(showtimes)) {
       for (const f of films) {
         const n = normalizeTitle(f.title);
-        if (!uniqueTitles.has(n)) uniqueTitles.set(n, f.title);
+        if (!uniqueTitles.has(n)) uniqueTitles.set(n, { title: f.title, siteImgUrl: f.siteImgUrl || null });
+        else if (!uniqueTitles.get(n).siteImgUrl && f.siteImgUrl) {
+          uniqueTitles.get(n).siteImgUrl = f.siteImgUrl; // prendi il primo siteImgUrl valido
+        }
       }
     }
     console.log(`  ${uniqueTitles.size} titoli unici da arricchire\n`);
 
     const metadataMap = new Map(); // normalized → metadata
-    for (const [norm, orig] of uniqueTitles) {
-      process.stdout.write(`  [${orig}] `);
-      const meta = await enrichWithTmdb(orig);
-      if (meta) {
-        metadataMap.set(norm, meta);
-        console.log(`✓ TMDB${meta.trailerKey ? ' + trailer' : ''}`);
+    for (const [norm, info] of uniqueTitles) {
+      process.stdout.write(`  [${info.title}] `);
+      const tmdb = await enrichWithTmdb(info.title);
+      if (tmdb) {
+        metadataMap.set(norm, tmdb);
+        console.log(`✓ TMDB${tmdb.trailerKey ? ' + trailer' : ''}`);
       } else {
-        // Fallback: prova poster su ComingSoon.it
-        const posterUrl = await fetchComingSoonPoster(orig);
+        // Fallback: usa locandina già estratta dalla pagina del cinema
         metadataMap.set(norm, {
-          posterUrl: posterUrl || null,
+          posterUrl: info.siteImgUrl || null,
           backdropUrl: null,
           tmdbId: null,
           trailerKey: null,
           description: null,
         });
-        console.log(posterUrl ? '◐ ComingSoon poster' : '✗ nessuna locandina');
-        await new Promise(r => setTimeout(r, 300));
+        console.log(info.siteImgUrl ? '◐ poster dal sito cinema' : '✗ nessuna locandina');
       }
       await new Promise(r => setTimeout(r, 350));
     }
@@ -405,7 +435,20 @@ async function main() {
 
     console.log(`\n=== Arricchimento completato ===`);
   } else {
-    console.log('\n⚠ TMDB_API_KEY non configurata — orari salvati senza metadati');
+    // Senza TMDB: salva almeno il poster dal sito cinema (siteImgUrl) e trailerSearchUrl
+    console.log('\n⚠ TMDB_API_KEY non configurata — salvo poster dai siti cinema dove disponibili');
+    for (const [cinemaId, films] of Object.entries(showtimes)) {
+      showtimes[cinemaId] = films.map(f => ({
+        title: f.title,
+        times: f.times,
+        posterUrl: f.siteImgUrl || null,
+        backdropUrl: null,
+        tmdbId: null,
+        trailerKey: null,
+        description: null,
+        trailerSearchUrl: `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
+      }));
+    }
   }
 
   await db.collection('showtimes').doc(today).set({
