@@ -128,6 +128,7 @@ export async function fetchLocalCinemaFilms(existingFilms) {
     const missing = [...scraped.entries()].filter(([norm]) =>
       !existingFilms.some(ef => {
         const en = normalizeT(ef.title);
+        if (!en || !norm) return false; // titoli non-latini (es. bengalese) → ignora
         return en.includes(norm) || norm.includes(en);
       })
     );
