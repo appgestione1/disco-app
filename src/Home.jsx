@@ -937,14 +937,14 @@ const Home = () => {
         <div className="px-6 space-y-6 animate-in fade-in max-w-2xl mx-auto">
           <div className="flex items-center justify-center gap-4 mb-4 text-center">
             <div className="h-[1px] w-8 bg-[#D4AF37]/50" />
-            <h1 className="text-zinc-500 font-black uppercase text-[10px] tracking-[0.4em] italic">Select Experience</h1>
+            <h1 className="text-zinc-300 font-black uppercase text-xs tracking-[0.4em] italic">Select Experience</h1>
             <div className="h-[1px] w-8 bg-[#D4AF37]/50" />
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {categories.map(cat => (
-              <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setStep(2); trackCategoryView(cat.id); }} className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border bg-zinc-900/40 border-white/5 text-zinc-600 active:scale-95 transition-all">
-                <cat.icon size={28} className="mb-3" />
-                <span className="text-[9px] font-black uppercase tracking-widest text-center">{cat.label}</span>
+              <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setStep(2); trackCategoryView(cat.id); }} className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border bg-zinc-900/40 border-white/5 text-zinc-400 active:scale-95 transition-all">
+                <cat.icon size={30} className="mb-3" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-center">{cat.label}</span>
               </button>
             ))}
           </div>
@@ -985,7 +985,7 @@ const Home = () => {
             <ChevronLeft size={18} strokeWidth={3} /> Indietro
           </button>
           <div className="mt-0 text-center mb-0">
-            <p className="text-[9px] font-black uppercase tracking-[0.4em] text-zinc-600 mb-1 italic">MOOD SCELTO</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-zinc-400 mb-1 italic">MOOD SCELTO</p>
             <h2 className="text-3xl md:text-5xl font-black italic uppercase tracking-tighter text-white">{categories.find(c => c.id === activeCategory)?.label}</h2>
           </div>
           {EXTERNAL_CATS.includes(activeCategory) ? (
@@ -1011,9 +1011,9 @@ const Home = () => {
                         : <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center"><Film size={32} className="text-zinc-600" /></div>
                       }
                       <div className="p-3">
-                        <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
-                        {ev.rating && <p className="text-[#D4AF37] text-[10px] font-black mt-1">★ {ev.rating}</p>}
-                        <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-2">→ Orari & Sale</p>
+                        <p className="text-xs font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                        {ev.rating && <p className="text-[#D4AF37] text-[11px] font-black mt-1">★ {ev.rating}</p>}
+                        <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-2">→ Orari & Sale</p>
                       </div>
                     </div>
                   ))}
@@ -1087,14 +1087,14 @@ const Home = () => {
                               </div>
                           }
                           <div className="p-3">
-                            <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                            <p className="text-xs font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
                             {ev.date && (
-                              <p className="text-[#D4AF37] text-[10px] font-black mt-1">
+                              <p className="text-[#D4AF37] text-[11px] font-black mt-1">
                                 {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
                                 {ev.time ? ` · ${ev.time.slice(0,5)}` : ''}
                               </p>
                             )}
-                            {(ev.city || ev.venue) && <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city || ev.venue}</p>}
+                            {(ev.city || ev.venue) && <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city || ev.venue}</p>}
                           </div>
                         </a>
                       ))}
@@ -1182,7 +1182,7 @@ const Home = () => {
 
       <div className="fixed bottom-0 inset-x-0 bg-black/80 backdrop-blur-2xl border-t border-white/5 p-4 flex justify-center items-center gap-10 z-40">
         <button onClick={() => handleStarClick('L')} className="p-4 hover:scale-110 transition-transform"><Star size={24} className="text-[#D4AF37] animate-pulse" /></button>
-        <span className="text-[8px] font-black uppercase tracking-[0.5em] text-zinc-600 italic text-center">Product 2026 Stefano Di Bella</span>
+        <span className="text-[9px] font-black uppercase tracking-[0.5em] text-zinc-500 italic text-center">Product 2026 Stefano Di Bella</span>
         <button onClick={() => handleStarClick('R')} className="p-4 hover:scale-110 transition-transform"><Star size={24} className="text-[#D4AF37] animate-pulse" /></button>
       </div>
     </div>

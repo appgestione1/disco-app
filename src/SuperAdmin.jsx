@@ -46,6 +46,7 @@ const SuperAdmin = () => {
   const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings' | 'stats'
   const [stats, setStats] = useState(null);
   const [statsFilter, setStatsFilter] = useState('TOTALE');
+  const [trendMetric, setTrendMetric] = useState('share');
   const [selectedProposal, setSelectedProposal] = useState(null);
 
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
@@ -415,44 +416,76 @@ const SuperAdmin = () => {
                     </div>
                   )}
 
-                  {/* Grafico crescita condivisioni + visite */}
+                  {/* Grafico trend — barre verticali */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-[10px] text-zinc-500 tracking-widest">
-                        Trend — {statsFilter === 'OGGI' ? 'oggi' : statsFilter === '7G' ? 'ultimi 7 giorni' : statsFilter === '30G' ? 'ultimi 30 giorni' : 'ultimi 7 giorni'}
-                      </p>
-                      <div className="flex gap-3 text-[8px] font-black">
-                        <span className="text-[#D4AF37]">— share</span>
-                        <span className="text-blue-400">— visite</span>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[10px] text-zinc-500 tracking-widest">Trend</p>
+                      <div className="flex gap-1 bg-zinc-800 p-1 rounded-xl">
+                        {[['share','Condivisioni','#D4AF37'],['visite','Visite','#60a5fa']].map(([key, label, color]) => (
+                          <button key={key} onClick={() => setTrendMetric(key)}
+                            className={`px-3 py-1 rounded-lg text-[9px] font-black transition-all ${trendMetric === key ? 'bg-zinc-600 text-white' : 'text-zinc-500'}`}>
+                            {label}
+                          </button>
+                        ))}
                       </div>
                     </div>
-                    <div className="relative mt-3">
-                      <LineChart data={visitData} color="#60a5fa" height={70} />
-                      <div className="absolute inset-0">
-                        <LineChart data={shareData} color="#D4AF37" height={70} />
-                      </div>
-                    </div>
-                    {/* Etichette date asse X */}
-                    <div className="flex justify-between mt-1">
-                      {[...curKeys].reverse().filter((_, i, arr) => i === 0 || i === Math.floor(arr.length / 2) || i === arr.length - 1).map(k => (
-                        <span key={k} className="text-[8px] text-zinc-600">
-                          {new Date(k).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-                        </span>
-                      ))}
-                    </div>
+
+                    {/* Barre verticali */}
+                    {(() => {
+                      const barData = trendMetric === 'share' ? shareData : visitData;
+                      const maxBar = Math.max(...barData, 1);
+                      const color = trendMetric === 'share' ? '#D4AF37' : '#60a5fa';
+                      const keys = [...curKeys].reverse();
+                      return (
+                        <>
+                          <div className={`flex items-end gap-${trendDays > 7 ? '0.5' : '1'} h-24`}>
+                            {barData.map((v, i) => (
+                              <div key={i} className="flex-1 flex flex-col items-center justify-end">
+                                {v > 0 && trendDays <= 7 && (
+                                  <span className="text-[7px] font-black mb-0.5" style={{ color }}>{v}</span>
+                                )}
+                                <div className="w-full rounded-t-md transition-all duration-500"
+                                  style={{ height: `${Math.max((v / maxBar) * 88, v > 0 ? 4 : 0)}px`, background: color, opacity: v > 0 ? 1 : 0.1 }} />
+                              </div>
+                            ))}
+                          </div>
+                          {/* Asse X date */}
+                          <div className={`flex mt-2 ${trendDays > 7 ? 'justify-between' : 'gap-1'}`}>
+                            {trendDays > 7
+                              ? keys.filter((_, i) => i === 0 || i === Math.floor(keys.length / 2) || i === keys.length - 1).map(k => (
+                                  <span key={k} className="text-[8px] text-zinc-600">
+                                    {new Date(k).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                                  </span>
+                                ))
+                              : keys.map(k => (
+                                  <span key={k} className="flex-1 text-center text-[7px] text-zinc-600">
+                                    {new Date(k).getDate()}
+                                  </span>
+                                ))
+                            }
+                          </div>
+                        </>
+                      );
+                    })()}
+
                     {filteredDays && (
-                      <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between">
+                      <div className="mt-4 pt-3 border-t border-zinc-800 flex justify-between items-center">
                         <div className="text-center">
-                          <p className="text-[8px] text-zinc-600 normal-case">Share periodo prec.</p>
-                          <p className="text-sm font-black text-zinc-400">{prevShares}</p>
+                          <p className="text-[8px] text-zinc-600 normal-case mb-1">Periodo prec.</p>
+                          <p className="text-sm font-black text-zinc-400">{trendMetric === 'share' ? prevShares : prevVisits}</p>
                         </div>
                         <div className="text-center">
-                          <p className="text-[8px] text-zinc-600 normal-case">Share periodo att.</p>
-                          <p className="text-sm font-black text-[#D4AF37]">{totalShares}</p>
+                          <p className="text-[8px] text-zinc-600 normal-case mb-1">Periodo att.</p>
+                          <p className="text-sm font-black" style={{ color: trendMetric === 'share' ? '#D4AF37' : '#60a5fa' }}>
+                            {trendMetric === 'share' ? totalShares : totalVisits}
+                          </p>
                         </div>
                         <div className="text-center">
-                          <p className="text-[8px] text-zinc-600 normal-case">Crescita</p>
-                          <GrowthBadge current={totalShares} previous={prevShares} />
+                          <p className="text-[8px] text-zinc-600 normal-case mb-1">Crescita</p>
+                          <GrowthBadge
+                            current={trendMetric === 'share' ? totalShares : totalVisits}
+                            previous={trendMetric === 'share' ? prevShares : prevVisits}
+                          />
                         </div>
                       </div>
                     )}
