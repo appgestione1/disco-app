@@ -18,11 +18,10 @@ const toSlug = t => t.toLowerCase()
 const buildTicketUrl = (cinema, filmTitle) => {
   if (!cinema.ticketSearchUrl) return null;
   if (cinema.id === 'thespaceetnapolis') {
-    return `https://www.thespacecinema.it/film/${toSlug(filmTitle)}/orari/belpasso/`;
+    // URL diretto al film su The Space: /film/[slug]
+    return `https://www.thespacecinema.it/film/${toSlug(filmTitle)}`;
   }
-  if (cinema.id === 'ucicentrosicilia') {
-    return `https://www.ucicinemas.it/acquista/film/${toSlug(filmTitle)}/`;
-  }
+  // UCI e altri: URL statico della pagina cinema
   return cinema.ticketSearchUrl;
 };
 

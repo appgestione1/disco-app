@@ -230,7 +230,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.ucicinemas.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
     mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Misterbianco',
-    ticketSearchUrl: 'https://www.ucicinemas.it/cinema/catania/uci-cinemas-catania-misterbianco/',
+    ticketSearchUrl: 'https://www.ucicinemas.it/cinema/sicilia/catania-misterbianco/',
     partnerId: null,
   },
 
