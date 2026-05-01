@@ -176,13 +176,14 @@ const FilmDetail = ({ film, onClose }) => {
                 {cinema.ticketUrl ? (
                   <a href={cinema.ticketUrl} target="_blank" rel="noopener noreferrer"
                     className="block w-full bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
-                    Acquista Biglietto
+                    🎟 Acquista Biglietto
                   </a>
-                ) : (
-                  <span className="block w-full border border-zinc-700 text-zinc-600 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest cursor-not-allowed">
-                    Acquista Biglietto
-                  </span>
-                )}
+                ) : cinema.programUrl ? (
+                  <a href={cinema.programUrl} target="_blank" rel="noopener noreferrer"
+                    className="block w-full border border-zinc-600 text-zinc-300 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
+                    Vedi Programmazione
+                  </a>
+                ) : null}
 
               </div>
             )}

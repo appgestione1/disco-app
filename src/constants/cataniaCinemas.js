@@ -14,7 +14,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.cinestarweb.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/cinestar-catania/4968/',
     mapsUrl: 'https://maps.google.com/?q=Cinestar+I+Portali+San+Giovanni+La+Punta',
-    ticketUrl: null,
+    ticketUrl: 'https://www.cinestarweb.it',
     partnerId: null,
   },
 
@@ -86,7 +86,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.thespacecinema.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
-    ticketUrl: null,
+    ticketUrl: 'https://www.thespacecinema.it/cinema/the-space-cinema-belpasso',
     partnerId: null,
   },
 
@@ -230,7 +230,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.ucicinemas.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/uci-cinemas-catania-misterbianco/5469/',
     mapsUrl: 'https://maps.google.com/?q=UCI+Cinemas+Centro+Sicilia+Misterbianco',
-    ticketUrl: null,
+    ticketUrl: 'https://www.ucicinemas.it/cinema/catania/uci-cinemas-catania-misterbianco/',
     partnerId: null,
   },
 
