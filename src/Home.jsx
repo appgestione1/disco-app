@@ -429,6 +429,9 @@ const Home = () => {
   const [externalEvents, setExternalEvents] = useState([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
   const [selectedFilm, setSelectedFilm] = useState(null);
+  const [selectedEventMonth, setSelectedEventMonth] = useState(null);
+  const [concertiFilter, setConcertiFilter] = useState('TUTTI'); // 'TUTTI' | 'OGGI' | 'DATA'
+  const [selectedConcertiDate, setSelectedConcertiDate] = useState(new Date());
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
   const [prPasswordInput, setPrPasswordInput] = useState('');
@@ -452,6 +455,8 @@ const Home = () => {
     if (!activeCategory || !EXTERNAL_CATS.includes(activeCategory)) return;
     setExternalEvents([]);
     setLoadingExternal(true);
+    setSelectedEventMonth(null);
+    setConcertiFilter('TUTTI');
     if (activeCategory === 'CINEMA') {
       fetchCinema().then(async tmdb => {
         const local = await fetchLocalCinemaFilms(tmdb);
@@ -988,31 +993,90 @@ const Home = () => {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-4">
-                  {externalEvents.map(ev => (
-                    <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
-                      className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
-                      {ev.imageUrl
-                        ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-video object-cover object-center" />
-                        : <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
-                            {activeCategory === 'CONCERTI' ? <Mic2 size={32} className="text-zinc-600" /> : <Theater size={32} className="text-zinc-600" />}
+              ) : (() => {
+                const normT = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const deduped = [];
+                const seenTitle = new Set();
+                for (const ev of externalEvents) {
+                  const key = normT(ev.title);
+                  if (!seenTitle.has(key)) { seenTitle.add(key); deduped.push(ev); }
+                }
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                const months = [...new Set(deduped.filter(e => e.date).map(e => e.date.slice(0,7)))].sort();
+
+                let filtered = deduped;
+                if (concertiFilter === 'OGGI') filtered = deduped.filter(e => e.date === todayStr);
+                else if (concertiFilter === 'DATA') filtered = deduped.filter(e => e.date === selectedConcertiDate.toISOString().split('T')[0]);
+
+                return (
+                  <>
+                    {(activeCategory === 'CONCERTI' || activeCategory === 'TEATRO') && (
+                      <div className="mb-5">
+                        {/* 3 modalità */}
+                        <div className="flex gap-2 mb-3">
+                          {['TUTTI','OGGI','DATA'].map(f => (
+                            <button key={f} onClick={() => setConcertiFilter(f)}
+                              className={`flex-1 py-2.5 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 ${concertiFilter === f ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
+                              {f}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Selettore giornaliero identico a discoteche */}
+                        {concertiFilter === 'DATA' && (
+                          <div className="relative h-36 flex items-center justify-center overflow-hidden">
+                            <div className="absolute inset-x-6 h-[70px] border-2 border-[#D4AF37] pointer-events-none z-20 rounded-2xl" />
+                            <div className="absolute inset-0 bg-gradient-to-b from-black via-transparent to-black pointer-events-none z-10" />
+                            <div className="h-full w-full overflow-y-scroll no-scrollbar snap-y snap-mandatory px-20 text-center"
+                              onScroll={e => {
+                                const idx = Math.round(e.target.scrollTop / 50);
+                                const d = dates[idx];
+                                if (d && selectedConcertiDate.toDateString() !== d.toDateString()) setSelectedConcertiDate(d);
+                              }}>
+                              <div className="h-[45px]" />
+                              {dates.map((d, i) => {
+                                const isSel = selectedConcertiDate.toDateString() === d.toDateString();
+                                return (
+                                  <div key={i} className="h-[50px] flex flex-col items-center justify-center snap-center transition-all duration-300">
+                                    <span className={`uppercase font-black tracking-[0.2em] text-[8px] mb-0.5 ${isSel ? 'text-[#D4AF37]' : 'text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { weekday: 'long' })}</span>
+                                    <span className={`transition-all duration-500 uppercase font-black tracking-tighter italic leading-none ${isSel ? 'text-4xl text-white scale-110' : 'text-xl text-zinc-800'}`}>{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                                  </div>
+                                );
+                              })}
+                              <div className="h-[45px]" />
+                            </div>
                           </div>
-                      }
-                      <div className="p-3">
-                        <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
-                        {ev.date && (
-                          <p className="text-[#D4AF37] text-[10px] font-black mt-1">
-                            {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
-                            {ev.time ? ` · ${ev.time}` : ''}
-                          </p>
                         )}
-                        {ev.venue && <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.venue}</p>}
                       </div>
-                    </a>
-                  ))}
-                </div>
-              )}
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
+                      {filtered.map(ev => (
+                        <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
+                          className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
+                          {ev.imageUrl
+                            ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-video object-cover object-center" />
+                            : <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
+                                {activeCategory === 'CONCERTI' ? <Mic2 size={32} className="text-zinc-600" /> : <Theater size={32} className="text-zinc-600" />}
+                              </div>
+                          }
+                          <div className="p-3">
+                            <p className="text-[11px] font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                            {ev.date && (
+                              <p className="text-[#D4AF37] text-[10px] font-black mt-1">
+                                {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                                {ev.time ? ` · ${ev.time.slice(0,5)}` : ''}
+                              </p>
+                            )}
+                            {(ev.city || ev.venue) && <p className="text-zinc-600 text-[9px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city || ev.venue}</p>}
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           ) : (
             <>

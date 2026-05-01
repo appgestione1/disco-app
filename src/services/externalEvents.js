@@ -41,7 +41,7 @@ const TM_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
 async function getCached(type, ttl = CACHE_TTL) {
   try {
-    const snap = await getDoc(doc(db, 'external_events_cache', type + '_v4'));
+    const snap = await getDoc(doc(db, 'external_events_cache', type + '_v6'));
     if (!snap.exists()) return null;
     const d = snap.data();
     if (Date.now() - d.fetchedAt.toMillis() > ttl) return null;
@@ -51,7 +51,7 @@ async function getCached(type, ttl = CACHE_TTL) {
 
 async function setCache(type, events) {
   try {
-    await setDoc(doc(db, 'external_events_cache', type + '_v4'), { events, fetchedAt: new Date() });
+    await setDoc(doc(db, 'external_events_cache', type + '_v6'), { events, fetchedAt: new Date() });
   } catch {}
 }
 
@@ -222,7 +222,7 @@ export async function fetchConcerti() {
 
   try {
     const res = await fetch(
-      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&latlong=37.5079,15.0830&radius=150&unit=km&countryCode=IT&segmentName=Music&size=20&sort=date,asc`
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&countryCode=IT&segmentName=Music&size=100&sort=date,asc`
     );
     const data = await res.json();
     const events = (data._embedded?.events || []).map(e => ({
@@ -252,7 +252,7 @@ export async function fetchTeatro() {
 
   try {
     const res = await fetch(
-      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&latlong=37.5079,15.0830&radius=150&unit=km&countryCode=IT&segmentName=Arts+%26+Theatre&size=20&sort=date,asc`
+      `https://app.ticketmaster.com/discovery/v2/events.json?apikey=${TM_KEY}&countryCode=IT&segmentName=Arts+%26+Theatre&size=100&sort=date,asc`
     );
     const data = await res.json();
     const events = (data._embedded?.events || []).map(e => ({
