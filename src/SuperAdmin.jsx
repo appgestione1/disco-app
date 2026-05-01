@@ -343,17 +343,6 @@ const SuperAdmin = () => {
                       ))}
                     </div>
 
-                    {/* Grafico crescita visite + condivisioni */}
-                    <div className="mt-5 grid grid-cols-2 gap-3">
-                      <div className="bg-black/40 rounded-2xl p-3">
-                        <p className="text-[8px] text-zinc-500 tracking-widest mb-2 normal-case">Visite</p>
-                        <LineChart data={visitData} color="#ffffff" height={45} />
-                      </div>
-                      <div className="bg-black/40 rounded-2xl p-3">
-                        <p className="text-[8px] text-zinc-500 tracking-widest mb-2 normal-case">Condivisioni</p>
-                        <LineChart data={shareData} color="#D4AF37" height={45} />
-                      </div>
-                    </div>
                   </div>
 
                   {/* Leaderboard PR per condivisioni */}
@@ -389,7 +378,9 @@ const SuperAdmin = () => {
                       <p className="text-[10px] text-zinc-500 tracking-widest">Sezioni più visitate</p>
                       <button onClick={() => handleResetStats('categories', 'Sezioni')} className="text-[8px] text-red-500/50 hover:text-red-500 transition-colors normal-case font-normal">reset</button>
                     </div>
-                    {cats.map((cat, idx) => (
+                    {catCounts.every(c => c === 0) ? (
+                      <p className="text-[10px] text-zinc-600 normal-case font-normal py-2">Nessuna visita registrata — i dati appariranno con l'utilizzo dell'app.</p>
+                    ) : cats.map((cat, idx) => (
                       <div key={cat} className="flex items-center gap-3 mb-3">
                         <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
                         <div className="flex-1 bg-zinc-800 rounded-full h-2">
@@ -436,29 +427,39 @@ const SuperAdmin = () => {
                       const maxBar = Math.max(...barData, 1);
                       const color = trendMetric === 'share' ? '#D4AF37' : '#60a5fa';
                       const keys = [...curKeys].reverse();
+                      const hasData = barData.some(v => v > 0);
+
+                      if (!hasData) return (
+                        <div className="flex flex-col items-center justify-center py-10 gap-3 opacity-40">
+                          <BarChart2 size={32} className="text-zinc-600" />
+                          <p className="text-[10px] text-zinc-500 font-black normal-case text-center">
+                            Nessun dato per questo periodo.<br />I grafici si popolano con l'utilizzo dell'app.
+                          </p>
+                        </div>
+                      );
+
                       return (
                         <>
-                          <div className={`flex items-end gap-${trendDays > 7 ? '0.5' : '1'} h-24`}>
+                          <div className="flex items-end gap-1 h-24">
                             {barData.map((v, i) => (
                               <div key={i} className="flex-1 flex flex-col items-center justify-end">
                                 {v > 0 && trendDays <= 7 && (
                                   <span className="text-[7px] font-black mb-0.5" style={{ color }}>{v}</span>
                                 )}
                                 <div className="w-full rounded-t-md transition-all duration-500"
-                                  style={{ height: `${Math.max((v / maxBar) * 88, v > 0 ? 4 : 0)}px`, background: color, opacity: v > 0 ? 1 : 0.1 }} />
+                                  style={{ height: `${Math.max((v / maxBar) * 88, v > 0 ? 4 : 0)}px`, background: color }} />
                               </div>
                             ))}
                           </div>
-                          {/* Asse X date */}
                           <div className={`flex mt-2 ${trendDays > 7 ? 'justify-between' : 'gap-1'}`}>
                             {trendDays > 7
                               ? keys.filter((_, i) => i === 0 || i === Math.floor(keys.length / 2) || i === keys.length - 1).map(k => (
-                                  <span key={k} className="text-[8px] text-zinc-600">
+                                  <span key={k} className="text-[8px] text-zinc-500">
                                     {new Date(k).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
                                   </span>
                                 ))
                               : keys.map(k => (
-                                  <span key={k} className="flex-1 text-center text-[7px] text-zinc-600">
+                                  <span key={k} className="flex-1 text-center text-[8px] text-zinc-500">
                                     {new Date(k).getDate()}
                                   </span>
                                 ))
