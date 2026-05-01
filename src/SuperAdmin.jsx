@@ -15,6 +15,7 @@ const SuperAdmin = () => {
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings' | 'stats'
   const [stats, setStats] = useState(null);
+  const [statsFilter, setStatsFilter] = useState('TOTALE');
   const [selectedProposal, setSelectedProposal] = useState(null);
 
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
@@ -116,6 +117,14 @@ const SuperAdmin = () => {
     } catch {
       alert('Errore durante il salvataggio.');
     }
+  };
+
+  const handleResetStats = async (docId, label) => {
+    if (!window.confirm(`Azzerare "${label}"? L'operazione non è reversibile.`)) return;
+    try {
+      await deleteDoc(doc(db, 'analytics', docId));
+      await fetchStats();
+    } catch { alert('Errore durante il reset'); }
   };
 
   const fetchStats = async () => {
@@ -229,34 +238,70 @@ const SuperAdmin = () => {
               <button onClick={() => setActiveView(null)} className="text-red-500 text-[10px] underline flex items-center gap-1"><ChevronLeft size={14} /> Indietro</button>
             </div>
 
+            {/* Filtro periodo */}
+            <div className="flex gap-2 bg-zinc-900 p-1.5 rounded-2xl border border-zinc-800">
+              {['OGGI','7G','30G','TOTALE'].map(f => (
+                <button key={f} onClick={() => setStatsFilter(f)}
+                  className={`flex-1 py-2 rounded-xl text-[10px] font-black tracking-widest transition-all ${statsFilter === f ? 'bg-blue-600 text-white' : 'text-zinc-500 hover:text-white'}`}>
+                  {f}
+                </button>
+              ))}
+            </div>
+
             {!stats ? (
               <div className="text-center py-20 text-zinc-600 animate-pulse">Caricamento...</div>
             ) : (() => {
-              const totalShares = stats.shares?.total ?? 0;
-              const masterShares = stats.shares?.by_pr?.MASTER ?? 0;
+              const filteredDays = statsFilter === 'OGGI' ? 1 : statsFilter === '7G' ? 7 : statsFilter === '30G' ? 30 : null;
+
+              const sumDaily = (obj, key) => filteredDays === null
+                ? (obj?.[key] ?? 0)
+                : Array.from({ length: filteredDays }, (_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    return obj?.daily?.[d.toISOString().split('T')[0]] ?? 0;
+                  }).reduce((a, b) => a + b, 0);
+
+              const filteredCatCount = (cat) => filteredDays === null
+                ? (stats.categories?.[cat] ?? 0)
+                : Array.from({ length: filteredDays }, (_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    return stats.categories?.daily?.[d.toISOString().split('T')[0]]?.[cat] ?? 0;
+                  }).reduce((a, b) => a + b, 0);
+
+              const totalShares = sumDaily(stats.shares, 'total');
+              const masterShares = filteredDays === null
+                ? (stats.shares?.by_pr?.MASTER ?? 0)
+                : Array.from({ length: filteredDays }, (_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    return stats.shares?.daily?.[d.toISOString().split('T')[0]] ?? 0;
+                  }).reduce((a, b) => a + b, 0); // approssimazione — MASTER è la quota esterna
               const prShares = Object.entries(stats.shares?.by_pr || {}).filter(([k]) => k !== 'MASTER');
               const avgSession = stats.sessions?.total > 0
                 ? Math.round((stats.sessions.total_seconds || 0) / stats.sessions.total)
                 : 0;
               const pwaSessions = stats.installs?.pwa_sessions ?? 0;
               const pwaInstalls = stats.installs?.total ?? 0;
-              const totalVisits = stats.pageviews?.total ?? 0;
+              const totalVisits = sumDaily(stats.pageviews, 'total');
               const cats = ['DISCOTECA','CINEMA','CONCERTI','TEATRO','ARENE ESTIVE','PUB'];
-              const maxCat = Math.max(...cats.map(c => stats.categories?.[c] ?? 0), 1);
+              const catCounts = cats.map(c => filteredCatCount(c));
+              const maxCat = Math.max(...catCounts, 1);
+              const trendDays = filteredDays || 7;
 
               return (
                 <>
                   {/* Card sponsor — metriche chiave */}
                   <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-[#D4AF37]/30 rounded-3xl p-6 mb-2">
-                    <p className="text-[9px] text-[#D4AF37] font-black tracking-widest mb-4">MEDIA KIT — METRICHE SPONSOR</p>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[9px] text-[#D4AF37] font-black tracking-widest">MEDIA KIT — METRICHE SPONSOR</p>
+                      <button onClick={() => handleResetStats('pageviews', 'Visite')} className="text-[8px] text-red-500/50 hover:text-red-500 transition-colors normal-case font-normal">reset visite</button>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: 'Visite Totali', value: totalVisits, color: 'text-white' },
-                        { label: 'Tempo Medio Sessione', value: avgSession > 0 ? `${avgSession}s` : '—', color: 'text-blue-400' },
-                        { label: 'Condivisioni Totali', value: totalShares, color: 'text-[#D4AF37]' },
-                        { label: 'Utenti PWA (app)', value: pwaSessions, color: 'text-green-400' },
-                        { label: 'Nuove Installazioni', value: pwaInstalls, color: 'text-purple-400' },
-                        { label: 'Condivisioni Esterne', value: masterShares, color: 'text-orange-400' },
+                        { label: 'Visite', value: totalVisits, color: 'text-white' },
+                        { label: 'Sessione Media', value: avgSession > 0 ? `${avgSession}s` : '—', color: 'text-blue-400' },
+                        { label: 'Condivisioni', value: totalShares, color: 'text-[#D4AF37]' },
+                        { label: 'Utenti PWA', value: pwaSessions, color: 'text-green-400' },
+                        { label: 'Installazioni', value: pwaInstalls, color: 'text-purple-400' },
+                        { label: 'Share Esterni', value: stats.shares?.by_pr?.MASTER ?? 0, color: 'text-orange-400' },
                       ].map(({ label, value, color }) => (
                         <div key={label} className="bg-black/40 rounded-2xl p-4 text-center">
                           <p className={`text-2xl font-black italic ${color}`}>{value}</p>
@@ -268,9 +313,10 @@ const SuperAdmin = () => {
 
                   {/* Leaderboard PR per condivisioni */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <p className="text-[10px] text-[#D4AF37] tracking-widest mb-4 flex items-center gap-2">
-                      🏆 PR — Classifica Condivisioni
-                    </p>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[10px] text-[#D4AF37] tracking-widest flex items-center gap-2">🏆 PR — Classifica Condivisioni</p>
+                      <button onClick={() => handleResetStats('shares', 'Condivisioni')} className="text-[8px] text-red-500/50 hover:text-red-500 transition-colors normal-case font-normal">reset</button>
+                    </div>
                     {prShares.length === 0
                       ? <p className="text-zinc-600 text-[10px] normal-case">Nessuna condivisione PR ancora registrata</p>
                       : prShares.sort(([,a],[,b]) => b - a).map(([prId, count], i) => (
@@ -282,37 +328,40 @@ const SuperAdmin = () => {
                             {stats.prNames?.[prId] || prId}
                           </span>
                           <span className="text-[#D4AF37] font-black">{count}</span>
-                          <span className="text-zinc-600 text-[9px]">condivisioni</span>
+                          <span className="text-zinc-600 text-[9px]">share</span>
                         </div>
                       ))
                     }
                     <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between items-center">
                       <span className="text-[9px] text-zinc-500 normal-case">Condivisioni utenti esterni (MASTER)</span>
-                      <span className="text-orange-400 font-black">{masterShares}</span>
+                      <span className="text-orange-400 font-black">{stats.shares?.by_pr?.MASTER ?? 0}</span>
                     </div>
                   </div>
 
                   {/* Sezioni più visitate */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Sezioni più visitate</p>
-                    {cats.map(cat => {
-                      const count = stats.categories?.[cat] ?? 0;
-                      return (
-                        <div key={cat} className="flex items-center gap-3 mb-3">
-                          <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
-                          <div className="flex-1 bg-zinc-800 rounded-full h-2">
-                            <div className="bg-[#D4AF37] h-2 rounded-full" style={{ width: `${(count / maxCat) * 100}%` }} />
-                          </div>
-                          <span className="text-[9px] font-black text-zinc-400 w-6 text-right">{count}</span>
+                    <div className="flex items-center justify-between mb-4">
+                      <p className="text-[10px] text-zinc-500 tracking-widest">Sezioni più visitate</p>
+                      <button onClick={() => handleResetStats('categories', 'Sezioni')} className="text-[8px] text-red-500/50 hover:text-red-500 transition-colors normal-case font-normal">reset</button>
+                    </div>
+                    {cats.map((cat, idx) => (
+                      <div key={cat} className="flex items-center gap-3 mb-3">
+                        <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
+                        <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                          <div className="bg-[#D4AF37] h-2 rounded-full transition-all" style={{ width: `${(catCounts[idx] / maxCat) * 100}%` }} />
                         </div>
-                      );
-                    })}
+                        <span className="text-[9px] font-black text-zinc-400 w-6 text-right">{catCounts[idx]}</span>
+                      </div>
+                    ))}
                   </div>
 
                   {/* Film più visti */}
                   {Object.keys(stats.films).length > 0 && (
                     <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                      <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Film più cliccati</p>
+                      <div className="flex items-center justify-between mb-4">
+                        <p className="text-[10px] text-zinc-500 tracking-widest">Film più cliccati</p>
+                        <button onClick={() => handleResetStats('films', 'Film')} className="text-[8px] text-red-500/50 hover:text-red-500 transition-colors normal-case font-normal">reset</button>
+                      </div>
                       {Object.entries(stats.films).sort(([,a],[,b]) => b - a).slice(0, 5).map(([title, count]) => (
                         <div key={title} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
                           <span className="text-[10px] font-black text-white normal-case truncate max-w-[75%]">{title.replace(/_/g, ' ')}</span>
@@ -322,20 +371,26 @@ const SuperAdmin = () => {
                     </div>
                   )}
 
-                  {/* Trend condivisioni 7gg */}
+                  {/* Trend condivisioni */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Condivisioni — ultimi 7 giorni</p>
-                    {Array.from({ length: 7 }, (_, i) => {
-                      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">
+                      Condivisioni — {statsFilter === 'OGGI' ? 'oggi' : statsFilter === '7G' ? 'ultimi 7 giorni' : statsFilter === '30G' ? 'ultimi 30 giorni' : 'ultimi 7 giorni'}
+                    </p>
+                    {Array.from({ length: trendDays }, (_, i) => {
+                      const d = new Date(); d.setDate(d.getDate() - (trendDays - 1 - i));
                       const key = d.toISOString().split('T')[0];
                       const count = stats.shares?.daily?.[key] ?? 0;
-                      const maxDay = Math.max(...Array.from({ length: 7 }, (_, j) => {
+                      const maxDay = Math.max(...Array.from({ length: trendDays }, (_, j) => {
                         const dd = new Date(); dd.setDate(dd.getDate() - j);
                         return stats.shares?.daily?.[dd.toISOString().split('T')[0]] ?? 0;
                       }), 1);
                       return (
                         <div key={key} className="flex items-center gap-3 mb-2">
-                          <span className="text-[9px] text-zinc-500 w-14 flex-shrink-0">{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>
+                          <span className="text-[9px] text-zinc-500 w-14 flex-shrink-0">
+                            {trendDays <= 7
+                              ? d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
+                              : d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
+                          </span>
                           <div className="flex-1 bg-zinc-800 rounded-full h-2">
                             <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.max((count / maxDay) * 100, count > 0 ? 4 : 0)}%` }} />
                           </div>
