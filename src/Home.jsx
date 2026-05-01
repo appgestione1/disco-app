@@ -175,7 +175,7 @@ const FilmDetail = ({ film, onClose }) => {
                 )}
                 {cinema.ticketSearchUrl ? (
                   <a
-                    href={cinema.ticketSearchUrl.replace('{TITLE}', encodeURIComponent(film.title))}
+                    href={cinema.ticketSearchUrl}
                     target="_blank" rel="noopener noreferrer"
                     className="block w-full bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
                     🎟 Acquista Biglietto
