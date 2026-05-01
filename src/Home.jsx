@@ -201,7 +201,7 @@ import html2canvas from 'html2canvas';
 import {
   ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
   Music, Theater, Film, Mic2, Sun, Utensils, LayoutGrid, Download, Send, Phone,
-  Users, Edit3, X, PlusCircle
+  Users, Edit3, X, PlusCircle, Share2
 } from 'lucide-react';
 
 // --- GRATTA E VINCI ---
@@ -433,6 +433,7 @@ const Home = () => {
   const [concertiFilter, setConcertiFilter] = useState('TUTTI'); // 'TUTTI' | 'OGGI' | 'DATA'
   const [selectedConcertiDate, setSelectedConcertiDate] = useState(new Date());
   const [showPrAccess, setShowPrAccess] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
   const [prPasswordInput, setPrPasswordInput] = useState('');
   const [isFirstPrAccess, setIsFirstPrAccess] = useState(false);
@@ -950,6 +951,26 @@ const Home = () => {
               <span className="text-[10px] font-black uppercase tracking-widest">Inserisci il Tuo Evento</span>
             </div>
             <ArrowRight size={16} className="text-[#D4AF37]" />
+          </button>
+          <button
+            onClick={async () => {
+              const url = window.location.origin + '/?ref=MASTER';
+              if (navigator.share) {
+                await navigator.share({ title: 'Eventi a Catania', text: 'Scopri tutti gli eventi a Catania e provincia!', url });
+              } else {
+                await navigator.clipboard.writeText(url);
+                setShareCopied(true);
+                setTimeout(() => setShareCopied(false), 2000);
+              }
+            }}
+            className="w-full flex items-center justify-between gap-4 mt-2 px-8 py-5 rounded-[2rem] border border-white/5 bg-zinc-900/30 text-zinc-500 active:scale-95 transition-all">
+            <div className="flex items-center gap-4">
+              <Share2 size={22} className="text-zinc-500" />
+              <span className="text-[10px] font-black uppercase tracking-widest">
+                {shareCopied ? 'Link Copiato!' : 'Condividi App'}
+              </span>
+            </div>
+            <ArrowRight size={16} className="text-zinc-600" />
           </button>
         </div>
       )}
