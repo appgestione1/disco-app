@@ -120,19 +120,25 @@ const SuperAdmin = () => {
 
   const fetchStats = async () => {
     try {
-      const [sharesSnap, catsSnap, filmsSnap, bookSnap, pvSnap] = await Promise.all([
+      const [sharesSnap, catsSnap, filmsSnap, pvSnap, installsSnap, sessionsSnap, prsSnap] = await Promise.all([
         getDoc(doc(db, 'analytics', 'shares')),
         getDoc(doc(db, 'analytics', 'categories')),
         getDoc(doc(db, 'analytics', 'films')),
-        getDoc(doc(db, 'analytics', 'bookings')),
         getDoc(doc(db, 'analytics', 'pageviews')),
+        getDoc(doc(db, 'analytics', 'installs')),
+        getDoc(doc(db, 'analytics', 'sessions')),
+        getDocs(collection(db, 'prs_registry')),
       ]);
+      const prNames = {};
+      prsSnap.docs.forEach(d => { prNames[d.id] = d.data().name || d.id; });
       setStats({
         shares: sharesSnap.data() || {},
         categories: catsSnap.data() || {},
         films: filmsSnap.data()?.titles || {},
-        bookings: bookSnap.data() || {},
         pageviews: pvSnap.data() || {},
+        installs: installsSnap.data() || {},
+        sessions: sessionsSnap.data() || {},
+        prNames,
       });
     } catch {}
   };
@@ -225,84 +231,127 @@ const SuperAdmin = () => {
 
             {!stats ? (
               <div className="text-center py-20 text-zinc-600 animate-pulse">Caricamento...</div>
-            ) : (
-              <>
-                {/* KPI principali */}
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Condivisioni Totali', value: stats.shares?.total ?? 0, color: 'text-[#D4AF37]' },
-                    { label: 'Visite Home', value: stats.pageviews?.home ?? 0, color: 'text-blue-400' },
-                    { label: 'Prenotazioni Lista', value: stats.bookings?.lista ?? 0, color: 'text-green-400' },
-                    { label: 'Prenotazioni Privé', value: stats.bookings?.prive ?? 0, color: 'text-purple-400' },
-                  ].map(({ label, value, color }) => (
-                    <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 text-center">
-                      <p className={`text-3xl font-black italic ${color}`}>{value}</p>
-                      <p className="text-[9px] text-zinc-500 tracking-widest mt-1">{label}</p>
-                    </div>
-                  ))}
-                </div>
+            ) : (() => {
+              const totalShares = stats.shares?.total ?? 0;
+              const masterShares = stats.shares?.by_pr?.MASTER ?? 0;
+              const prShares = Object.entries(stats.shares?.by_pr || {}).filter(([k]) => k !== 'MASTER');
+              const avgSession = stats.sessions?.total > 0
+                ? Math.round((stats.sessions.total_seconds || 0) / stats.sessions.total)
+                : 0;
+              const pwaSessions = stats.installs?.pwa_sessions ?? 0;
+              const pwaInstalls = stats.installs?.total ?? 0;
+              const totalVisits = stats.pageviews?.total ?? 0;
+              const cats = ['DISCOTECA','CINEMA','CONCERTI','TEATRO','ARENE ESTIVE','PUB'];
+              const maxCat = Math.max(...cats.map(c => stats.categories?.[c] ?? 0), 1);
 
-                {/* Categorie più visitate */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                  <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Sezioni più visitate</p>
-                  {['DISCO', 'CINEMA', 'CONCERTI', 'TEATRO', 'ARENE ESTIVE', 'PUB', 'TUTTI'].map(cat => {
-                    const count = stats.categories?.[cat] ?? 0;
-                    const max = Math.max(...['DISCO','CINEMA','CONCERTI','TEATRO','ARENE ESTIVE','PUB','TUTTI'].map(c => stats.categories?.[c] ?? 0), 1);
-                    return (
-                      <div key={cat} className="flex items-center gap-3 mb-3">
-                        <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
-                        <div className="flex-1 bg-zinc-800 rounded-full h-2">
-                          <div className="bg-[#D4AF37] h-2 rounded-full transition-all" style={{ width: `${(count / max) * 100}%` }} />
-                        </div>
-                        <span className="text-[9px] font-black text-zinc-400 w-6 text-right">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Film più visti */}
-                {Object.keys(stats.films).length > 0 && (
-                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Film più cliccati</p>
-                    {Object.entries(stats.films)
-                      .sort(([,a],[,b]) => b - a)
-                      .slice(0, 5)
-                      .map(([title, count]) => (
-                        <div key={title} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
-                          <span className="text-[10px] font-black text-white normal-case truncate max-w-[70%]">{title.replace(/_/g, ' ')}</span>
-                          <span className="text-[#D4AF37] font-black text-sm">{count}</span>
+              return (
+                <>
+                  {/* Card sponsor — metriche chiave */}
+                  <div className="bg-gradient-to-br from-zinc-900 to-zinc-950 border border-[#D4AF37]/30 rounded-3xl p-6 mb-2">
+                    <p className="text-[9px] text-[#D4AF37] font-black tracking-widest mb-4">MEDIA KIT — METRICHE SPONSOR</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[
+                        { label: 'Visite Totali', value: totalVisits, color: 'text-white' },
+                        { label: 'Tempo Medio Sessione', value: avgSession > 0 ? `${avgSession}s` : '—', color: 'text-blue-400' },
+                        { label: 'Condivisioni Totali', value: totalShares, color: 'text-[#D4AF37]' },
+                        { label: 'Utenti PWA (app)', value: pwaSessions, color: 'text-green-400' },
+                        { label: 'Nuove Installazioni', value: pwaInstalls, color: 'text-purple-400' },
+                        { label: 'Condivisioni Esterne', value: masterShares, color: 'text-orange-400' },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} className="bg-black/40 rounded-2xl p-4 text-center">
+                          <p className={`text-2xl font-black italic ${color}`}>{value}</p>
+                          <p className="text-[8px] text-zinc-600 tracking-widest mt-1 normal-case">{label}</p>
                         </div>
                       ))}
+                    </div>
                   </div>
-                )}
 
-                {/* Condivisioni oggi */}
-                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                  <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Condivisioni ultimi 7 giorni</p>
-                  {Array.from({ length: 7 }, (_, i) => {
-                    const d = new Date(); d.setDate(d.getDate() - (6 - i));
-                    const key = d.toISOString().split('T')[0];
-                    const count = stats.shares?.daily?.[key] ?? 0;
-                    const label = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
-                    return (
-                      <div key={key} className="flex items-center gap-3 mb-2">
-                        <span className="text-[9px] text-zinc-500 w-16 flex-shrink-0">{label}</span>
-                        <div className="flex-1 bg-zinc-800 rounded-full h-2">
-                          <div className="bg-blue-500 h-2 rounded-full" style={{ width: count ? `${Math.min(count * 20, 100)}%` : '2%' }} />
+                  {/* Leaderboard PR per condivisioni */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                    <p className="text-[10px] text-[#D4AF37] tracking-widest mb-4 flex items-center gap-2">
+                      🏆 PR — Classifica Condivisioni
+                    </p>
+                    {prShares.length === 0
+                      ? <p className="text-zinc-600 text-[10px] normal-case">Nessuna condivisione PR ancora registrata</p>
+                      : prShares.sort(([,a],[,b]) => b - a).map(([prId, count], i) => (
+                        <div key={prId} className="flex items-center gap-3 py-2 border-b border-zinc-800 last:border-0">
+                          <span className={`text-sm font-black w-6 ${i === 0 ? 'text-[#D4AF37]' : i === 1 ? 'text-zinc-400' : i === 2 ? 'text-orange-700' : 'text-zinc-700'}`}>
+                            {i + 1}°
+                          </span>
+                          <span className="font-black text-white text-[11px] flex-1 normal-case">
+                            {stats.prNames?.[prId] || prId}
+                          </span>
+                          <span className="text-[#D4AF37] font-black">{count}</span>
+                          <span className="text-zinc-600 text-[9px]">condivisioni</span>
                         </div>
-                        <span className="text-[9px] font-black text-zinc-400 w-4 text-right">{count}</span>
-                      </div>
-                    );
-                  })}
-                </div>
+                      ))
+                    }
+                    <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between items-center">
+                      <span className="text-[9px] text-zinc-500 normal-case">Condivisioni utenti esterni (MASTER)</span>
+                      <span className="text-orange-400 font-black">{masterShares}</span>
+                    </div>
+                  </div>
 
-                {/* Link GA4 */}
-                <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
-                  className="block w-full text-center bg-zinc-900 border border-zinc-700 text-zinc-400 py-4 rounded-2xl text-[10px] font-black tracking-widest hover:border-blue-500 hover:text-blue-400 transition-all">
-                  Apri Google Analytics Dashboard →
-                </a>
-              </>
-            )}
+                  {/* Sezioni più visitate */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Sezioni più visitate</p>
+                    {cats.map(cat => {
+                      const count = stats.categories?.[cat] ?? 0;
+                      return (
+                        <div key={cat} className="flex items-center gap-3 mb-3">
+                          <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
+                          <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                            <div className="bg-[#D4AF37] h-2 rounded-full" style={{ width: `${(count / maxCat) * 100}%` }} />
+                          </div>
+                          <span className="text-[9px] font-black text-zinc-400 w-6 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Film più visti */}
+                  {Object.keys(stats.films).length > 0 && (
+                    <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                      <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Film più cliccati</p>
+                      {Object.entries(stats.films).sort(([,a],[,b]) => b - a).slice(0, 5).map(([title, count]) => (
+                        <div key={title} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
+                          <span className="text-[10px] font-black text-white normal-case truncate max-w-[75%]">{title.replace(/_/g, ' ')}</span>
+                          <span className="text-[#D4AF37] font-black">{count}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Trend condivisioni 7gg */}
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Condivisioni — ultimi 7 giorni</p>
+                    {Array.from({ length: 7 }, (_, i) => {
+                      const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                      const key = d.toISOString().split('T')[0];
+                      const count = stats.shares?.daily?.[key] ?? 0;
+                      const maxDay = Math.max(...Array.from({ length: 7 }, (_, j) => {
+                        const dd = new Date(); dd.setDate(dd.getDate() - j);
+                        return stats.shares?.daily?.[dd.toISOString().split('T')[0]] ?? 0;
+                      }), 1);
+                      return (
+                        <div key={key} className="flex items-center gap-3 mb-2">
+                          <span className="text-[9px] text-zinc-500 w-14 flex-shrink-0">{d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}</span>
+                          <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.max((count / maxDay) * 100, count > 0 ? 4 : 0)}%` }} />
+                          </div>
+                          <span className="text-[9px] font-black text-zinc-400 w-4 text-right">{count}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
+                    className="block w-full text-center bg-zinc-900 border border-zinc-700 text-zinc-400 py-4 rounded-2xl text-[10px] font-black tracking-widest hover:border-blue-500 hover:text-blue-400 transition-all">
+                    Apri Google Analytics →
+                  </a>
+                </>
+              );
+            })()}
           </div>
         )}
 

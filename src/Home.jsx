@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
 import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
-import { trackShare, trackCategoryView, trackFilmView, trackBooking, trackPageView } from './analytics';
+import { trackShare, trackCategoryView, trackFilmView, trackPageView } from './analytics';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
@@ -599,7 +599,6 @@ const Home = () => {
         }
         setPriveTickets(ids);
         setTicketId(groupId);
-        trackBooking('prive');
       } catch { alert('Errore generazione ticket'); }
       setLoading(false);
       return;
@@ -618,7 +617,6 @@ const Home = () => {
     try {
       await setDoc(doc(db, 'tickets', newId), data);
       setTicketId(newId);
-      trackBooking(bookingMode === 'single' ? 'lista' : bookingMode === 'pr' ? 'pr' : 'prive');
     } catch { alert('Errore generazione'); } finally { setLoading(false); }
   };
 
@@ -960,7 +958,7 @@ const Home = () => {
           <button
             onClick={async () => {
               const url = window.location.origin + '/?ref=MASTER';
-              trackShare();
+              trackShare(prRef);
               if (navigator.share) {
                 await navigator.share({ title: 'Eventi a Catania', text: 'Scopri tutti gli eventi a Catania e provincia!', url });
               } else {
