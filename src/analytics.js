@@ -1,19 +1,7 @@
 import { db } from './firebase';
 import { doc, setDoc, increment } from 'firebase/firestore';
 
-// ── Google Analytics 4 ────────────────────────────────────────────────────────
-const GA_ID = import.meta.env.VITE_GA4_ID;
-if (GA_ID && !document.getElementById('ga4-script')) {
-  const s = document.createElement('script');
-  s.id = 'ga4-script'; s.async = true;
-  s.src = `https://www.googletagmanager.com/gtag/js?id=${GA_ID}`;
-  document.head.appendChild(s);
-  window.dataLayer = window.dataLayer || [];
-  window.gtag = function() { window.dataLayer.push(arguments); };
-  window.gtag('js', new Date());
-  window.gtag('config', GA_ID);
-}
-const gtag = (...a) => { if (window.gtag) window.gtag(...a); };
+const gtag = (...a) => { if (typeof window !== 'undefined' && window.gtag) window.gtag(...a); };
 
 const today = () => new Date().toISOString().split('T')[0];
 const hour  = () => new Date().getHours();
