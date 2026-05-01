@@ -3,12 +3,12 @@ name: Scrape Events (Concerti & Teatro)
 on:
   schedule:
     - cron: '30 5 * * *'  # Ogni giorno alle 7:30 ora italiana (05:30 UTC)
-  workflow_dispatch:       # Avvio manuale da GitHub
+  workflow_dispatch:
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -22,4 +22,9 @@ jobs:
       - name: Esegui scraper eventi
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          AWIN_API_KEY:             ${{ secrets.AWIN_API_KEY }}
+          AWIN_FEED_TICKETONE:      ${{ secrets.AWIN_FEED_TICKETONE }}
+          AWIN_FEED_VIVATICKET:     ${{ secrets.AWIN_FEED_VIVATICKET }}
+          AWIN_FEED_TIQETS:         ${{ secrets.AWIN_FEED_TIQETS }}
+          AWIN_FEED_ILTUOTICKET:    ${{ secrets.AWIN_FEED_ILTUOTICKET }}
         run: node scripts/scrape-events.js
