@@ -173,17 +173,18 @@ const FilmDetail = ({ film, onClose }) => {
                     Cerca Orari
                   </a>
                 )}
-                {cinema.ticketUrl ? (
-                  <a href={cinema.ticketUrl} target="_blank" rel="noopener noreferrer"
+                {cinema.ticketSearchUrl ? (
+                  <a
+                    href={cinema.ticketSearchUrl.replace('{TITLE}', encodeURIComponent(film.title))}
+                    target="_blank" rel="noopener noreferrer"
                     className="block w-full bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
                     🎟 Acquista Biglietto
                   </a>
-                ) : cinema.programUrl ? (
-                  <a href={cinema.programUrl} target="_blank" rel="noopener noreferrer"
-                    className="block w-full border border-zinc-600 text-zinc-300 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
-                    Vedi Programmazione
-                  </a>
-                ) : null}
+                ) : (
+                  <span className="block w-full border border-zinc-800 text-zinc-700 text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest cursor-not-allowed select-none">
+                    Acquista Biglietto
+                  </span>
+                )}
 
               </div>
             )}
