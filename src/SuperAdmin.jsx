@@ -6,7 +6,8 @@ import {
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
-  List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2
+  List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2,
+  Users, KeyRound, Eye, EyeOff, Plus, Building2
 } from 'lucide-react';
 
 const LineChart = ({ data = [], color = '#D4AF37', height = 50 }) => {
@@ -43,7 +44,7 @@ const SuperAdmin = () => {
   const [events, setEvents] = useState([]);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings' | 'stats'
+  const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups'
   const [stats, setStats] = useState(null);
   const [statsFilter, setStatsFilter] = useState('TOTALE');
   const [trendMetric, setTrendMetric] = useState('share');
@@ -51,6 +52,12 @@ const SuperAdmin = () => {
 
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
   const [priceInput, setPriceInput] = useState('10');
+
+  // Gruppi
+  const [groups, setGroups] = useState([]);
+  const [groupForm, setGroupForm] = useState({ id: '', name: '', type: 'DISCOTECA', password: '' });
+  const [groupLoading, setGroupLoading] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState({});
 
   useEffect(() => {
     fetchAll();
@@ -71,11 +78,53 @@ const SuperAdmin = () => {
         setSubmissionSettings(s);
         setPriceInput(String(s.price ?? 10));
       }
+      await fetchGroups();
     } catch (e) {
       console.error('Errore fetch:', e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchGroups = async () => {
+    const snap = await getDocs(collection(db, 'groups'));
+    setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+  };
+
+  const handleCreateGroup = async () => {
+    const { id, name, type, password } = groupForm;
+    if (!id.trim() || !name.trim() || !password.trim()) return alert('Compila tutti i campi');
+    if (!/^[a-z0-9-]+$/.test(id)) return alert('ID gruppo: solo lettere minuscole, numeri e trattini');
+    setGroupLoading(true);
+    try {
+      const exists = await getDoc(doc(db, 'groups', id));
+      if (exists.exists()) return alert('ID gruppo già esistente');
+      await setDoc(doc(db, 'groups', id), { name, type, password, createdAt: new Date() });
+      const masterId = `MASTER_${id}`;
+      await setDoc(doc(db, 'prs_registry', masterId), {
+        name: 'PROFILO MASTER', groupId: id, isMaster: true,
+        eventIds: ['','','','','',''], eventPays: [0,0,0,0,0,0],
+        supervisorId: '', active: true, mergedInto: null,
+        acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0
+      });
+      await setDoc(doc(db, 'prs', masterId), { count: 0 }, { merge: true });
+      setGroupForm({ id: '', name: '', type: 'DISCOTECA', password: '' });
+      await fetchGroups();
+      alert(`Gruppo "${name}" creato con successo!`);
+    } catch (e) { alert('Errore durante la creazione del gruppo'); }
+    finally { setGroupLoading(false); }
+  };
+
+  const handleDeleteGroup = async (group) => {
+    if (!window.confirm(`Eliminare il gruppo "${group.name}"?\n\nAttenzione: gli eventi e i PR del gruppo non verranno eliminati automaticamente.`)) return;
+    try {
+      await deleteDoc(doc(db, 'groups', group.id));
+      setGroups(groups.filter(g => g.id !== group.id));
+    } catch { alert('Errore eliminazione gruppo'); }
+  };
+
+  const togglePasswordVisible = (groupId) => {
+    setVisiblePasswords(prev => ({ ...prev, [groupId]: !prev[groupId] }));
   };
 
   const toggleEventSetting = async (eventId, field, currentValue) => {
@@ -252,6 +301,18 @@ const SuperAdmin = () => {
             >
               <BarChart2 size={36} className="text-blue-400 group-hover:scale-110 transition-transform" />
               <span className="text-2xl italic tracking-tighter">Statistiche</span>
+            </button>
+
+            {/* GESTIONE GRUPPI */}
+            <button
+              onClick={() => { setActiveView('groups'); fetchGroups(); }}
+              className="group relative w-full max-w-sm flex items-center gap-6 bg-zinc-900 border-2 border-green-500/30 text-zinc-400 px-10 py-7 rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all duration-300 hover:border-green-500 hover:text-white"
+            >
+              <Building2 size={36} className="text-green-400 group-hover:scale-110 transition-transform" />
+              <span className="text-2xl italic tracking-tighter">Gruppi Admin</span>
+              {groups.length > 0 && (
+                <span className="ml-auto bg-green-500 text-black text-sm font-black w-8 h-8 rounded-full flex items-center justify-center">{groups.length}</span>
+              )}
             </button>
 
             {/* IMPOSTAZIONI INSERIMENTO */}
@@ -503,6 +564,112 @@ const SuperAdmin = () => {
                 </>
               );
             })()}
+          </div>
+        )}
+
+        {/* SEZIONE GRUPPI ADMIN */}
+        {activeView === 'groups' && (
+          <div className="animate-in slide-in-from-bottom-10 duration-500 space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-green-400 text-xs tracking-widest italic flex items-center gap-2"><Building2 size={14} /> Gruppi Admin</h2>
+              <button onClick={() => setActiveView(null)} className="text-red-500 text-[10px] underline flex items-center gap-1"><ChevronLeft size={14} /> Indietro</button>
+            </div>
+
+            {/* Form crea nuovo gruppo */}
+            <div className="bg-zinc-900 border border-green-500/30 rounded-3xl p-6 space-y-4">
+              <p className="text-[10px] text-green-400 font-black tracking-widest flex items-center gap-2"><Plus size={12}/> NUOVO GRUPPO</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[9px] text-zinc-500 mb-1 tracking-widest">ID GRUPPO</p>
+                  <input
+                    className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white text-sm font-black outline-none focus:border-green-500"
+                    placeholder="es. discoteca-x"
+                    value={groupForm.id}
+                    onChange={e => setGroupForm(f => ({ ...f, id: e.target.value.toLowerCase().replace(/\s/g,'-') }))}
+                  />
+                </div>
+                <div>
+                  <p className="text-[9px] text-zinc-500 mb-1 tracking-widest">NOME</p>
+                  <input
+                    className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white text-sm font-black outline-none focus:border-green-500"
+                    placeholder="es. Discoteca X"
+                    value={groupForm.name}
+                    onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <p className="text-[9px] text-zinc-500 mb-1 tracking-widest">TIPO</p>
+                  <select
+                    className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white text-sm font-black outline-none focus:border-green-500"
+                    value={groupForm.type}
+                    onChange={e => setGroupForm(f => ({ ...f, type: e.target.value }))}
+                  >
+                    <option value="DISCOTECA">DISCOTECA</option>
+                    <option value="LOUNGE/PUB">LOUNGE/PUB</option>
+                  </select>
+                </div>
+                <div>
+                  <p className="text-[9px] text-zinc-500 mb-1 tracking-widest">PASSWORD</p>
+                  <input
+                    type="text"
+                    className="w-full bg-black border border-zinc-700 rounded-xl p-3 text-white text-sm font-black outline-none focus:border-green-500"
+                    placeholder="password admin"
+                    value={groupForm.password}
+                    onChange={e => setGroupForm(f => ({ ...f, password: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleCreateGroup}
+                disabled={groupLoading}
+                className="w-full bg-green-600 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {groupLoading ? 'Creazione...' : 'Crea Gruppo'}
+              </button>
+            </div>
+
+            {/* Lista gruppi esistenti */}
+            {groups.length === 0 ? (
+              <div className="text-center py-16 text-zinc-600 text-sm italic">Nessun gruppo creato ancora</div>
+            ) : (
+              <div className="space-y-3">
+                {groups.map(group => (
+                  <div key={group.id} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="font-black text-white text-lg italic">{group.name}</p>
+                        <span className={`text-[9px] font-black px-2 py-1 rounded-full ${group.type === 'DISCOTECA' ? 'bg-red-600/20 text-red-400' : 'bg-amber-600/20 text-amber-400'}`}>
+                          {group.type}
+                        </span>
+                      </div>
+                      <button onClick={() => handleDeleteGroup(group)} className="text-red-500/40 hover:text-red-500 transition-colors p-2">
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-black/40 rounded-xl p-3">
+                        <p className="text-[8px] text-zinc-600 mb-1 tracking-widest">ID ACCESSO</p>
+                        <p className="font-black text-green-400 text-sm">{group.id}</p>
+                      </div>
+                      <div className="bg-black/40 rounded-xl p-3">
+                        <p className="text-[8px] text-zinc-600 mb-1 tracking-widest">PASSWORD</p>
+                        <div className="flex items-center gap-2">
+                          <p className="font-black text-[#D4AF37] text-sm flex-1">
+                            {visiblePasswords[group.id] ? group.password : '••••••••'}
+                          </p>
+                          <button onClick={() => togglePasswordVisible(group.id)} className="text-zinc-600 hover:text-white">
+                            {visiblePasswords[group.id] ? <EyeOff size={14}/> : <Eye size={14}/>}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <p className="text-[8px] text-zinc-600 italic">
+                      URL Admin: <span className="text-zinc-400">/admin-segreto-stefano</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

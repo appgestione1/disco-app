@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { db } from './firebase'; 
-import { 
-  collection, getDocs, updateDoc, 
-  deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField 
+import { db } from './firebase';
+import {
+  collection, getDocs, updateDoc, where,
+  deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField
 } from 'firebase/firestore';
-import { 
+import {
   Users, Calendar, Ticket, Gift, Trash2,
-  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound, Ban, Crown
+  Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound, Ban, Crown,
+  LogOut, Eye, EyeOff, Building2
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -27,7 +28,100 @@ const InlinePayInput = ({ initialValue, onSave, placeholder }) => {
   );
 };
 
+// --- LOGIN SCREEN ---
+const AdminLogin = ({ onLogin }) => {
+  const [groupId, setGroupId] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPwd, setShowPwd] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!groupId.trim() || !password.trim()) return;
+    setLoading(true);
+    try {
+      const snap = await getDoc(doc(db, 'groups', groupId.trim()));
+      if (snap.exists() && snap.data().password === password) {
+        onLogin({ groupId: snap.id, groupName: snap.data().name, groupType: snap.data().type });
+      } else {
+        alert('Credenziali non valide');
+      }
+    } catch { alert('Errore di connessione'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <div className="min-h-screen bg-black flex items-center justify-center p-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-10">
+          <Building2 size={48} className="text-[#FFEE00] mx-auto mb-4" />
+          <h1 className="text-3xl font-black italic uppercase text-white">Admin Panel</h1>
+          <p className="text-zinc-600 text-xs tracking-widest mt-2 uppercase">Accesso Gruppo</p>
+        </div>
+        <form onSubmit={handleSubmit} className="bg-zinc-900 border-4 border-[#FFEE00] p-8 shadow-[8px_8px_0px_#FFEE00] space-y-4">
+          <div>
+            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">ID Gruppo</label>
+            <input
+              type="text"
+              className="w-full mt-1 p-4 bg-black border-2 border-zinc-700 text-white font-black uppercase outline-none focus:border-[#FFEE00]"
+              placeholder="es. discoteca-x"
+              value={groupId}
+              onChange={e => setGroupId(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Password</label>
+            <div className="relative mt-1">
+              <input
+                type={showPwd ? 'text' : 'password'}
+                className="w-full p-4 bg-black border-2 border-zinc-700 text-white font-black outline-none focus:border-[#FFEE00] pr-12"
+                placeholder="••••••••"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+              />
+              <button type="button" onClick={() => setShowPwd(v => !v)} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500">
+                {showPwd ? <EyeOff size={18}/> : <Eye size={18}/>}
+              </button>
+            </div>
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-[#FFEE00] text-black font-black py-4 uppercase text-lg shadow-[4px_4px_0px_#FFF] active:translate-y-1 transition-all disabled:opacity-50"
+          >
+            {loading ? 'Accesso...' : 'Entra'}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const Admin = () => {
+  const [session, setSession] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('adminGroup') || 'null'); } catch { return null; }
+  });
+
+  const handleLogin = (sessionData) => {
+    localStorage.setItem('adminGroup', JSON.stringify(sessionData));
+    setSession(sessionData);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('adminGroup');
+    setSession(null);
+  };
+
+  if (!session) return <AdminLogin onLogin={handleLogin} />;
+  return <AdminPanel session={session} onLogout={handleLogout} />;
+};
+
+const AdminPanel = ({ session, onLogout }) => {
+  const { groupId, groupName } = session;
+  const masterId = `MASTER_${groupId}`;
+
   const [activeTab, setActiveTab] = useState('stats');
   const [loading, setLoading] = useState(false);
   
@@ -61,15 +155,9 @@ const Admin = () => {
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
 
-  // CATEGORIE CONCORDATE
-  const categories = [
-    { id: 'DISCOTECA', label: 'DISCOTECA' },
-    { id: 'TEATRO', label: 'TEATRO' },
-    { id: 'CINEMA', label: 'CINEMA' },
-    { id: 'CONCERTI', label: 'CONCERTI' },
-    { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE' },
-    { id: 'PUB', label: 'LOUNGE/PUB' },
-  ];
+  const categories = session.groupType === 'LOUNGE/PUB'
+    ? [{ id: 'PUB', label: 'LOUNGE/PUB' }]
+    : [{ id: 'DISCOTECA', label: 'DISCOTECA' }];
 
   useEffect(() => { fetchData(); }, []);
 
@@ -89,10 +177,10 @@ const Admin = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const evSnap = await getDocs(collection(db, "events"));
+      const evSnap = await getDocs(query(collection(db, "events"), where("groupId", "==", groupId)));
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })));
 
-      const prRegistrySnap = await getDocs(collection(db, "prs_registry"));
+      const prRegistrySnap = await getDocs(query(collection(db, "prs_registry"), where("groupId", "==", groupId)));
       const livePrSnap = await getDocs(collection(db, "prs"));
       const liveCounts = {};
       livePrSnap.docs.forEach(d => liveCounts[d.id] = d.data().count || 0);
@@ -182,17 +270,18 @@ const Admin = () => {
   const handleAddPr = async (e) => {
     e.preventDefault();
     try {
-      const code = autoPrCode; 
+      const code = autoPrCode;
       await setDoc(doc(db, "prs_registry", code), {
         name: prForm.name,
         phone: prForm.phone,
-        eventIds: ['', '', '', '', '', ''], 
+        groupId,
+        eventIds: ['', '', '', '', '', ''],
         eventPays: [0, 0, 0, 0, 0, 0],
         supervisorId: prForm.supervisorId || '',
         supervisorPay: 0,
         active: true,
         mergedInto: null,
-        acconto: 0 
+        acconto: 0
       });
       await setDoc(doc(db, "prs", code), { count: 0 }, { merge: true });
       setPrForm({ name: '', phone: '', supervisorId: '' });
@@ -228,20 +317,20 @@ const Admin = () => {
   };
 
   const handleDeletePr = async (pr) => {
-    if (pr.id === 'MASTER') return alert("Il Profilo MASTER non può essere eliminato!");
+    if (pr.id === masterId) return alert("Il Profilo MASTER non può essere eliminato!");
     const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler eliminare ${pr.name}?\n\nI suoi dati verranno trasferiti al "PROFILO MASTER".`);
     if (!conferma) return;
     setLoading(true);
     try {
-      const masterExists = prs.find(p => p.id === 'MASTER');
+      const masterExists = prs.find(p => p.id === masterId);
       if (!masterExists) {
-        await setDoc(doc(db, "prs_registry", "MASTER"), {
-          name: "PROFILO MASTER", phone: "", eventIds: [], supervisorId: "",
+        await setDoc(doc(db, "prs_registry", masterId), {
+          name: "PROFILO MASTER", phone: "", groupId, isMaster: true, eventIds: [], supervisorId: "",
           active: true, mergedInto: null, acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0
         });
-        await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
+        await setDoc(doc(db, "prs", masterId), { count: 0 }, { merge: true });
       }
-      await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: "MASTER" });
+      await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: masterId });
       await fetchData();
       alert("Collaboratore rimosso. Dati passati al Profilo MASTER.");
     } catch (error) { alert("Errore eliminazione."); } finally { setLoading(false); }
@@ -259,7 +348,7 @@ const Admin = () => {
   };
 
   const openReplaceModal = (pr) => {
-    if (pr.id === 'MASTER') return alert("Il Profilo MASTER non può essere sostituito!");
+    if (pr.id === masterId) return alert("Il Profilo MASTER non può essere sostituito!");
     setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceTargetId('');
   };
 
@@ -327,16 +416,18 @@ const Admin = () => {
           const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
           try {
             await setDoc(doc(collection(db, "events")), {
-              title: eventForm.title, 
-              date: eventForm.date, 
+              title: eventForm.title,
+              date: eventForm.date,
               location: eventForm.location,
               description: eventForm.description,
               category: eventForm.category,
-              imageUrl: canvas.toDataURL('image/jpeg', 0.7), 
-              active: true, 
+              groupId,
+              imageUrl: canvas.toDataURL('image/jpeg', 0.7),
+              active: true,
               timestamp: new Date()
             });
-            setEventForm({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
+            const defaultCat = categories[0]?.id || 'DISCOTECA';
+            setEventForm({ title: '', date: '', description: '', category: defaultCat, location: '' });
             setSelectedFile(null); await fetchData();
           } catch (dbError) { alert("Errore salvataggio database."); } finally { setLoading(false); }
         };
@@ -433,7 +524,7 @@ const Admin = () => {
     } catch (e) { alert("Errore chiusura serata."); } finally { setLoading(false); }
   };
 
-  const masterPr = prs.find(p => p.id === 'MASTER');
+  const masterPr = prs.find(p => p.id === masterId);
   const masterFin = masterPr ? calculatePrFinancials(masterPr) : { directTotal: 0, supervisorBonus: 0 };
   const historicalOrphanProfit = Number(masterPr?.historicalOrphanProfit) || 0;
   const historicalOrphanCount = Number(masterPr?.historicalOrphanCount) || 0;
@@ -484,18 +575,19 @@ const Admin = () => {
         <div className="flex items-start flex-col">
           <img src="/logo.png" alt="Logo" className="h-24 mt-8 -mb-5 object-contain block" />
           <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
+          <p className="text-[9px] text-[#FFEE00] tracking-widest mt-1">{groupName}</p>
         </div>
 
         <div className="flex items-center gap-6">
-          <p className="text-[10px] font-bold text-[#FFEE00] tracking-[0.3em] leading-none">
-            Ver 5.1 
-          </p>
           <div className="flex gap-4">
             <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
               <Lock size={20} />
             </button>
             <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
               <RefreshCw size={20} />
+            </button>
+            <button onClick={onLogout} title="Esci" className="bg-red-600 text-white p-2 rounded-full border-2 border-red-800 hover:bg-red-700">
+              <LogOut size={20} />
             </button>
           </div>
         </div>
@@ -521,7 +613,7 @@ const Admin = () => {
                  const passGenerati = evTickets.length;
                  const drinkVinti = evTickets.filter(t => t.won === true).length;
                  const ingressiEffettivi = evTickets.filter(t => t.used === true).length;
-                 const evPrs = prs.filter(p => !p.mergedInto && (p.id === 'MASTER' || p.eventIds?.includes(ev.id)));
+                 const evPrs = prs.filter(p => !p.mergedInto && (p.id === masterId || p.eventIds?.includes(ev.id)));
                  let costoPR = 0;
                  evPrs.forEach(p => {
                     const finEv = calculatePrFinancialsForEvent(p, ev.id);
@@ -566,7 +658,7 @@ const Admin = () => {
                 <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Supervisore (Opzionale)</label>
                   <select className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00] bg-white" value={prForm.supervisorId} onChange={e => setPrForm({...prForm, supervisorId: e.target.value})}>
                     <option value="">-- NESSUN SUPERVISORE --</option>
-                    {activePrs.filter(p => p.id !== 'MASTER').map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                    {activePrs.filter(p => p.id !== masterId).map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
                   </select>
                 </div>
               </div>
@@ -587,11 +679,11 @@ const Admin = () => {
                 </thead>
                 <tbody>
                   {activePrs.map(pr => {
-                    const isMaster = pr.id === 'MASTER';
+                    const isMaster = pr.id === masterId;
                     let supNameText = 'NESSUNO';
                     if (pr.supervisorId && !isMaster) {
                       const supObj = prs.find(p => p.id === pr.supervisorId);
-                      supNameText = supObj ? (supObj.mergedInto === 'MASTER' ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
+                      supNameText = supObj ? (supObj.mergedInto === masterId ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
                     }
                     const fin = isMaster ? masterFin : calculatePrFinancials(pr);
                     const guadagnoLordo = isMaster ? guadagnoLordoMaster : fin.guadagnoLordo;
@@ -859,9 +951,9 @@ const Admin = () => {
                 <tr><th className="p-3 text-left border-r border-zinc-700">PR</th><th className="p-3 text-center border-r border-zinc-700">IN</th><th className="p-3 text-right text-[#FFEE00]">LORDO</th></tr>
               </thead>
               <tbody>
-                {activePrs.filter(p => p.id === 'MASTER' || p.eventIds?.includes(selectedEventForModal)).map(p => {
+                {activePrs.filter(p => p.id === masterId || p.eventIds?.includes(selectedEventForModal)).map(p => {
                    const finEv = calculatePrFinancialsForEvent(p, selectedEventForModal);
-                   if (finEv.evIns === 0 && finEv.supervisorBonusEv === 0 && p.id !== 'MASTER') return null;
+                   if (finEv.evIns === 0 && finEv.supervisorBonusEv === 0 && p.id !== masterId) return null;
                    return (
                      <tr key={p.id} className="border-b-2 border-black text-sm font-bold uppercase hover:bg-zinc-50 text-left">
                        <td className="p-3 border-r-2 border-black">{p.name}<span className="block text-[9px] text-zinc-400 italic font-medium">ID: {p.id}</span></td>
@@ -917,7 +1009,7 @@ const Admin = () => {
               <button onClick={() => setMasterModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] transition-all"><X size={24} /></button>
             </div>
             <div className="flex flex-col gap-3 mb-6">
-                {prs.filter(p => p.mergedInto === 'MASTER').map(alias => (
+                {prs.filter(p => p.mergedInto === masterId).map(alias => (
                     <div key={alias.id} className="border-2 border-black p-3 bg-zinc-50 flex justify-between items-center text-left">
                         <p className="font-black uppercase">{alias.name} <span className="text-zinc-400 italic text-[10px]">({alias.id})</span></p>
                         <button onClick={() => handleDeleteAlias(alias.id)} className="bg-red-600 text-white p-2 border border-black active:scale-95"><Trash2 size={16}/></button>
@@ -975,7 +1067,7 @@ const Admin = () => {
                   <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4 italic">Ingloba in Esistente</h3>
                   <select className="w-full p-3 border-2 border-black mb-4 font-black uppercase outline-none bg-white cursor-pointer" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
                      <option value="">-- SELEZIONA PR --</option>
-                     {activePrs.filter(p => p.id !== replacePrData.id && p.id !== 'MASTER').map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
+                     {activePrs.filter(p => p.id !== replacePrData.id && p.id !== masterId).map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
                   </select>
                   <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} className="w-full bg-red-600 text-white font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#000]">ESAGUI FUSIONE</button>
                </div>
