@@ -9,6 +9,36 @@ import {
   List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2
 } from 'lucide-react';
 
+const LineChart = ({ data = [], color = '#D4AF37', height = 50 }) => {
+  if (data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const w = 100 / (data.length - 1);
+  const pts = data.map((v, i) => `${(i * w).toFixed(1)},${(height - (v / max) * (height - 4)).toFixed(1)}`).join(' ');
+  const area = `0,${height} ` + pts + ` ${100},${height}`;
+  return (
+    <svg viewBox={`0 0 100 ${height}`} className="w-full" preserveAspectRatio="none" style={{ height }}>
+      <defs>
+        <linearGradient id={`g${color.replace('#','')}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={area} fill={`url(#g${color.replace('#','')})`} />
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+};
+
+const GrowthBadge = ({ current, previous }) => {
+  if (previous == null || previous === 0 && current === 0) return null;
+  const pct = previous === 0 ? 100 : Math.round(((current - previous) / previous) * 100);
+  return (
+    <span className={`text-[9px] font-black ${pct >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+      {pct >= 0 ? '↑' : '↓'} {Math.abs(pct)}%
+    </span>
+  );
+};
+
 const SuperAdmin = () => {
   const [events, setEvents] = useState([]);
   const [proposals, setProposals] = useState([]);
@@ -252,39 +282,38 @@ const SuperAdmin = () => {
               <div className="text-center py-20 text-zinc-600 animate-pulse">Caricamento...</div>
             ) : (() => {
               const filteredDays = statsFilter === 'OGGI' ? 1 : statsFilter === '7G' ? 7 : statsFilter === '30G' ? 30 : null;
+              const trendDays = filteredDays || 7;
 
-              const sumDaily = (obj, key) => filteredDays === null
-                ? (obj?.[key] ?? 0)
-                : Array.from({ length: filteredDays }, (_, i) => {
-                    const d = new Date(); d.setDate(d.getDate() - i);
-                    return obj?.daily?.[d.toISOString().split('T')[0]] ?? 0;
-                  }).reduce((a, b) => a + b, 0);
+              const daysArray = (offset = 0) => Array.from({ length: trendDays }, (_, i) => {
+                const d = new Date(); d.setDate(d.getDate() - offset - i);
+                return d.toISOString().split('T')[0];
+              });
 
-              const filteredCatCount = (cat) => filteredDays === null
-                ? (stats.categories?.[cat] ?? 0)
-                : Array.from({ length: filteredDays }, (_, i) => {
-                    const d = new Date(); d.setDate(d.getDate() - i);
-                    return stats.categories?.daily?.[d.toISOString().split('T')[0]]?.[cat] ?? 0;
-                  }).reduce((a, b) => a + b, 0);
+              const sumDays = (obj, keys) => keys.reduce((a, k) => a + (obj?.daily?.[k] ?? 0), 0);
+              const sumCatDays = (cat, keys) => keys.reduce((a, k) => a + (stats.categories?.daily?.[k]?.[cat] ?? 0), 0);
 
-              const totalShares = sumDaily(stats.shares, 'total');
-              const masterShares = filteredDays === null
-                ? (stats.shares?.by_pr?.MASTER ?? 0)
-                : Array.from({ length: filteredDays }, (_, i) => {
-                    const d = new Date(); d.setDate(d.getDate() - i);
-                    return stats.shares?.daily?.[d.toISOString().split('T')[0]] ?? 0;
-                  }).reduce((a, b) => a + b, 0); // approssimazione — MASTER è la quota esterna
+              const curKeys = daysArray(0);
+              const prevKeys = daysArray(trendDays);
+
+              const totalShares = filteredDays ? sumDays(stats.shares, curKeys) : (stats.shares?.total ?? 0);
+              const prevShares  = filteredDays ? sumDays(stats.shares, prevKeys) : null;
+              const totalVisits = filteredDays ? sumDays(stats.pageviews, curKeys) : (stats.pageviews?.total ?? 0);
+              const prevVisits  = filteredDays ? sumDays(stats.pageviews, prevKeys) : null;
+
+              const filteredCatCount = (cat) => filteredDays ? sumCatDays(cat, curKeys) : (stats.categories?.[cat] ?? 0);
+
               const prShares = Object.entries(stats.shares?.by_pr || {}).filter(([k]) => k !== 'MASTER');
               const avgSession = stats.sessions?.total > 0
-                ? Math.round((stats.sessions.total_seconds || 0) / stats.sessions.total)
-                : 0;
+                ? Math.round((stats.sessions.total_seconds || 0) / stats.sessions.total) : 0;
               const pwaSessions = stats.installs?.pwa_sessions ?? 0;
               const pwaInstalls = stats.installs?.total ?? 0;
-              const totalVisits = sumDaily(stats.pageviews, 'total');
               const cats = ['DISCOTECA','CINEMA','CONCERTI','TEATRO','ARENE ESTIVE','PUB'];
               const catCounts = cats.map(c => filteredCatCount(c));
               const maxCat = Math.max(...catCounts, 1);
-              const trendDays = filteredDays || 7;
+
+              // Dati per i grafici (ordine cronologico)
+              const shareData  = [...curKeys].reverse().map(k => stats.shares?.daily?.[k] ?? 0);
+              const visitData  = [...curKeys].reverse().map(k => stats.pageviews?.daily?.[k] ?? 0);
 
               return (
                 <>
@@ -296,18 +325,33 @@ const SuperAdmin = () => {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       {[
-                        { label: 'Visite', value: totalVisits, color: 'text-white' },
-                        { label: 'Sessione Media', value: avgSession > 0 ? `${avgSession}s` : '—', color: 'text-blue-400' },
-                        { label: 'Condivisioni', value: totalShares, color: 'text-[#D4AF37]' },
-                        { label: 'Utenti PWA', value: pwaSessions, color: 'text-green-400' },
-                        { label: 'Installazioni', value: pwaInstalls, color: 'text-purple-400' },
-                        { label: 'Share Esterni', value: stats.shares?.by_pr?.MASTER ?? 0, color: 'text-orange-400' },
-                      ].map(({ label, value, color }) => (
+                        { label: 'Visite', value: totalVisits, prev: prevVisits, color: 'text-white' },
+                        { label: 'Sessione Media', value: avgSession > 0 ? `${avgSession}s` : '—', prev: null, color: 'text-blue-400' },
+                        { label: 'Condivisioni', value: totalShares, prev: prevShares, color: 'text-[#D4AF37]' },
+                        { label: 'Utenti PWA', value: pwaSessions, prev: null, color: 'text-green-400' },
+                        { label: 'Installazioni', value: pwaInstalls, prev: null, color: 'text-purple-400' },
+                        { label: 'Share Esterni', value: stats.shares?.by_pr?.MASTER ?? 0, prev: null, color: 'text-orange-400' },
+                      ].map(({ label, value, prev, color }) => (
                         <div key={label} className="bg-black/40 rounded-2xl p-4 text-center">
-                          <p className={`text-2xl font-black italic ${color}`}>{value}</p>
+                          <div className="flex items-center justify-center gap-2">
+                            <p className={`text-2xl font-black italic ${color}`}>{value}</p>
+                            {typeof value === 'number' && <GrowthBadge current={value} previous={prev} />}
+                          </div>
                           <p className="text-[8px] text-zinc-600 tracking-widest mt-1 normal-case">{label}</p>
                         </div>
                       ))}
+                    </div>
+
+                    {/* Grafico crescita visite + condivisioni */}
+                    <div className="mt-5 grid grid-cols-2 gap-3">
+                      <div className="bg-black/40 rounded-2xl p-3">
+                        <p className="text-[8px] text-zinc-500 tracking-widest mb-2 normal-case">Visite</p>
+                        <LineChart data={visitData} color="#ffffff" height={45} />
+                      </div>
+                      <div className="bg-black/40 rounded-2xl p-3">
+                        <p className="text-[8px] text-zinc-500 tracking-widest mb-2 normal-case">Condivisioni</p>
+                        <LineChart data={shareData} color="#D4AF37" height={45} />
+                      </div>
                     </div>
                   </div>
 
@@ -371,33 +415,47 @@ const SuperAdmin = () => {
                     </div>
                   )}
 
-                  {/* Trend condivisioni */}
+                  {/* Grafico crescita condivisioni + visite */}
                   <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
-                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">
-                      Condivisioni — {statsFilter === 'OGGI' ? 'oggi' : statsFilter === '7G' ? 'ultimi 7 giorni' : statsFilter === '30G' ? 'ultimi 30 giorni' : 'ultimi 7 giorni'}
-                    </p>
-                    {Array.from({ length: trendDays }, (_, i) => {
-                      const d = new Date(); d.setDate(d.getDate() - (trendDays - 1 - i));
-                      const key = d.toISOString().split('T')[0];
-                      const count = stats.shares?.daily?.[key] ?? 0;
-                      const maxDay = Math.max(...Array.from({ length: trendDays }, (_, j) => {
-                        const dd = new Date(); dd.setDate(dd.getDate() - j);
-                        return stats.shares?.daily?.[dd.toISOString().split('T')[0]] ?? 0;
-                      }), 1);
-                      return (
-                        <div key={key} className="flex items-center gap-3 mb-2">
-                          <span className="text-[9px] text-zinc-500 w-14 flex-shrink-0">
-                            {trendDays <= 7
-                              ? d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })
-                              : d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
-                          </span>
-                          <div className="flex-1 bg-zinc-800 rounded-full h-2">
-                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.max((count / maxDay) * 100, count > 0 ? 4 : 0)}%` }} />
-                          </div>
-                          <span className="text-[9px] font-black text-zinc-400 w-4 text-right">{count}</span>
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[10px] text-zinc-500 tracking-widest">
+                        Trend — {statsFilter === 'OGGI' ? 'oggi' : statsFilter === '7G' ? 'ultimi 7 giorni' : statsFilter === '30G' ? 'ultimi 30 giorni' : 'ultimi 7 giorni'}
+                      </p>
+                      <div className="flex gap-3 text-[8px] font-black">
+                        <span className="text-[#D4AF37]">— share</span>
+                        <span className="text-blue-400">— visite</span>
+                      </div>
+                    </div>
+                    <div className="relative mt-3">
+                      <LineChart data={visitData} color="#60a5fa" height={70} />
+                      <div className="absolute inset-0">
+                        <LineChart data={shareData} color="#D4AF37" height={70} />
+                      </div>
+                    </div>
+                    {/* Etichette date asse X */}
+                    <div className="flex justify-between mt-1">
+                      {[...curKeys].reverse().filter((_, i, arr) => i === 0 || i === Math.floor(arr.length / 2) || i === arr.length - 1).map(k => (
+                        <span key={k} className="text-[8px] text-zinc-600">
+                          {new Date(k).toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
+                        </span>
+                      ))}
+                    </div>
+                    {filteredDays && (
+                      <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between">
+                        <div className="text-center">
+                          <p className="text-[8px] text-zinc-600 normal-case">Share periodo prec.</p>
+                          <p className="text-sm font-black text-zinc-400">{prevShares}</p>
                         </div>
-                      );
-                    })}
+                        <div className="text-center">
+                          <p className="text-[8px] text-zinc-600 normal-case">Share periodo att.</p>
+                          <p className="text-sm font-black text-[#D4AF37]">{totalShares}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-[8px] text-zinc-600 normal-case">Crescita</p>
+                          <GrowthBadge current={totalShares} previous={prevShares} />
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
