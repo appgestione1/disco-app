@@ -10,6 +10,22 @@ const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
 // ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
 const PRIORITY_CINEMA_IDS = ['cinestar', 'thespaceetnapolis', 'ucicentrosicilia', 'cinemaplanet'];
 
+const toSlug = t => t.toLowerCase()
+  .replace(/[àáâ]/g,'a').replace(/[èéê]/g,'e').replace(/[ìíî]/g,'i')
+  .replace(/[òóô]/g,'o').replace(/[ùúû]/g,'u')
+  .replace(/[^a-z0-9\s]/g,'').replace(/\s+/g,'-').trim();
+
+const buildTicketUrl = (cinema, filmTitle) => {
+  if (!cinema.ticketSearchUrl) return null;
+  if (cinema.id === 'thespaceetnapolis') {
+    return `https://www.thespacecinema.it/film/${toSlug(filmTitle)}/orari/belpasso/`;
+  }
+  if (cinema.id === 'ucicentrosicilia') {
+    return `https://www.ucicinemas.it/acquista/film/${toSlug(filmTitle)}/`;
+  }
+  return cinema.ticketSearchUrl;
+};
+
 const FilmDetail = ({ film, onClose }) => {
   const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
@@ -175,7 +191,7 @@ const FilmDetail = ({ film, onClose }) => {
                 )}
                 {cinema.ticketSearchUrl ? (
                   <a
-                    href={cinema.ticketSearchUrl}
+                    href={buildTicketUrl(cinema, film.title)}
                     target="_blank" rel="noopener noreferrer"
                     className="block w-full bg-[#D4AF37] text-black text-center py-3 rounded-full font-black uppercase text-[10px] tracking-widest active:scale-95 transition-transform">
                     🎟 Acquista Biglietto

@@ -86,7 +86,7 @@ export const CATANIA_CINEMAS = [
     website: 'https://www.thespacecinema.it',
     programUrl: 'https://www.comingsoon.it/cinema/catania/the-space-cinema-belpasso/4827/',
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
-    ticketSearchUrl: 'https://www.thespacecinema.it/cinema/the-space-cinema-belpasso/',
+    ticketSearchUrl: 'https://www.thespacecinema.it/cinema/belpasso/al-cinema',
     partnerId: null,
   },
 
