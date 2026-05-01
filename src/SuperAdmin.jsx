@@ -3,6 +3,7 @@ import { db } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
+import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
   List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2
@@ -12,7 +13,8 @@ const SuperAdmin = () => {
   const [events, setEvents] = useState([]);
   const [proposals, setProposals] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings'
+  const [activeView, setActiveView] = useState(null); // null | 'events' | 'proposals' | 'settings' | 'stats'
+  const [stats, setStats] = useState(null);
   const [selectedProposal, setSelectedProposal] = useState(null);
 
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
@@ -116,6 +118,25 @@ const SuperAdmin = () => {
     }
   };
 
+  const fetchStats = async () => {
+    try {
+      const [sharesSnap, catsSnap, filmsSnap, bookSnap, pvSnap] = await Promise.all([
+        getDoc(doc(db, 'analytics', 'shares')),
+        getDoc(doc(db, 'analytics', 'categories')),
+        getDoc(doc(db, 'analytics', 'films')),
+        getDoc(doc(db, 'analytics', 'bookings')),
+        getDoc(doc(db, 'analytics', 'pageviews')),
+      ]);
+      setStats({
+        shares: sharesSnap.data() || {},
+        categories: catsSnap.data() || {},
+        films: filmsSnap.data()?.titles || {},
+        bookings: bookSnap.data() || {},
+        pageviews: pvSnap.data() || {},
+      });
+    } catch {}
+  };
+
   const pendingCount = proposals.filter(p => p.status === 'pending').length;
 
   const statusBadge = (status) => {
@@ -174,6 +195,15 @@ const SuperAdmin = () => {
               )}
             </button>
 
+            {/* STATISTICHE */}
+            <button
+              onClick={() => { setActiveView('stats'); fetchStats(); }}
+              className="group relative w-full max-w-sm flex items-center gap-6 bg-zinc-900 border-2 border-blue-500/30 text-zinc-400 px-10 py-7 rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all duration-300 hover:border-blue-500 hover:text-white"
+            >
+              <BarChart2 size={36} className="text-blue-400 group-hover:scale-110 transition-transform" />
+              <span className="text-2xl italic tracking-tighter">Statistiche</span>
+            </button>
+
             {/* IMPOSTAZIONI INSERIMENTO */}
             <button
               onClick={() => setActiveView('settings')}
@@ -182,6 +212,97 @@ const SuperAdmin = () => {
               <Settings size={36} className="group-hover:rotate-90 transition-transform duration-500" />
               <span className="text-2xl italic tracking-tighter">Impostazioni</span>
             </button>
+          </div>
+        )}
+
+        {/* SEZIONE STATISTICHE */}
+        {activeView === 'stats' && (
+          <div className="animate-in slide-in-from-bottom-10 duration-500 space-y-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-blue-400 text-xs tracking-widest italic flex items-center gap-2"><BarChart2 size={14} /> Analytics App</h2>
+              <button onClick={() => setActiveView(null)} className="text-red-500 text-[10px] underline flex items-center gap-1"><ChevronLeft size={14} /> Indietro</button>
+            </div>
+
+            {!stats ? (
+              <div className="text-center py-20 text-zinc-600 animate-pulse">Caricamento...</div>
+            ) : (
+              <>
+                {/* KPI principali */}
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Condivisioni Totali', value: stats.shares?.total ?? 0, color: 'text-[#D4AF37]' },
+                    { label: 'Visite Home', value: stats.pageviews?.home ?? 0, color: 'text-blue-400' },
+                    { label: 'Prenotazioni Lista', value: stats.bookings?.lista ?? 0, color: 'text-green-400' },
+                    { label: 'Prenotazioni Privé', value: stats.bookings?.prive ?? 0, color: 'text-purple-400' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-3xl p-5 text-center">
+                      <p className={`text-3xl font-black italic ${color}`}>{value}</p>
+                      <p className="text-[9px] text-zinc-500 tracking-widest mt-1">{label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Categorie più visitate */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                  <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Sezioni più visitate</p>
+                  {['DISCO', 'CINEMA', 'CONCERTI', 'TEATRO', 'ARENE ESTIVE', 'PUB', 'TUTTI'].map(cat => {
+                    const count = stats.categories?.[cat] ?? 0;
+                    const max = Math.max(...['DISCO','CINEMA','CONCERTI','TEATRO','ARENE ESTIVE','PUB','TUTTI'].map(c => stats.categories?.[c] ?? 0), 1);
+                    return (
+                      <div key={cat} className="flex items-center gap-3 mb-3">
+                        <span className="text-[9px] font-black text-zinc-400 w-24 flex-shrink-0">{cat}</span>
+                        <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                          <div className="bg-[#D4AF37] h-2 rounded-full transition-all" style={{ width: `${(count / max) * 100}%` }} />
+                        </div>
+                        <span className="text-[9px] font-black text-zinc-400 w-6 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Film più visti */}
+                {Object.keys(stats.films).length > 0 && (
+                  <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                    <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Film più cliccati</p>
+                    {Object.entries(stats.films)
+                      .sort(([,a],[,b]) => b - a)
+                      .slice(0, 5)
+                      .map(([title, count]) => (
+                        <div key={title} className="flex justify-between items-center py-2 border-b border-zinc-800 last:border-0">
+                          <span className="text-[10px] font-black text-white normal-case truncate max-w-[70%]">{title.replace(/_/g, ' ')}</span>
+                          <span className="text-[#D4AF37] font-black text-sm">{count}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
+                {/* Condivisioni oggi */}
+                <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6">
+                  <p className="text-[10px] text-zinc-500 tracking-widest mb-4">Condivisioni ultimi 7 giorni</p>
+                  {Array.from({ length: 7 }, (_, i) => {
+                    const d = new Date(); d.setDate(d.getDate() - (6 - i));
+                    const key = d.toISOString().split('T')[0];
+                    const count = stats.shares?.daily?.[key] ?? 0;
+                    const label = d.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' });
+                    return (
+                      <div key={key} className="flex items-center gap-3 mb-2">
+                        <span className="text-[9px] text-zinc-500 w-16 flex-shrink-0">{label}</span>
+                        <div className="flex-1 bg-zinc-800 rounded-full h-2">
+                          <div className="bg-blue-500 h-2 rounded-full" style={{ width: count ? `${Math.min(count * 20, 100)}%` : '2%' }} />
+                        </div>
+                        <span className="text-[9px] font-black text-zinc-400 w-4 text-right">{count}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Link GA4 */}
+                <a href="https://analytics.google.com" target="_blank" rel="noopener noreferrer"
+                  className="block w-full text-center bg-zinc-900 border border-zinc-700 text-zinc-400 py-4 rounded-2xl text-[10px] font-black tracking-widest hover:border-blue-500 hover:text-blue-400 transition-all">
+                  Apri Google Analytics Dashboard →
+                </a>
+              </>
+            )}
           </div>
         )}
 

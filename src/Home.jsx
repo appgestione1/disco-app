@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
 import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
+import { trackShare, trackCategoryView, trackFilmView, trackBooking, trackPageView } from './analytics';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
@@ -450,7 +451,7 @@ const Home = () => {
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
   ];
 
-  useEffect(() => { fetchEvents(); fetchPrInfo(); }, [prRef]);
+  useEffect(() => { fetchEvents(); fetchPrInfo(); trackPageView('home'); }, [prRef]);
 
   useEffect(() => {
     if (!activeCategory || !EXTERNAL_CATS.includes(activeCategory)) return;
@@ -598,6 +599,7 @@ const Home = () => {
         }
         setPriveTickets(ids);
         setTicketId(groupId);
+        trackBooking('prive');
       } catch { alert('Errore generazione ticket'); }
       setLoading(false);
       return;
@@ -613,8 +615,11 @@ const Home = () => {
       companions: groupNames,
     };
     if (bookingMode === 'prive') data.advancePaid = priveGuests * PRIVE_ADVANCE_FEE;
-    try { await setDoc(doc(db, 'tickets', newId), data); setTicketId(newId); }
-    catch { alert('Errore generazione'); } finally { setLoading(false); }
+    try {
+      await setDoc(doc(db, 'tickets', newId), data);
+      setTicketId(newId);
+      trackBooking(bookingMode === 'single' ? 'lista' : bookingMode === 'pr' ? 'pr' : 'prive');
+    } catch { alert('Errore generazione'); } finally { setLoading(false); }
   };
 
   const resetView = () => {
@@ -939,7 +944,7 @@ const Home = () => {
           </div>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             {categories.map(cat => (
-              <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setStep(2); }} className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border bg-zinc-900/40 border-white/5 text-zinc-600 active:scale-95 transition-all">
+              <button key={cat.id} onClick={() => { setActiveCategory(cat.id); setStep(2); trackCategoryView(cat.id); }} className="group relative flex flex-col items-center justify-center p-8 rounded-[2rem] border bg-zinc-900/40 border-white/5 text-zinc-600 active:scale-95 transition-all">
                 <cat.icon size={28} className="mb-3" />
                 <span className="text-[9px] font-black uppercase tracking-widest text-center">{cat.label}</span>
               </button>
@@ -955,6 +960,7 @@ const Home = () => {
           <button
             onClick={async () => {
               const url = window.location.origin + '/?ref=MASTER';
+              trackShare();
               if (navigator.share) {
                 await navigator.share({ title: 'Eventi a Catania', text: 'Scopri tutti gli eventi a Catania e provincia!', url });
               } else {
@@ -1000,7 +1006,7 @@ const Home = () => {
               ) : activeCategory === 'CINEMA' ? (
                 <div className="grid grid-cols-2 gap-4">
                   {externalEvents.map(ev => (
-                    <div key={ev.id} onClick={() => setSelectedFilm(ev)}
+                    <div key={ev.id} onClick={() => { setSelectedFilm(ev); trackFilmView(ev.title); }}
                       className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all cursor-pointer">
                       {ev.imageUrl
                         ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[2/3] object-cover" />
