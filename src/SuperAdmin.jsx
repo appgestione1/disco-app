@@ -159,8 +159,9 @@ const SuperAdmin = () => {
   };
 
   const fetchStats = async () => {
+    const safe = (snap) => (snap?.status === 'fulfilled' && snap.value?.exists?.()) ? snap.value.data() : {};
     try {
-      const [sharesSnap, catsSnap, filmsSnap, pvSnap, installsSnap, sessionsSnap, prsSnap] = await Promise.all([
+      const [sharesR, catsR, filmsR, pvR, installsR, sessionsR, prsR] = await Promise.allSettled([
         getDoc(doc(db, 'analytics', 'shares')),
         getDoc(doc(db, 'analytics', 'categories')),
         getDoc(doc(db, 'analytics', 'films')),
@@ -170,17 +171,20 @@ const SuperAdmin = () => {
         getDocs(collection(db, 'prs_registry')),
       ]);
       const prNames = {};
-      prsSnap.docs.forEach(d => { prNames[d.id] = d.data().name || d.id; });
+      if (prsR.status === 'fulfilled') prsR.value.docs.forEach(d => { prNames[d.id] = d.data().name || d.id; });
       setStats({
-        shares: sharesSnap.data() || {},
-        categories: catsSnap.data() || {},
-        films: filmsSnap.data()?.titles || {},
-        pageviews: pvSnap.data() || {},
-        installs: installsSnap.data() || {},
-        sessions: sessionsSnap.data() || {},
+        shares: safe(sharesR),
+        categories: safe(catsR),
+        films: safe(filmsR)?.titles || {},
+        pageviews: safe(pvR),
+        installs: safe(installsR),
+        sessions: safe(sessionsR),
         prNames,
       });
-    } catch {}
+    } catch (e) {
+      console.error('fetchStats error:', e);
+      setStats({ shares: {}, categories: {}, films: {}, pageviews: {}, installs: {}, sessions: {}, prNames: {} });
+    }
   };
 
   const pendingCount = proposals.filter(p => p.status === 'pending').length;
