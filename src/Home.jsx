@@ -1192,8 +1192,7 @@ const Home = () => {
               </>
             ) : (
               <>
-                <input type="password" placeholder="STAFF CODE" className="w-full p-6 bg-zinc-900 border border-white/10 rounded-2xl text-white text-center font-black tracking-[0.6em] outline-none focus:border-[#D4AF37]" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} />
-                <button onClick={handleVerifyPassword} className="w-full bg-white text-black p-6 rounded-full font-black uppercase shadow-2xl active:scale-95">ACCESSO STAFF</button>
+                <button onClick={() => { window.location.href = '/admin-segreto-stefano'; }} className="w-full bg-white text-black p-6 rounded-full font-black uppercase shadow-2xl active:scale-95">ACCESSO STAFF</button>
                 <button onClick={() => { setShowAdminLogin(false); setLockClickCount(0); }} className="text-zinc-500 text-[10px] font-black uppercase underline">Chiudi</button>
               </>
             )}
