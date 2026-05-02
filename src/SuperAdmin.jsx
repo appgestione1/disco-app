@@ -58,6 +58,9 @@ const SuperAdmin = () => {
   const [groupForm, setGroupForm] = useState({ id: '', name: '', type: 'DISCOTECA', password: '' });
   const [groupLoading, setGroupLoading] = useState(false);
   const [visiblePasswords, setVisiblePasswords] = useState({});
+  const [groupPrs, setGroupPrs] = useState({});
+  const [commissionInputs, setCommissionInputs] = useState({});
+  const [visiblePrPasswords, setVisiblePrPasswords] = useState({});
 
   useEffect(() => {
     fetchAll();
@@ -87,8 +90,28 @@ const SuperAdmin = () => {
   };
 
   const fetchGroups = async () => {
-    const snap = await getDocs(collection(db, 'groups'));
-    setGroups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    const [groupSnap, prsSnap] = await Promise.all([
+      getDocs(collection(db, 'groups')),
+      getDocs(collection(db, 'prs_registry')),
+    ]);
+    const fetchedGroups = groupSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    setGroups(fetchedGroups);
+    const inputs = {};
+    fetchedGroups.forEach(g => {
+      inputs[g.id] = {
+        perOrfano: g.commissions?.perOrfano ?? '',
+        perPR: g.commissions?.perPR ?? '',
+        perEvento: g.commissions?.perEvento ?? '',
+        perQR: g.commissions?.perQR ?? '',
+      };
+    });
+    setCommissionInputs(inputs);
+    const allPrs = prsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const byGroup = {};
+    fetchedGroups.forEach(g => {
+      byGroup[g.id] = allPrs.filter(p => p.groupId === g.id && !p.isMaster && !p.mergedInto);
+    });
+    setGroupPrs(byGroup);
   };
 
   const handleCreateGroup = async () => {
@@ -113,6 +136,29 @@ const SuperAdmin = () => {
       alert(`Gruppo "${name}" creato con successo!`);
     } catch (e) { alert('Errore durante la creazione del gruppo'); }
     finally { setGroupLoading(false); }
+  };
+
+  const handleDeleteEvent = async (ev) => {
+    if (!window.confirm(`Eliminare "${ev.title}"?\nI conteggi PR e i dati dei gruppi NON verranno modificati.`)) return;
+    try {
+      await deleteDoc(doc(db, 'events', ev.id));
+      setEvents(events.filter(e => e.id !== ev.id));
+    } catch { alert('Errore eliminazione evento'); }
+  };
+
+  const handleSaveCommissions = async (groupId) => {
+    const c = commissionInputs[groupId] || {};
+    try {
+      const commissions = {
+        perOrfano: Number(c.perOrfano) || 0,
+        perPR: Number(c.perPR) || 0,
+        perEvento: Number(c.perEvento) || 0,
+        perQR: Number(c.perQR) || 0,
+      };
+      await updateDoc(doc(db, 'groups', groupId), { commissions });
+      setGroups(groups.map(g => g.id === groupId ? { ...g, commissions } : g));
+      alert('Commissioni salvate!');
+    } catch { alert('Errore salvataggio commissioni'); }
   };
 
   const handleDeleteGroup = async (group) => {
@@ -666,6 +712,71 @@ const SuperAdmin = () => {
                     <p className="text-[8px] text-zinc-600 italic">
                       URL Admin: <span className="text-zinc-400">/admin-segreto-stefano</span>
                     </p>
+
+                    {/* Commissioni Master */}
+                    <div className="border-t border-zinc-800 pt-3 space-y-2">
+                      <p className="text-[9px] text-[#D4AF37] font-black tracking-widest flex items-center gap-1"><Euro size={10}/> COMMISSIONI MASTER</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {[
+                          { key: 'perOrfano', label: 'Per ingresso orfano' },
+                          { key: 'perPR', label: 'Per ingresso da PR' },
+                          { key: 'perEvento', label: 'Fisso per evento' },
+                          { key: 'perQR', label: 'Per QR realizzato' },
+                        ].map(({ key, label }) => (
+                          <div key={key} className="bg-black/40 rounded-xl p-2">
+                            <p className="text-[8px] text-zinc-600 mb-1">{label}</p>
+                            <div className="flex items-center gap-1">
+                              <span className="text-zinc-500 text-xs">€</span>
+                              <input
+                                type="number" min="0" step="0.50"
+                                className="w-full bg-transparent text-white font-black text-sm outline-none"
+                                placeholder="0"
+                                value={commissionInputs[group.id]?.[key] ?? ''}
+                                onChange={e => setCommissionInputs(prev => ({
+                                  ...prev,
+                                  [group.id]: { ...(prev[group.id] || {}), [key]: e.target.value }
+                                }))}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => handleSaveCommissions(group.id)}
+                        className="w-full bg-[#D4AF37]/10 border border-[#D4AF37]/30 text-[#D4AF37] text-[10px] font-black py-2 rounded-xl tracking-widest active:scale-95 transition-transform"
+                      >
+                        SALVA COMMISSIONI
+                      </button>
+                    </div>
+
+                    {/* Lista PR del gruppo */}
+                    <div className="border-t border-zinc-800 pt-3 space-y-2">
+                      <p className="text-[9px] text-zinc-400 font-black tracking-widest flex items-center gap-1">
+                        <Users size={10}/> PR DEL GRUPPO {groupPrs[group.id]?.length > 0 && `(${groupPrs[group.id].length})`}
+                      </p>
+                      {groupPrs[group.id]?.length > 0 ? (
+                        <div className="space-y-1.5">
+                          {groupPrs[group.id].map(pr => (
+                            <div key={pr.id} className="bg-black/40 rounded-xl p-2.5 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 flex-1 min-w-0">
+                                <span className="text-[9px] font-black text-white truncate">{pr.name}</span>
+                                <span className="text-[8px] text-zinc-600 shrink-0">{pr.id}</span>
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                <span className="text-[9px] font-black text-[#D4AF37]">
+                                  {visiblePrPasswords[pr.id] ? (pr.prPassword || 'PR') : '•••'}
+                                </span>
+                                <button onClick={() => setVisiblePrPasswords(prev => ({ ...prev, [pr.id]: !prev[pr.id] }))} className="text-zinc-600 hover:text-white">
+                                  {visiblePrPasswords[pr.id] ? <EyeOff size={12}/> : <Eye size={12}/>}
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-[8px] text-zinc-700 italic">Nessun PR ancora in questo gruppo</p>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -683,7 +794,10 @@ const SuperAdmin = () => {
               </button>
             </div>
             {events.map(ev => (
-              <div key={ev.id} className="bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+              <div key={ev.id} className="relative bg-zinc-900 border-2 border-zinc-800 rounded-[2.5rem] p-6 flex flex-col md:flex-row items-center justify-between gap-6 shadow-2xl">
+                <button onClick={() => handleDeleteEvent(ev)} className="absolute top-3 right-3 text-red-500/30 hover:text-red-500 transition-colors p-1.5">
+                  <Trash2 size={14} />
+                </button>
                 <div className="flex items-center gap-5 flex-1 w-full">
                   <div className="w-14 h-14 bg-black rounded-3xl flex items-center justify-center text-[#D4AF37] border border-zinc-800 shrink-0">
                     <Calendar size={28} />
