@@ -228,11 +228,23 @@ const AdminPanel = ({ session, onLogout }) => {
     } catch (e) { alert("Errore durante il reset."); }
   };
 
+  const getLastReset = (pr) => {
+    if (!pr?.lastReset) return null;
+    return pr.lastReset?.toDate ? pr.lastReset.toDate() : new Date(pr.lastReset);
+  };
+
+  const afterReset = (t, lastReset) => {
+    if (!lastReset) return true;
+    const tDate = t.timestamp?.toDate ? t.timestamp.toDate() : (t.timestamp ? new Date(t.timestamp) : null);
+    return !tDate || tDate > lastReset;
+  };
+
   const calculatePrFinancials = (pr) => {
+    const lastReset = getLastReset(pr);
     let directTotal = 0;
     let supervisorBonus = 0;
 
-    const myTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.used === true);
+    const myTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.used === true && afterReset(t, lastReset));
     myTickets.forEach(t => {
         const slotIndex = pr.eventIds?.indexOf(t.eventId);
         const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
@@ -241,7 +253,7 @@ const AdminPanel = ({ session, onLogout }) => {
 
     const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
     subPrs.forEach(sub => {
-        const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true);
+        const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true && afterReset(t, lastReset));
         const bonusRate = Number(sub.supervisorPay) || 0;
         supervisorBonus += (subTickets.length * bonusRate);
     });
@@ -250,17 +262,18 @@ const AdminPanel = ({ session, onLogout }) => {
   };
 
   const calculatePrFinancialsForEvent = (pr, eventId) => {
+    const lastReset = getLastReset(pr);
     let directTotalEv = 0;
     let supervisorBonusEv = 0;
 
-    const myEvTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true);
+    const myEvTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lastReset));
     const slotIndex = pr.eventIds?.indexOf(eventId);
     const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
     directTotalEv = myEvTickets.length * rate;
 
     const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
     subPrs.forEach(sub => {
-        const subEvTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true);
+        const subEvTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lastReset));
         const bonusRate = Number(sub.supervisorPay) || 0;
         supervisorBonusEv += (subEvTickets.length * bonusRate);
     });
@@ -395,7 +408,7 @@ const AdminPanel = ({ session, onLogout }) => {
     setLoading(true);
     try {
       await setDoc(doc(db, "prs", pr.id), { count: 0 }, { merge: true });
-      await updateDoc(doc(db, "prs_registry", pr.id), { acconto: 0 });
+      await updateDoc(doc(db, "prs_registry", pr.id), { acconto: 0, lastReset: new Date() });
       if (pr.aliases && pr.aliases.length > 0) {
         for (const alias of pr.aliases) await setDoc(doc(db, "prs", alias), { count: 0 }, { merge: true });
       }
@@ -755,15 +768,17 @@ const AdminPanel = ({ session, onLogout }) => {
                         </td>
                         <td className="p-2 border-r-2 border-black align-top text-center">
                           <div className="flex flex-col gap-1">
-                             {isMaster ? events.map(ev => {
-                               const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === ev.id && t.used === true).length;
-                               return (<div key={ev.id} className="h-[26px] flex items-center justify-center w-full">{evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>)
-                             }) : [0, 1, 2, 3, 4, 5].map(i => {
-                               const sid = pr.eventIds?.[i];
-                               if (!sid) return <div key={i} className="h-[26px]"></div>;
-                               const evIns = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === sid && t.used === true).length;
-                               return (<div key={i} className="h-[26px] flex items-center justify-center w-full">{evIns > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{evIns}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>)
-                             })}
+                             {(() => {
+                               const lr = getLastReset(pr);
+                               const countT = (eventId) => tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lr)).length;
+                               const cell = (key, n) => (<div key={key} className="h-[26px] flex items-center justify-center w-full">{n > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{n}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>);
+                               if (isMaster) return events.map(ev => cell(ev.id, countT(ev.id)));
+                               return [0,1,2,3,4,5].map(i => {
+                                 const sid = pr.eventIds?.[i];
+                                 if (!sid) return <div key={i} className="h-[26px]"></div>;
+                                 return cell(i, countT(sid));
+                               });
+                             })()}
                           </div>
                         </td>
                         <td className="p-2 border-r-2 border-black align-top text-right">
@@ -1028,8 +1043,8 @@ const AdminPanel = ({ session, onLogout }) => {
               <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 transition-all"><X size={24} /></button>
             </div>
             {(() => {
-              // per-event breakdown — usa i ticket (persistono anche dopo eliminazione evento)
-              const myTickets = tickets.filter(t => (t.prId === payPrData.id || payPrData.aliases?.includes(t.prId)) && t.used === true);
+              const lastReset = getLastReset(payPrData);
+              const myTickets = tickets.filter(t => (t.prId === payPrData.id || payPrData.aliases?.includes(t.prId)) && t.used === true && afterReset(t, lastReset));
               const byEvent = {};
               myTickets.forEach(t => {
                 if (!byEvent[t.eventId]) byEvent[t.eventId] = 0;
@@ -1038,15 +1053,15 @@ const AdminPanel = ({ session, onLogout }) => {
               const perEventRows = Object.entries(byEvent).map(([eventId, count]) => {
                 const slotIndex = payPrData.eventIds?.indexOf(eventId);
                 const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(payPrData.eventPays?.[slotIndex]) || 0) : 0;
-                const eventTitle = events.find(e => e.id === eventId)?.title || '— Evento rimosso —';
+                const eventTitle = events.find(e => e.id === eventId)?.title || eventId;
                 return { eventTitle, count, rate, total: count * rate };
               });
 
-              // bonus supervisore
+              // bonus supervisore (filtrato con lo stesso lastReset del PR supervisore)
               const subPrs = activePrs.filter(sub => sub.supervisorId === payPrData.id || payPrData.aliases?.includes(sub.supervisorId));
               let supervisorBonus = 0;
               subPrs.forEach(sub => {
-                const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true);
+                const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true && afterReset(t, lastReset));
                 supervisorBonus += subTickets.length * (Number(sub.supervisorPay) || 0);
               });
 
