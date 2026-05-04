@@ -450,6 +450,7 @@ const Home = () => {
   const [starSequence, setStarSequence] = useState([]);
   const [externalEvents, setExternalEvents] = useState([]);
   const [loadingExternal, setLoadingExternal] = useState(false);
+  const [filmsWithShowtimesToday, setFilmsWithShowtimesToday] = useState(new Set());
   const [selectedFilm, setSelectedFilm] = useState(null);
   const [selectedEventMonth, setSelectedEventMonth] = useState(null);
   const [concertiFilter, setConcertiFilter] = useState('TUTTI'); // 'TUTTI' | 'OGGI' | 'DATA'
