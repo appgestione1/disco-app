@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 04/05/2026 — commit `32a9e47`**
+> **Ultimo aggiornamento: 04/05/2026 — commit `8325fe2`**
 
 ---
 
@@ -38,13 +38,24 @@ Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboar
 
 ---
 
-## Pannello Admin (`Admin.jsx`)
+## Sistema Multi-Admin (gruppi)
 
+Ogni "gruppo" è un'organizzazione indipendente (es. una discoteca) con i propri PR, eventi e dati.
+
+### Login Admin (`AdminLogin` in `Admin.jsx`)
+- Schermata di login con **ID Gruppo** + **Password**
+- Verifica contro Firestore collection `groups/{groupId}` → campo `password`
+- Sessione salvata in `localStorage` come `adminGroup: { groupId, groupName, groupType }`
+- Logout disponibile dal pannello
+
+### Pannello Admin (`AdminPanel` in `Admin.jsx`)
 Tab navigation con 4 sezioni (`activeTab`):
 - **DATI LIVE** (`stats`) — ingressi live, conteggi per PR
 - **TEAM PR** (`prs`) — gestione PR, pagamenti, contabilità
 - **SERATE** (`events`) — gestione eventi
 - **SPONSOR** (`sponsors`) — gestione sponsor
+
+Tutti i dati sono **filtrati per `groupId`** (query Firestore con `where("groupId", "==", groupId)`).
 
 Funzionalità chiave:
 - Creazione/modifica eventi con upload immagine
@@ -52,16 +63,21 @@ Funzionalità chiave:
 - Password admin modificabile da Firestore (`settings/admin`)
 - Gestione privé per evento
 - QR code generazione per ogni PR
+- MASTER PR creato automaticamente al momento della creazione del gruppo (`MASTER_{groupId}`)
 
----
+### SuperAdmin (`SuperAdmin.jsx`)
 
-## SuperAdmin (`SuperAdmin.jsx`)
-
-Menu a tile (`activeView`): `null | 'events' | 'proposals' | 'settings' | 'stats'`
-- **EVENTI** — toggle visibilità/privé per ogni evento
+Menu a tile (`activeView`): `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups'`
+- **EVENTI** — toggle visibilità/privé + **elimina evento** per ogni evento
 - **PROPOSTE** — accetta/rifiuta proposte evento esterni
 - **IMPOSTAZIONI** — prezzo invio proposta evento (gratuito o a pagamento)
 - **STATISTICHE** — dashboard analytics completo (vedi sezione Analytics)
+- **GRUPPI** — gestione completa dei gruppi/organizzazioni:
+  - Crea nuovo gruppo (id, nome, tipo, password) → crea anche MASTER PR automaticamente
+  - Vedi lista PR per ogni gruppo
+  - Imposta **commissioni per gruppo**: `perOrfano`, `perPR`, `perEvento`, `perQR` (€)
+  - Mostra/nascondi password gruppo
+  - Elimina gruppo
 
 ---
 
@@ -155,9 +171,10 @@ Tracking su Firestore + GA4 (`G-9XS7FT5ZV1`):
 
 | Collection | Contenuto |
 |---|---|
-| `events` | Serate/eventi |
+| `groups/{groupId}` | Gruppi/organizzazioni: name, type, password, commissions |
+| `events` | Serate/eventi (campo `groupId`) |
 | `tickets` | Biglietti QR generati |
-| `prs_registry` | Anagrafica PR con eventIds assegnati |
+| `prs_registry` | Anagrafica PR con eventIds assegnati (campo `groupId`) |
 | `prs` | Contatori ingressi live per PR |
 | `event_proposals` | Proposte evento da utenti esterni |
 | `settings/admin` | Password pannello admin |
@@ -176,8 +193,8 @@ Tracking su Firestore + GA4 (`G-9XS7FT5ZV1`):
 src/
   App.jsx          — Router + Scanner + PRDashboard
   Home.jsx         — Home pubblica (cinema, concerti, teatro, eventi, prenotazioni)
-  Admin.jsx        — Pannello admin (tab: stats/prs/events/sponsors)
-  SuperAdmin.jsx   — Pannello superadmin (eventi/proposte/impostazioni/statistiche)
+  Admin.jsx        — Login gruppo + pannello admin (tab: stats/prs/events/sponsors)
+  SuperAdmin.jsx   — Pannello superadmin (eventi/proposte/impostazioni/statistiche/gruppi)
   SubmitEvent.jsx  — Form pubblico proposta evento
   analytics.js     — Funzioni tracking Firestore + GA4
   firebase.js      — Config Firebase
@@ -193,8 +210,7 @@ src/
 
 - [ ] Aggiungere chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Aggiungere segreti AWIN su GitHub Actions quando arrivano i feed
-- [ ] Committare modifiche non committate: GA4 tag in `index.html` + stato `filmsWithShowtimesToday` in `Home.jsx`
-- [ ] Sistema **multi-admin** — discusso ma non ancora implementato (da definire: più utenti con credenziali separate? ruoli diversi?)
+- [ ] `filmsWithShowtimesToday` (Set) aggiunto in `Home.jsx` — verificare se la logica è completa
 
 ---
 
