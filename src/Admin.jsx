@@ -684,8 +684,7 @@ const AdminPanel = ({ session, onLogout }) => {
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">PR INFO & LINK</th>
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
                     <th className="p-4 text-center border-r border-zinc-700 min-w-[80px]">IN</th>
-                    <th className="p-4 text-right border-r border-zinc-700 min-w-[100px]">TOTALE</th>
-                    <th className="p-4 text-center min-w-[150px]">AZIONI</th>
+                    <th className="p-4 text-right min-w-[100px]">TOTALE</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -696,11 +695,6 @@ const AdminPanel = ({ session, onLogout }) => {
                       const supObj = prs.find(p => p.id === pr.supervisorId);
                       supNameText = supObj ? (supObj.mergedInto === masterId ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
                     }
-                    const fin = isMaster ? masterFin : calculatePrFinancials(pr);
-                    const guadagnoLordo = isMaster ? guadagnoLordoMaster : fin.guadagnoLordo;
-                    const acconto = Number(pr.acconto) || 0;
-                    const guadagnoTotale = Math.max(0, guadagnoLordo - acconto);
-
                     return (
                       <tr key={pr.id} className="border-b-2 border-black hover:bg-[#FFEE00]/10">
                         <td className="p-4 border-r-2 border-black align-top text-left">
@@ -709,6 +703,21 @@ const AdminPanel = ({ session, onLogout }) => {
                           <div className="mt-3 flex flex-wrap items-center gap-2">
                             <span className={`text-[10px] font-black italic px-2 py-1 rounded ${isMaster ? 'bg-[#FFEE00] text-black' : 'bg-black text-[#FFEE00]'}`}>ID: {pr.id}</span>
                             {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
+                          </div>
+                          <div className="mt-3 flex flex-col gap-2">
+                            <button onClick={() => handleResetPrPassword(pr.id)} className="bg-black text-white text-[10px] font-black p-2 border-2 border-black flex items-center justify-center gap-1 uppercase w-full shadow-[2px_2px_0px_#000] active:scale-95"><KeyRound size={12}/> RESET PWD</button>
+                            {isMaster ? (
+                              <>
+                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1"><Calculator size={12}/> CONTEGGI</button>
+                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">MODIFICA ALIAS</button>
+                              </>
+                            ) : (
+                              <>
+                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">VEDI E PAGA</button>
+                                <button onClick={() => openReplaceModal(pr)} className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 hover:bg-blue-50 transition-colors uppercase w-full">Sostituisci</button>
+                              </>
+                            )}
+                            <button onClick={() => handleDeletePr(pr)} className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-600'} w-full border-2 border-red-600 p-2 flex justify-center`}><Trash2 size={16}/></button>
                           </div>
                           {pr.supervisorId && !isMaster && (
                             <div className="mt-3 pt-3 border-t border-zinc-200">
@@ -768,27 +777,6 @@ const AdminPanel = ({ session, onLogout }) => {
                                const finEv = calculatePrFinancialsForEvent(pr, sid);
                                return (<div key={i} className="h-[26px] flex items-center justify-end w-full"><span className="text-black font-black text-[14px] leading-none">€{finEv.guadagnoTotaleEv.toFixed(2)}</span></div>)
                              })}
-                          </div>
-                        </td>
-                        <td className="p-4 text-center align-top bg-zinc-50">
-                          <div className="flex flex-col items-center">
-                            <span className="text-2xl font-black text-red-600 leading-none">€{guadagnoTotale.toFixed(2)}</span>
-                            {acconto > 0 && <span className="text-[10px] font-black text-zinc-400 mt-1 uppercase leading-none">Cassa Tot: €{guadagnoLordo.toFixed(2)}</span>}
-                          </div>
-                          <div className="flex flex-col gap-2 items-center mt-3">
-                            <button onClick={() => handleResetPrPassword(pr.id)} className="bg-black text-white text-[10px] p-2 border-2 border-black flex items-center justify-center gap-1 uppercase w-full shadow-[2px_2px_0px_#000] active:scale-95"><KeyRound size={12}/> RESET PWD</button>
-                            {isMaster ? (
-                                <>
-                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1"><Calculator size={12}/> CONTEGGI</button>
-                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">MODIFICA ALIAS</button>
-                                </>
-                            ) : (
-                                <>
-                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">VEDI E PAGA</button>
-                                <button onClick={() => openReplaceModal(pr)} className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 hover:bg-blue-50 transition-colors uppercase w-full">Sostituisci</button>
-                                </>
-                            )}
-                            <button onClick={() => handleDeletePr(pr)} className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-600'} w-full border-2 border-red-600 p-2 flex justify-center`}><Trash2 size={16}/></button>
                           </div>
                         </td>
                       </tr>
