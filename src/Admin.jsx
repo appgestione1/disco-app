@@ -150,7 +150,8 @@ const AdminPanel = ({ session, onLogout }) => {
   const [priveForm, setPriveForm] = useState({ name: '', price: '', inclusions: '' });
 
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
-  const [autoPrCode, setAutoPrCode] = useState('PR001'); 
+  const [autoPrCode, setAutoPrCode] = useState('PR001');
+  const [showNewPrForm, setShowNewPrForm] = useState(false);
   
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
@@ -649,28 +650,38 @@ const AdminPanel = ({ session, onLogout }) => {
         {/* TAB 2: TEAM PR */}
         {activeTab === 'prs' && (
           <div className="animate-in slide-in-from-bottom-4 duration-300">
-            <form onSubmit={handleAddPr} className="bg-white border-4 border-black p-6 mb-10 shadow-[8px_8px_0px_#000]">
-              <h2 className="text-xl font-black mb-6 flex items-center gap-2 uppercase"><Plus size={24}/> NUOVO COLLABORATORE</h2>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
-                <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Supervisore (Opzionale)</label>
-                  <select className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00] bg-white" value={prForm.supervisorId} onChange={e => setPrForm({...prForm, supervisorId: e.target.value})}>
-                    <option value="">-- NESSUN SUPERVISORE --</option>
-                    {activePrs.filter(p => p.id !== masterId).map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
-                  </select>
-                </div>
-              </div>
-              <button className="w-full mt-6 bg-black text-white font-black py-4 uppercase hover:bg-[#FFEE00] hover:text-black transition-all shadow-[4px_4px_0px_#FFEE00] active:translate-y-1">SALVA NEL TEAM</button>
-            </form>
+            <div className="mb-10">
+              <button
+                type="button"
+                onClick={() => setShowNewPrForm(v => !v)}
+                className="flex items-center gap-2 font-black uppercase text-sm border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0px_#000] hover:bg-[#FFEE00] transition-all active:translate-y-1"
+              >
+                <Plus size={18}/> NUOVO COLLABORATORE
+                <span className="ml-1 text-zinc-500">{showNewPrForm ? '▲' : '▼'}</span>
+              </button>
+              {showNewPrForm && (
+                <form onSubmit={handleAddPr} className="bg-white border-4 border-black border-t-0 p-6 shadow-[8px_8px_0px_#000]">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
+                    <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
+                    <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
+                  </div>
+                  <div className="mt-4 flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Supervisore (Opzionale)</label>
+                    <select className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00] bg-white" value={prForm.supervisorId} onChange={e => setPrForm({...prForm, supervisorId: e.target.value})}>
+                      <option value="">-- NESSUN SUPERVISORE --</option>
+                      {activePrs.filter(p => p.id !== masterId).map(p => <option key={p.id} value={p.id}>{p.name} ({p.id})</option>)}
+                    </select>
+                  </div>
+                  <button className="w-full mt-6 bg-black text-white font-black py-4 uppercase hover:bg-[#FFEE00] hover:text-black transition-all shadow-[4px_4px_0px_#FFEE00] active:translate-y-1">SALVA NEL TEAM</button>
+                </form>
+              )}
+            </div>
 
             <div className="overflow-x-auto">
               <table className="w-full border-collapse border-4 border-black bg-white">
                 <thead>
                   <tr className="bg-black text-white italic uppercase text-[11px]">
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">PR INFO & LINK</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[150px]">SUPERVISORE</th>
                     <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
                     <th className="p-4 text-center border-r border-zinc-700 min-w-[80px]">IN</th>
                     <th className="p-4 text-right border-r border-zinc-700 min-w-[100px]">TOTALE</th>
@@ -699,17 +710,16 @@ const AdminPanel = ({ session, onLogout }) => {
                             <span className={`text-[10px] font-black italic px-2 py-1 rounded ${isMaster ? 'bg-[#FFEE00] text-black' : 'bg-black text-[#FFEE00]'}`}>ID: {pr.id}</span>
                             {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
                           </div>
-                        </td>
-                        <td className="p-4 border-r-2 border-black text-xs font-bold uppercase align-top text-left">
-                          {pr.supervisorId && !isMaster ? (
-                            <>
-                              <span className="block text-sm text-black">{supNameText}</span>
-                              <div className="mt-2 flex items-center h-[26px]">
+                          {pr.supervisorId && !isMaster && (
+                            <div className="mt-3 pt-3 border-t border-zinc-200">
+                              <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Supervisore</span>
+                              <p className="text-sm font-black text-black mt-0.5">{supNameText}</p>
+                              <div className="mt-1 flex items-center h-[26px]">
                                 <span className="text-[9px] text-zinc-500 whitespace-nowrap mr-2">BONUS:</span>
                                 <InlinePayInput initialValue={pr.supervisorPay} onSave={(val) => handleUpdateSupervisorPay(pr.id, val)} placeholder="0.00" />
                               </div>
-                            </>
-                          ) : 'NESSUNO'}
+                            </div>
+                          )}
                         </td>
                         <td className="p-2 border-r-2 border-black align-top text-left">
                           {isMaster ? (
