@@ -1028,19 +1028,86 @@ const AdminPanel = ({ session, onLogout }) => {
               <button onClick={() => setPayPrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] active:translate-y-1 transition-all"><X size={24} /></button>
             </div>
             {(() => {
-              const fin = calculatePrFinancials(payPrData);
+              // per-event breakdown — usa i ticket (persistono anche dopo eliminazione evento)
+              const myTickets = tickets.filter(t => (t.prId === payPrData.id || payPrData.aliases?.includes(t.prId)) && t.used === true);
+              const byEvent = {};
+              myTickets.forEach(t => {
+                if (!byEvent[t.eventId]) byEvent[t.eventId] = 0;
+                byEvent[t.eventId]++;
+              });
+              const perEventRows = Object.entries(byEvent).map(([eventId, count]) => {
+                const slotIndex = payPrData.eventIds?.indexOf(eventId);
+                const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(payPrData.eventPays?.[slotIndex]) || 0) : 0;
+                const eventTitle = events.find(e => e.id === eventId)?.title || '— Evento rimosso —';
+                return { eventTitle, count, rate, total: count * rate };
+              });
+
+              // bonus supervisore
+              const subPrs = activePrs.filter(sub => sub.supervisorId === payPrData.id || payPrData.aliases?.includes(sub.supervisorId));
+              let supervisorBonus = 0;
+              subPrs.forEach(sub => {
+                const subTickets = tickets.filter(t => (t.prId === sub.id || sub.aliases?.includes(t.prId)) && t.used === true);
+                supervisorBonus += subTickets.length * (Number(sub.supervisorPay) || 0);
+              });
+
+              const directTotal = perEventRows.reduce((s, r) => s + r.total, 0);
+              const guadagnoLordo = directTotal + supervisorBonus;
               const accontoAttuale = Number(payPrData.acconto) || 0;
-              const daPagare = Math.max(0, fin.guadagnoLordo - accontoAttuale);
+              const daPagare = Math.max(0, guadagnoLordo - accontoAttuale);
+
               return (
                 <div className="flex flex-col gap-4 text-left">
-                  <div className="bg-zinc-100 p-4 border-2 border-black">
-                    <div className="flex justify-between mb-2"><span className="text-sm font-black uppercase">Residuo Netto:</span><span className="text-2xl font-black text-red-600 italic tracking-tighter">€{daPagare.toFixed(2)}</span></div>
+
+                  {/* DETTAGLIO SERATE */}
+                  <div>
+                    <p className="text-[10px] font-black uppercase text-zinc-400 tracking-widest mb-2">Dettaglio Serate</p>
+                    {perEventRows.length === 0 ? (
+                      <p className="text-xs text-zinc-400 italic">Nessun ingresso registrato.</p>
+                    ) : (
+                      <div className="flex flex-col gap-1">
+                        {perEventRows.map((row, i) => (
+                          <div key={i} className="flex justify-between items-center border-b border-zinc-100 py-1.5">
+                            <div>
+                              <p className="text-sm font-black uppercase leading-none">{row.eventTitle}</p>
+                              <p className="text-[10px] text-zinc-400 mt-0.5">{row.count} ing × €{row.rate.toFixed(2)}</p>
+                            </div>
+                            <span className="font-black text-base">€{row.total.toFixed(2)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <input type="number" step="0.01" max={daPagare} placeholder="Importo da Versare" className="w-full p-4 border-2 border-black font-black uppercase text-xl outline-none text-center" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
-                  <button onClick={eseguiPagamento} disabled={loading || daPagare <= 0} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#000] active:scale-95 transition-all">CONFERMA PAGAMENTO</button>
-                  <button onClick={() => handleAzzeraContabilita(payPrData)} className="w-full font-black text-[10px] p-3 border-2 border-red-600 text-red-600 uppercase italic">AZZERA CONTABILITÀ PR</button>
+
+                  {/* BONUS SUPERVISORE */}
+                  {supervisorBonus > 0 && (
+                    <div className="flex justify-between items-center pt-1 border-t-2 border-dashed border-zinc-300">
+                      <span className="text-[11px] font-black uppercase text-zinc-500">Bonus Supervisore</span>
+                      <span className="font-black text-base">€{supervisorBonus.toFixed(2)}</span>
+                    </div>
+                  )}
+
+                  {/* RIEPILOGO */}
+                  <div className="border-t-4 border-black pt-3 flex flex-col gap-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black uppercase text-zinc-500">Totale Lordo</span>
+                      <span className="font-black text-lg">€{guadagnoLordo.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-black uppercase text-zinc-500">Acconti Versati</span>
+                      <span className="font-black text-lg text-zinc-400">− €{accontoAttuale.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-black text-white px-4 py-3 mt-1">
+                      <span className="text-xs font-black uppercase tracking-widest">Residuo</span>
+                      <span className="text-2xl font-black italic text-[#FFEE00]">€{daPagare.toFixed(2)}</span>
+                    </div>
+                  </div>
+
+                  {/* PAGAMENTO */}
+                  <input type="number" step="0.01" max={daPagare} placeholder="Importo da versare" className="w-full p-4 border-2 border-black font-black text-xl outline-none text-center focus:border-[#FFEE00]" value={payAmount} onChange={e => setPayAmount(e.target.value)} />
+                  <button onClick={eseguiPagamento} disabled={loading || daPagare <= 0} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#000] active:scale-95 transition-all disabled:opacity-40">CONFERMA PAGAMENTO</button>
+                  <button onClick={() => handleAzzeraContabilita(payPrData)} className="w-full font-black text-[10px] p-3 border-2 border-red-600 text-red-600 uppercase hover:bg-red-50 transition-all">AZZERA CONTABILITÀ PR</button>
                 </div>
-              )
+              );
             })()}
           </div>
         </div>
