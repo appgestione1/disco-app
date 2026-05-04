@@ -7,7 +7,7 @@ import {
 import {
   Users, Calendar, Ticket, Gift, Trash2,
   Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound, Ban, Crown,
-  LogOut, Eye, EyeOff, Building2
+  LogOut, Eye, EyeOff, Building2, Zap
 } from 'lucide-react';
 
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
@@ -152,7 +152,9 @@ const AdminPanel = ({ session, onLogout }) => {
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
   const [autoPrCode, setAutoPrCode] = useState('PR001');
   const [showNewPrForm, setShowNewPrForm] = useState(false);
-  
+  const [showBulkSetup, setShowBulkSetup] = useState(false);
+  const [bulkEventConfig, setBulkEventConfig] = useState([]);
+
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' }); 
   const [selectedFile, setSelectedFile] = useState(null);
 
@@ -161,6 +163,27 @@ const AdminPanel = ({ session, onLogout }) => {
     : [{ id: 'DISCOTECA', label: 'DISCOTECA' }];
 
   useEffect(() => { fetchData(); }, []);
+
+  useEffect(() => {
+    const activePrIds = prs.filter(p => !p.mergedInto && p.id !== masterId).map(p => p.id);
+    setBulkEventConfig(prev => {
+      const prevMap = Object.fromEntries(prev.map(c => [c.eventId, c]));
+      return events.map(ev => {
+        const existing = prevMap[ev.id];
+        if (existing) {
+          const existingPrMap = Object.fromEntries((existing.prConfigs || []).map(pc => [pc.prId, pc]));
+          const prConfigs = activePrIds.map(prId =>
+            existingPrMap[prId] || { prId, selected: true, pay: existing.pay || '' }
+          );
+          return { ...existing, prConfigs };
+        }
+        return {
+          eventId: ev.id, selected: false, pay: '',
+          prConfigs: activePrIds.map(prId => ({ prId, selected: true, pay: '' }))
+        };
+      });
+    });
+  }, [events, prs]);
 
   useEffect(() => {
     if (prs && prs.length > 0) {
@@ -333,6 +356,42 @@ const AdminPanel = ({ session, onLogout }) => {
         await updateDoc(doc(db, "prs_registry", prId), { supervisorPay: Number(val) });
         await fetchData();
     } catch (error) { console.error("Errore salvataggio bonus."); }
+  };
+
+  const handleApplyBulkSetup = async () => {
+    const selectedConfigs = bulkEventConfig.filter(c => c.selected);
+    if (selectedConfigs.length === 0) return alert('Seleziona almeno una serata!');
+    const involvedPrIds = new Set(
+      selectedConfigs.flatMap(c => (c.prConfigs || []).filter(pc => pc.selected).map(pc => pc.prId))
+    );
+    if (involvedPrIds.size === 0) return alert('Nessun PR selezionato!');
+    const prsToUpdate = activePrs.filter(p => involvedPrIds.has(p.id));
+    if (!window.confirm(`Applicare il setup a ${prsToUpdate.length} PR?\n\nSovrascrive gli slot esistenti.`)) return;
+    setLoading(true);
+    try {
+      for (const pr of prsToUpdate) {
+        const prEvents = selectedConfigs.filter(c =>
+          (c.prConfigs || []).find(pc => pc.prId === pr.id && pc.selected)
+        );
+        const newEventIds = Array(6).fill('');
+        const newEventPays = Array(6).fill(0);
+        const eventTitlesUpdate = {};
+        prEvents.slice(0, 6).forEach((config, i) => {
+          newEventIds[i] = config.eventId;
+          const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
+          newEventPays[i] = Number(prConf?.pay ?? config.pay) || 0;
+          const ev = events.find(e => e.id === config.eventId);
+          if (ev) eventTitlesUpdate[`eventTitles.${config.eventId}`] = ev.title;
+        });
+        await updateDoc(doc(db, 'prs_registry', pr.id), {
+          eventIds: newEventIds,
+          eventPays: newEventPays,
+          ...eventTitlesUpdate
+        });
+      }
+      await fetchData();
+      alert(`Setup applicato a ${prsToUpdate.length} PR!`);
+    } catch { alert("Errore durante l'applicazione."); } finally { setLoading(false); }
   };
 
   const handleDeletePr = async (pr) => {
@@ -666,6 +725,166 @@ const AdminPanel = ({ session, onLogout }) => {
         {/* TAB 2: TEAM PR */}
         {activeTab === 'prs' && (
           <div className="animate-in slide-in-from-bottom-4 duration-300">
+
+            {/* SETUP RAPIDO SERATE */}
+            <div className="mb-6">
+              <button
+                type="button"
+                onClick={() => setShowBulkSetup(v => !v)}
+                className="flex items-center justify-between gap-2 font-black uppercase text-sm border-4 border-[#FFEE00] bg-black text-[#FFEE00] px-5 py-3 shadow-[4px_4px_0px_#FFEE00] w-full active:translate-y-1 transition-all"
+              >
+                <span className="flex items-center gap-2"><Zap size={18}/> SETUP RAPIDO SERATE</span>
+                <span className="text-zinc-400 text-xs">{showBulkSetup ? '▲' : '▼'}</span>
+              </button>
+              {showBulkSetup && (
+                <div className="bg-black text-white border-4 border-[#FFEE00] border-t-0 shadow-[8px_8px_0px_#FFEE00]">
+                  <div className="p-4 border-b border-zinc-800">
+                    <p className="text-[10px] text-zinc-400 uppercase tracking-widest leading-relaxed">
+                      Attiva le serate, imposta la tariffa e decidi quali PR assegnare.
+                      Il setup sovrascrive gli slot di ogni PR selezionato. Max 6 serate.
+                    </p>
+                  </div>
+
+                  {events.length === 0 ? (
+                    <p className="text-zinc-500 text-xs italic text-center py-8">Nessuna serata disponibile</p>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-zinc-800">
+                      {bulkEventConfig.map((config, idx) => {
+                        const ev = events.find(e => e.id === config.eventId);
+                        if (!ev) return null;
+                        const selectedCount = bulkEventConfig.filter(c => c.selected).length;
+                        const isLimitReached = !config.selected && selectedCount >= 6;
+                        const nonMasterPrs = activePrs.filter(p => p.id !== masterId);
+                        return (
+                          <div key={config.eventId} className={`transition-all ${config.selected ? 'bg-zinc-900' : isLimitReached ? 'opacity-30' : ''}`}>
+
+                            {/* riga evento */}
+                            <div
+                              className="flex items-center gap-3 px-4 py-3 cursor-pointer"
+                              onClick={() => {
+                                if (isLimitReached) return;
+                                setBulkEventConfig(prev => prev.map((c, i) => i === idx ? { ...c, selected: !c.selected } : c));
+                              }}
+                            >
+                              <div className={`w-5 h-5 border-2 shrink-0 flex items-center justify-center transition-all ${config.selected ? 'bg-[#FFEE00] border-[#FFEE00]' : 'border-zinc-500'}`}>
+                                {config.selected && <span className="text-[10px] font-black text-black">✓</span>}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-xs uppercase truncate leading-none">{ev.title}</p>
+                                <p className="text-[10px] text-zinc-500 mt-0.5">{ev.date}</p>
+                              </div>
+                              {config.selected && (
+                                <div
+                                  className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[90px] shrink-0"
+                                  onClick={e => e.stopPropagation()}
+                                >
+                                  <span className="px-1.5 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€ tutti</span>
+                                  <input
+                                    type="text"
+                                    inputMode="decimal"
+                                    placeholder="0.00"
+                                    className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
+                                    value={config.pay}
+                                    onChange={e => {
+                                      const val = e.target.value;
+                                      setBulkEventConfig(prev => prev.map((c, i) => i !== idx ? c : {
+                                        ...c, pay: val,
+                                        prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, pay: val }))
+                                      }));
+                                    }}
+                                    onBlur={e => {
+                                      const parsed = parseFloat(e.target.value);
+                                      if (!isNaN(parsed)) {
+                                        const fmt = parsed.toFixed(2);
+                                        setBulkEventConfig(prev => prev.map((c, i) => i !== idx ? c : {
+                                          ...c, pay: fmt,
+                                          prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, pay: fmt }))
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                </div>
+                              )}
+                            </div>
+
+                            {/* lista PR per questa serata */}
+                            {config.selected && nonMasterPrs.length > 0 && (
+                              <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
+                                <p className="text-[9px] text-zinc-500 uppercase tracking-widest mb-2">Team assegnato a questa serata:</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {nonMasterPrs.map(pr => {
+                                    const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
+                                    const isChecked = prConf ? prConf.selected : true;
+                                    const prPay = prConf ? prConf.pay : (config.pay ?? '');
+
+                                    const updatePrConf = (updater) => setBulkEventConfig(prev => prev.map((c, i) => {
+                                      if (i !== idx) return c;
+                                      const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
+                                      const base = exists
+                                        ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
+                                        : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '' })];
+                                      return { ...c, prConfigs: base };
+                                    }));
+
+                                    return (
+                                      <div key={pr.id} className={`flex items-center border-2 transition-all ${isChecked ? 'bg-[#FFEE00] text-black border-[#FFEE00]' : 'bg-zinc-950 text-zinc-500 border-zinc-700'}`}>
+                                        <button
+                                          type="button"
+                                          onClick={() => updatePrConf(pc => ({ ...pc, selected: !pc.selected }))}
+                                          className="flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase"
+                                        >
+                                          {isChecked && <span className="text-[8px]">✓</span>}
+                                          {pr.name}
+                                          <span className="opacity-50 normal-case font-bold">{pr.id}</span>
+                                        </button>
+                                        {isChecked && (
+                                          <div className="flex items-center border-l-2 border-black/20 py-1">
+                                            <span className="px-1 text-[8px] font-black opacity-60">€</span>
+                                            <input
+                                              type="text"
+                                              inputMode="decimal"
+                                              placeholder="0.00"
+                                              className="w-[44px] pr-1 font-black text-[9px] text-center focus:outline-none bg-transparent"
+                                              value={prPay}
+                                              onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
+                                              onBlur={e => {
+                                                const parsed = parseFloat(e.target.value);
+                                                if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
+                                              }}
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="p-4 border-t border-zinc-800">
+                    <button
+                      onClick={handleApplyBulkSetup}
+                      disabled={loading || bulkEventConfig.filter(c => c.selected).length === 0}
+                      className="w-full bg-[#FFEE00] text-black font-black py-4 uppercase text-sm shadow-[4px_4px_0px_#FFF] active:translate-y-1 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
+                    >
+                      <Zap size={18}/>
+                      APPLICA SETUP AL TEAM
+                      {bulkEventConfig.filter(c => c.selected).length > 0 && (
+                        <span className="bg-black text-[#FFEE00] text-[9px] font-black px-2 py-0.5 ml-1">
+                          {bulkEventConfig.filter(c => c.selected).length} {bulkEventConfig.filter(c => c.selected).length === 1 ? 'SERATA' : 'SERATE'}
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="mb-10">
               <button
                 type="button"
