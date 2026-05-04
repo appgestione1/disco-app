@@ -588,36 +588,34 @@ const AdminPanel = ({ session, onLogout }) => {
   return (
     <div className="min-h-screen bg-zinc-50 text-black font-sans pb-20 uppercase font-black">
       
-      {/* HEADER DASHBOARD */}
-      <div className="bg-black text-white py-1 px-5 sticky top-0 z-50 flex justify-between items-center border-b-4 border-[#FFEE00]">
-        
-        <div className="flex items-start flex-col">
-          <img src="/logo.png" alt="Logo" className="h-24 mt-8 -mb-5 object-contain block" />
-          <h1 className="font-black italic text-2xl leading-none">ADMIN PANEL</h1>
-          <p className="text-[9px] text-[#FFEE00] tracking-widest mt-1">{groupName}</p>
-        </div>
-
-        <div className="flex items-center gap-6">
-          <div className="flex gap-4">
-            <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600 hover:bg-zinc-700">
-              <Lock size={20} />
+      {/* HEADER + TAB NAV — sticky insieme */}
+      <div className="sticky top-0 z-50">
+        <div className="bg-black text-white px-4 py-2 flex justify-between items-center border-b-4 border-[#FFEE00]">
+          <div className="flex items-center gap-3">
+            <img src="/logo.png" alt="Logo" className="h-10 md:h-16 object-contain block" />
+            <div>
+              <h1 className="font-black italic text-base md:text-2xl leading-none">ADMIN PANEL</h1>
+              <p className="text-[9px] text-[#FFEE00] tracking-widest mt-0.5">{groupName}</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button onClick={() => setPasswordModalOpen(true)} className="bg-zinc-800 text-white p-2 rounded-full border-2 border-zinc-600">
+              <Lock size={18} />
             </button>
             <button onClick={fetchData} className={`bg-[#FFEE00] text-black p-2 rounded-full ${loading ? 'animate-spin' : ''}`}>
-              <RefreshCw size={20} />
+              <RefreshCw size={18} />
             </button>
-            <button onClick={onLogout} title="Esci" className="bg-red-600 text-white p-2 rounded-full border-2 border-red-800 hover:bg-red-700">
-              <LogOut size={20} />
+            <button onClick={onLogout} className="bg-red-600 text-white p-2 rounded-full border-2 border-red-800">
+              <LogOut size={18} />
             </button>
           </div>
         </div>
-      </div>
-
-      {/* NAVIGAZIONE TABS */}
-      <div className="flex bg-white border-b-4 border-black sticky top-[76px] z-40 overflow-x-auto">
-        <button onClick={() => setActiveTab('stats')} className={`flex-1 p-4 font-black flex items-center justify-center gap-2 ${activeTab === 'stats' ? 'bg-[#FFEE00]' : ''}`}><BarChart size={20}/> <span className="hidden md:inline">DATI LIVE</span></button>
-        <button onClick={() => setActiveTab('prs')} className={`flex-1 p-4 font-black flex items-center justify-center gap-2 border-l-2 border-black ${activeTab === 'prs' ? 'bg-[#FFEE00]' : ''}`}><Users size={20}/> <span className="hidden md:inline">TEAM PR</span></button>
-        <button onClick={() => setActiveTab('events')} className={`flex-1 p-4 font-black flex items-center justify-center gap-2 border-l-2 border-black ${activeTab === 'events' ? 'bg-[#FFEE00]' : ''}`}><Calendar size={20}/> <span className="hidden md:inline">SERATE</span></button>
-        <button onClick={() => setActiveTab('sponsors')} className={`flex-1 p-4 font-black flex items-center justify-center gap-2 border-l-2 border-black ${activeTab === 'sponsors' ? 'bg-[#FFEE00]' : ''}`}><Gift size={20}/> <span className="hidden md:inline">SPONSOR</span></button>
+        <div className="flex bg-white border-b-4 border-black">
+          <button onClick={() => setActiveTab('stats')} className={`flex-1 py-3 px-1 font-black flex flex-col items-center justify-center gap-1 text-[10px] ${activeTab === 'stats' ? 'bg-[#FFEE00]' : ''}`}><BarChart size={18}/> LIVE</button>
+          <button onClick={() => setActiveTab('prs')} className={`flex-1 py-3 px-1 font-black flex flex-col items-center justify-center gap-1 text-[10px] border-l-2 border-black ${activeTab === 'prs' ? 'bg-[#FFEE00]' : ''}`}><Users size={18}/> TEAM</button>
+          <button onClick={() => setActiveTab('events')} className={`flex-1 py-3 px-1 font-black flex flex-col items-center justify-center gap-1 text-[10px] border-l-2 border-black ${activeTab === 'events' ? 'bg-[#FFEE00]' : ''}`}><Calendar size={18}/> SERATE</button>
+          <button onClick={() => setActiveTab('sponsors')} className={`flex-1 py-3 px-1 font-black flex flex-col items-center justify-center gap-1 text-[10px] border-l-2 border-black ${activeTab === 'sponsors' ? 'bg-[#FFEE00]' : ''}`}><Gift size={18}/> SPONSOR</button>
+        </div>
       </div>
 
       <div className="p-4 max-w-7xl mx-auto">
@@ -695,115 +693,120 @@ const AdminPanel = ({ session, onLogout }) => {
               )}
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse border-4 border-black bg-white">
-                <thead>
-                  <tr className="bg-black text-white italic uppercase text-[11px]">
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[200px]">PR INFO & LINK</th>
-                    <th className="p-4 text-left border-r border-zinc-700 min-w-[220px]">SERATE ASSEGNATE (SLOT)</th>
-                    <th className="p-4 text-center border-r border-zinc-700 min-w-[80px]">IN</th>
-                    <th className="p-4 text-right min-w-[100px]">TOTALE</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {activePrs.map(pr => {
-                    const isMaster = pr.id === masterId;
-                    let supNameText = 'NESSUNO';
-                    if (pr.supervisorId && !isMaster) {
-                      const supObj = prs.find(p => p.id === pr.supervisorId);
-                      supNameText = supObj ? (supObj.mergedInto === masterId ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
-                    }
-                    return (
-                      <tr key={pr.id} className="border-b-2 border-black hover:bg-[#FFEE00]/10">
-                        <td className="p-4 border-r-2 border-black align-top text-left">
-                          <p className="font-black text-lg leading-none">{pr.name}</p>
-                          {pr.phone && <p className="text-xs font-bold opacity-50 flex items-center gap-1 mt-1"><Phone size={10}/> {pr.phone}</p>}
-                          <div className="mt-3 flex flex-wrap items-center gap-2">
-                            <span className={`text-[10px] font-black italic px-2 py-1 rounded ${isMaster ? 'bg-[#FFEE00] text-black' : 'bg-black text-[#FFEE00]'}`}>ID: {pr.id}</span>
-                            {!isMaster && <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }} className="text-[10px] font-black underline cursor-pointer text-blue-600 hover:text-blue-800 uppercase">Copia Link App</button>}
+            <div className="flex flex-col gap-3">
+              {activePrs.map(pr => {
+                const isMaster = pr.id === masterId;
+                const lr = getLastReset(pr);
+                const countT = (eventId) => tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lr)).length;
+                let supNameText = '';
+                if (pr.supervisorId && !isMaster) {
+                  const supObj = prs.find(p => p.id === pr.supervisorId);
+                  supNameText = supObj ? (supObj.mergedInto === masterId ? `MASTER (ex ${supObj.name})` : supObj.name) : pr.supervisorId;
+                }
+                return (
+                  <div key={pr.id} className={`border-4 bg-white overflow-hidden ${isMaster ? 'border-[#FFEE00] shadow-[5px_5px_0px_#FFEE00]' : 'border-black shadow-[5px_5px_0px_#000]'}`}>
+
+                    {/* intestazione card */}
+                    <div className={`px-4 py-3 flex justify-between items-center ${isMaster ? 'bg-[#FFEE00]' : 'bg-black'}`}>
+                      <div>
+                        <p className={`font-black text-base leading-none ${isMaster ? 'text-black' : 'text-white'}`}>{pr.name}</p>
+                        {pr.phone && <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isMaster ? 'text-zinc-600' : 'text-zinc-400'}`}><Phone size={9}/> {pr.phone}</p>}
+                      </div>
+                      <span className={`text-[9px] font-black px-2 py-1 border-2 ${isMaster ? 'bg-black text-[#FFEE00] border-black' : 'bg-[#FFEE00] text-black border-[#FFEE00]'}`}>
+                        {isMaster ? '★ MASTER' : pr.id}
+                      </span>
+                    </div>
+
+                    {/* slot serate */}
+                    <div className="divide-y divide-zinc-100">
+                      {isMaster ? events.map(ev => {
+                        const n = countT(ev.id);
+                        const finEv = calculatePrFinancialsForEvent(pr, ev.id);
+                        return (
+                          <div key={ev.id} className="px-4 py-2 flex items-center gap-2">
+                            <span className="text-[11px] font-black uppercase truncate flex-1">{ev.title}</span>
+                            <span className={`text-xs font-black px-2 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
+                            <span className="text-sm font-black w-16 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
                           </div>
-                          <div className="mt-3 flex flex-col gap-2">
-                            <button onClick={() => handleResetPrPassword(pr.id)} className="bg-black text-white text-[10px] font-black p-2 border-2 border-black flex items-center justify-center gap-1 uppercase w-full shadow-[2px_2px_0px_#000] active:scale-95"><KeyRound size={12}/> RESET PWD</button>
-                            {isMaster ? (
-                              <>
-                                <button onClick={() => setProfitsModalOpen(true)} className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-green-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1"><Calculator size={12}/> CONTEGGI</button>
-                                <button onClick={() => setMasterModalOpen(true)} className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 hover:bg-purple-700 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">MODIFICA ALIAS</button>
-                              </>
-                            ) : (
-                              <>
-                                <button onClick={() => { setPayPrData(pr); setPayAmount(''); }} className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 hover:bg-yellow-400 transition-colors uppercase w-full shadow-[2px_2px_0px_#000]">VEDI E PAGA</button>
-                                <button onClick={() => openReplaceModal(pr)} className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 hover:bg-blue-50 transition-colors uppercase w-full">Sostituisci</button>
-                              </>
-                            )}
-                            <button onClick={() => handleDeletePr(pr)} className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'hover:bg-red-50 text-red-600'} w-full border-2 border-red-600 p-2 flex justify-center`}><Trash2 size={16}/></button>
-                          </div>
-                          {pr.supervisorId && !isMaster && (
-                            <div className="mt-3 pt-3 border-t border-zinc-200">
-                              <span className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Supervisore</span>
-                              <p className="text-sm font-black text-black mt-0.5">{supNameText}</p>
-                              <div className="mt-1 flex items-center h-[26px]">
-                                <span className="text-[9px] text-zinc-500 whitespace-nowrap mr-2">BONUS:</span>
-                                <InlinePayInput initialValue={pr.supervisorPay} onSave={(val) => handleUpdateSupervisorPay(pr.id, val)} placeholder="0.00" />
+                        );
+                      }) : [0,1,2,3,4,5].map(i => {
+                        const selId = pr.eventIds?.[i] || '';
+                        const currentPay = pr.eventPays?.[i] || '';
+                        const n = selId ? countT(selId) : 0;
+                        const finEv = selId ? calculatePrFinancialsForEvent(pr, selId) : null;
+                        return (
+                          <div key={i} className="px-3 py-1.5 flex items-center gap-2">
+                            <select
+                              className="flex-1 min-w-0 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 py-1 outline-none"
+                              value={selId}
+                              onChange={e => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)}
+                              disabled={loading}
+                            >
+                              <option value="">— slot {i+1} —</option>
+                              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
+                            </select>
+                            {selId && <>
+                              <div className="h-[28px] shrink-0">
+                                <InlinePayInput initialValue={currentPay} onSave={val => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="0.00" />
                               </div>
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-2 border-r-2 border-black align-top text-left">
-                          {isMaster ? (
-                            <div className="flex flex-col gap-1">
-                              {events.map(ev => (<div key={ev.id} className="h-[26px] flex items-center"><span className="text-[9px] font-bold text-zinc-500 uppercase truncate max-w-[160px]">{ev.title}</span></div>))}
-                            </div>
-                          ) : (
-                            <div className="flex flex-col gap-1">
-                              {[0, 1, 2, 3, 4, 5].map(i => {
-                                const selectedEventId = pr.eventIds?.[i] || "";
-                                const currentPay = pr.eventPays?.[i] || "";
-                                return (
-                                  <div key={i} className="h-[26px] flex items-stretch gap-1">
-                                    <select className="w-28 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 outline-none h-full" value={selectedEventId} onChange={(e) => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)} disabled={loading}>
-                                      <option value="">-- VUOTO --</option>
-                                      {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                                    </select>
-                                    {selectedEventId && <InlinePayInput initialValue={currentPay} onSave={(val) => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="0.00" />}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-2 border-r-2 border-black align-top text-center">
-                          <div className="flex flex-col gap-1">
-                             {(() => {
-                               const lr = getLastReset(pr);
-                               const countT = (eventId) => tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lr)).length;
-                               const cell = (key, n) => (<div key={key} className="h-[26px] flex items-center justify-center w-full">{n > 0 ? <span className="bg-black text-[#FFEE00] px-2 py-1 rounded-sm font-black text-[14px] leading-none shadow-[2px_2px_0px_#000]">{n}</span> : <span className="text-black font-black text-[14px] leading-none">0</span>}</div>);
-                               if (isMaster) return events.map(ev => cell(ev.id, countT(ev.id)));
-                               return [0,1,2,3,4,5].map(i => {
-                                 const sid = pr.eventIds?.[i];
-                                 if (!sid) return <div key={i} className="h-[26px]"></div>;
-                                 return cell(i, countT(sid));
-                               });
-                             })()}
+                              <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
+                              <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
+                            </>}
                           </div>
-                        </td>
-                        <td className="p-2 border-r-2 border-black align-top text-right">
-                          <div className="flex flex-col gap-1">
-                             {isMaster ? events.map(ev => {
-                               const finEv = calculatePrFinancialsForEvent(pr, ev.id);
-                               return (<div key={ev.id} className="h-[26px] flex items-center justify-end w-full"><span className="text-black font-black text-[14px] leading-none">€{finEv.guadagnoTotaleEv.toFixed(2)}</span></div>)
-                             }) : [0, 1, 2, 3, 4, 5].map(i => {
-                               const sid = pr.eventIds?.[i];
-                               if (!sid) return <div key={i} className="h-[26px]"></div>;
-                               const finEv = calculatePrFinancialsForEvent(pr, sid);
-                               return (<div key={i} className="h-[26px] flex items-center justify-end w-full"><span className="text-black font-black text-[14px] leading-none">€{finEv.guadagnoTotaleEv.toFixed(2)}</span></div>)
-                             })}
+                        );
+                      })}
+                    </div>
+
+                    {/* link + supervisore */}
+                    {(!isMaster) && (
+                      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-50 flex flex-wrap items-center gap-x-4 gap-y-1">
+                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }}
+                          className="text-[10px] font-black underline text-blue-600 uppercase">Copia Link App</button>
+                        {supNameText && (
+                          <span className="text-[10px] text-zinc-500 font-black uppercase">Sup: {supNameText}</span>
+                        )}
+                        {pr.supervisorId && (
+                          <div className="flex items-center gap-1 h-[24px]">
+                            <span className="text-[9px] text-zinc-500 uppercase">Bonus:</span>
+                            <InlinePayInput initialValue={pr.supervisorPay} onSave={val => handleUpdateSupervisorPay(pr.id, val)} placeholder="0.00" />
                           </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                        )}
+                      </div>
+                    )}
+
+                    {/* azioni */}
+                    <div className="p-3 border-t-2 border-black grid grid-cols-2 gap-2">
+                      <button onClick={() => handleResetPrPassword(pr.id)}
+                        className="col-span-2 bg-black text-white text-[10px] font-black p-2 border-2 border-black flex items-center justify-center gap-1 uppercase shadow-[2px_2px_0px_#555] active:scale-95">
+                        <KeyRound size={11}/> RESET PWD
+                      </button>
+                      {isMaster ? (<>
+                        <button onClick={() => setProfitsModalOpen(true)}
+                          className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1">
+                          <Calculator size={11}/> CONTEGGI
+                        </button>
+                        <button onClick={() => setMasterModalOpen(true)}
+                          className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
+                          MODIFICA ALIAS
+                        </button>
+                      </>) : (<>
+                        <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
+                          className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000]">
+                          VEDI E PAGA
+                        </button>
+                        <button onClick={() => openReplaceModal(pr)}
+                          className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 uppercase">
+                          Sostituisci
+                        </button>
+                      </>)}
+                      <button onClick={() => handleDeletePr(pr)}
+                        className={`col-span-2 ${isMaster ? 'opacity-30 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'} border-2 border-red-600 p-2 flex justify-center`}>
+                        <Trash2 size={14}/>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
