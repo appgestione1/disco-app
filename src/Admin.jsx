@@ -307,9 +307,14 @@ const AdminPanel = ({ session, onLogout }) => {
     setLoading(true);
     try {
       let newEventIds = [...(currentEventIds || [])];
-      while (newEventIds.length < 6) newEventIds.push(''); 
+      while (newEventIds.length < 6) newEventIds.push('');
       newEventIds[slotIndex] = eventId;
-      await updateDoc(doc(db, "prs_registry", prId), { eventIds: newEventIds });
+      const update = { eventIds: newEventIds };
+      if (eventId) {
+        const title = events.find(e => e.id === eventId)?.title;
+        if (title) update[`eventTitles.${eventId}`] = title;
+      }
+      await updateDoc(doc(db, "prs_registry", prId), update);
       await fetchData();
     } catch (error) { alert("Errore aggiornamento serata."); } finally { setLoading(false); }
   };
@@ -1053,7 +1058,7 @@ const AdminPanel = ({ session, onLogout }) => {
               const perEventRows = Object.entries(byEvent).map(([eventId, count]) => {
                 const slotIndex = payPrData.eventIds?.indexOf(eventId);
                 const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(payPrData.eventPays?.[slotIndex]) || 0) : 0;
-                const eventTitle = events.find(e => e.id === eventId)?.title || eventId;
+                const eventTitle = events.find(e => e.id === eventId)?.title || payPrData.eventTitles?.[eventId] || eventId;
                 return { eventTitle, count, rate, total: count * rate };
               });
 
