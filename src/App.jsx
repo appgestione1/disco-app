@@ -11,6 +11,7 @@ import Admin from './Admin';
 import Home from './Home';
 import SuperAdmin from './SuperAdmin';
 import SubmitEvent from './SubmitEvent';
+import SplashScreen from './SplashScreen';
 
 // --- SCANNER (LATO STAFF) ---
 const Scanner = () => {
@@ -324,16 +325,21 @@ const PRDashboard = () => {
 
 // --- ROUTER GENERALE ---
 export default function App() {
+  const [splashDone, setSplashDone] = useState(false);
+
   return (
-    <Router>
-      <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/scanner" element={<Scanner />} />
-        <Route path="/pr/:prId" element={<PRDashboard />} />
-        <Route path="/admin-segreto-stefano" element={<Admin />} />
-        <Route path="/super-control-room" element={<SuperAdmin />} />
-        <Route path="/proponi-evento" element={<SubmitEvent />} />
-      </Routes>
-    </Router>
+    <>
+      {!splashDone && <SplashScreen onDone={() => setSplashDone(true)} />}
+      <Router>
+        <Routes>
+          <Route path="/" element={<Home />} />
+          <Route path="/scanner" element={<Scanner />} />
+          <Route path="/pr/:prId" element={<PRDashboard />} />
+          <Route path="/admin-segreto-stefano" element={<Admin />} />
+          <Route path="/super-control-room" element={<SuperAdmin />} />
+          <Route path="/proponi-evento" element={<SubmitEvent />} />
+        </Routes>
+      </Router>
+    </>
   );
 }

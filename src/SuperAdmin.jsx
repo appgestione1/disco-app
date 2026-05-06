@@ -53,6 +53,10 @@ const SuperAdmin = () => {
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
   const [priceInput, setPriceInput] = useState('10');
 
+  // Splash & Pub
+  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', linkUrl: '', title: '' });
+  const [splashAdSaving, setSplashAdSaving] = useState(false);
+
   // Gruppi
   const [groups, setGroups] = useState([]);
   const [groupForm, setGroupForm] = useState({ id: '', name: '', type: 'DISCOTECA', password: '' });
@@ -69,11 +73,13 @@ const SuperAdmin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [evSnap, propSnap, settSnap] = await Promise.all([
+      const [evSnap, propSnap, settSnap, splashSnap] = await Promise.all([
         getDocs(collection(db, 'events')),
         getDocs(collection(db, 'event_proposals')),
-        getDoc(doc(db, 'settings', 'eventSubmission'))
+        getDoc(doc(db, 'settings', 'eventSubmission')),
+        getDoc(doc(db, 'settings', 'splash_ad')),
       ]);
+      if (splashSnap.exists()) setSplashAd({ enabled: false, imageUrl: '', linkUrl: '', title: '', ...splashSnap.data() });
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
       if (settSnap.exists()) {
@@ -232,6 +238,15 @@ const SuperAdmin = () => {
     }
   };
 
+  const handleSaveSplashAd = async () => {
+    setSplashAdSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'splash_ad'), splashAd, { merge: true });
+      alert('Splash pub salvata!');
+    } catch { alert('Errore salvataggio.'); }
+    finally { setSplashAdSaving(false); }
+  };
+
   const handleSaveSettings = async () => {
     const price = Number(priceInput);
     if (isNaN(price) || price < 0) return alert('Inserisci un prezzo valido');
@@ -359,6 +374,18 @@ const SuperAdmin = () => {
               {groups.length > 0 && (
                 <span className="ml-auto bg-green-500 text-black text-sm font-black w-8 h-8 rounded-full flex items-center justify-center">{groups.length}</span>
               )}
+            </button>
+
+            {/* SPLASH & PUB */}
+            <button
+              onClick={() => setActiveView('splash')}
+              className="group relative w-full max-w-sm flex items-center gap-6 bg-zinc-900 border-2 border-purple-500/30 text-zinc-400 px-10 py-7 rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all duration-300 hover:border-purple-500 hover:text-white"
+            >
+              <Star size={36} className="text-purple-400 group-hover:rotate-12 transition-transform" />
+              <div className="text-left">
+                <span className="text-2xl italic tracking-tighter block">Splash & Pub</span>
+                {splashAd.enabled && <span className="text-[9px] text-purple-400 font-black tracking-widest">ATTIVA</span>}
+              </div>
             </button>
 
             {/* IMPOSTAZIONI INSERIMENTO */}
@@ -887,6 +914,92 @@ const SuperAdmin = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* SEZIONE SPLASH & PUB */}
+        {activeView === 'splash' && (
+          <div className="animate-in slide-in-from-bottom-10 duration-500 max-w-sm mx-auto space-y-6">
+            <div className="flex items-center justify-between mb-2 px-4">
+              <h2 className="text-purple-400 text-xs tracking-widest italic flex items-center gap-2">
+                <Star size={14} /> Splash & Pubblicità
+              </h2>
+              <button onClick={() => setActiveView(null)} className="text-red-500 text-[10px] underline flex items-center gap-1">
+                <ChevronLeft size={14} /> Indietro
+              </button>
+            </div>
+
+            <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 space-y-6">
+
+              {/* Toggle abilitazione */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-black text-white">Popup Pubblicità</p>
+                  <p className="text-[9px] text-zinc-500 mt-1 normal-case">
+                    {splashAd.enabled ? 'Attivo — visibile agli utenti' : 'Disattivato'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSplashAd(s => ({ ...s, enabled: !s.enabled }))}
+                  className={`relative w-16 h-8 rounded-full transition-colors border-2 ${splashAd.enabled ? 'bg-purple-600 border-purple-500' : 'bg-zinc-700 border-zinc-600'}`}
+                >
+                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${splashAd.enabled ? 'left-8' : 'left-0.5'}`} />
+                </button>
+              </div>
+
+              {/* Titolo / etichetta */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Etichetta (es. "Promo Serata")</p>
+                <input
+                  type="text"
+                  placeholder="Pubblicità"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
+                  value={splashAd.title}
+                  onChange={e => setSplashAd(s => ({ ...s, title: e.target.value }))}
+                />
+              </div>
+
+              {/* URL immagine */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">URL Immagine Banner</p>
+                <input
+                  type="url"
+                  placeholder="https://..."
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={splashAd.imageUrl}
+                  onChange={e => setSplashAd(s => ({ ...s, imageUrl: e.target.value }))}
+                />
+                {splashAd.imageUrl ? (
+                  <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-700">
+                    <img src={splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-40" onError={e => e.target.style.display='none'} />
+                  </div>
+                ) : null}
+              </div>
+
+              {/* URL link */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">URL Link (clic sul banner)</p>
+                <input
+                  type="url"
+                  placeholder="https://... (opzionale)"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={splashAd.linkUrl}
+                  onChange={e => setSplashAd(s => ({ ...s, linkUrl: e.target.value }))}
+                />
+              </div>
+
+              <p className="text-[9px] text-zinc-600 normal-case italic">
+                Il popup appare all'apertura dell'app, con 5 secondi di attesa prima di poterlo chiudere. Non si ripete per 3 ore nella stessa sessione.
+              </p>
+
+              <button
+                onClick={handleSaveSplashAd}
+                disabled={splashAdSaving}
+                className="w-full bg-purple-600 text-white p-5 rounded-full font-black uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
+              >
+                {splashAdSaving ? 'Salvataggio...' : 'Salva Pubblicità'}
+              </button>
+            </div>
           </div>
         )}
 
