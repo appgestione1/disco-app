@@ -31,15 +31,25 @@ export default function SplashScreen({ onDone }) {
 
     const t = setTimeout(() => { timerFired = true; decide(); }, 1800);
 
-    getDoc(doc(db, 'settings', 'splash_ad'))
-      .then(snap => { if (snap.exists()) loadedConfig = snap.data(); })
+    // Carica config + immagine (documento separato per non superare limite 1MB)
+    Promise.all([
+      getDoc(doc(db, 'settings', 'splash_ad')),
+      getDoc(doc(db, 'settings', 'splash_ad_image')),
+    ])
+      .then(([cfgSnap, imgSnap]) => {
+        if (cfgSnap.exists()) {
+          loadedConfig = {
+            ...cfgSnap.data(),
+            imageUrl: imgSnap.exists() ? (imgSnap.data().imageUrl || '') : '',
+          };
+        }
+      })
       .catch(() => {})
       .finally(() => { configLoaded = true; decide(); });
 
     return () => clearTimeout(t);
   }, []);
 
-  // Countdown chiusura
   useEffect(() => {
     if (phase !== 'ad' || countdown <= 0) return;
     const t = setTimeout(() => setCountdown(c => c - 1), 1000);
@@ -50,7 +60,6 @@ export default function SplashScreen({ onDone }) {
     if (phase === 'done') onDone();
   }, [phase, onDone]);
 
-  // Quando il video finisce, abilita la chiusura
   const handleVideoEnd = () => setCountdown(0);
 
   const closeAd = () => {
@@ -81,9 +90,10 @@ export default function SplashScreen({ onDone }) {
     const isVideo = !!adConfig.videoUrl;
 
     return (
-      <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
-        <div className="relative w-full max-w-sm bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
+      <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex items-end justify-center pb-8 px-4">
+        <div className="relative w-full max-w-sm bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-400">
 
+          {/* Media: video o immagine */}
           {isVideo ? (
             <video
               ref={videoRef}
@@ -94,14 +104,22 @@ export default function SplashScreen({ onDone }) {
               onEnded={handleVideoEnd}
               className="w-full object-cover"
             />
-          ) : (
+          ) : adConfig.imageUrl ? (
             <img
               src={adConfig.imageUrl}
               alt={adConfig.title || 'Pubblicità'}
               className="w-full object-cover"
             />
-          )}
+          ) : null}
 
+          {/* Slogan / offerta — sopra il footer */}
+          {adConfig.slogan ? (
+            <div className="bg-purple-700 px-4 py-2.5 text-center">
+              <p className="text-white text-sm font-black uppercase tracking-wide">{adConfig.slogan}</p>
+            </div>
+          ) : null}
+
+          {/* Footer: etichetta + pulsante chiudi */}
           <div className="flex items-center justify-between px-4 py-3 bg-zinc-900">
             <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
               {adConfig.title || 'Pubblicità'}
@@ -115,12 +133,9 @@ export default function SplashScreen({ onDone }) {
               }`}
             >
               {countdown > 0 ? (
-                <span>{isVideo ? '▶ ' : ''}{countdown}s</span>
+                <span>{countdown}s</span>
               ) : (
-                <>
-                  <X size={12} />
-                  <span>CHIUDI</span>
-                </>
+                <><X size={12} /><span>CHIUDI</span></>
               )}
             </button>
           </div>

@@ -54,7 +54,7 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Splash & Pub
-  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', videoUrl: '', title: '' });
+  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '' });
   const [splashAdSaving, setSplashAdSaving] = useState(false);
   const [splashAdUploading, setSplashAdUploading] = useState(false);
   const splashImageInputRef = useRef(null);
@@ -75,13 +75,20 @@ const SuperAdmin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [evSnap, propSnap, settSnap, splashSnap] = await Promise.all([
+      const [evSnap, propSnap, settSnap, splashSnap, splashImgSnap] = await Promise.all([
         getDocs(collection(db, 'events')),
         getDocs(collection(db, 'event_proposals')),
         getDoc(doc(db, 'settings', 'eventSubmission')),
         getDoc(doc(db, 'settings', 'splash_ad')),
+        getDoc(doc(db, 'settings', 'splash_ad_image')),
       ]);
-      if (splashSnap.exists()) setSplashAd({ enabled: false, imageUrl: '', linkUrl: '', title: '', ...splashSnap.data() });
+      if (splashSnap.exists()) {
+        setSplashAd({
+          enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '',
+          ...splashSnap.data(),
+          imageUrl: splashImgSnap.exists() ? (splashImgSnap.data().imageUrl || '') : '',
+        });
+      }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
       if (settSnap.exists()) {
@@ -248,12 +255,12 @@ const SuperAdmin = () => {
         img.src = ev.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const maxW = 900;
+          const maxW = 600;
           const scale = img.width > maxW ? maxW / img.width : 1;
-          canvas.width = img.width * scale;
-          canvas.height = img.height * scale;
+          canvas.width = Math.round(img.width * scale);
+          canvas.height = Math.round(img.height * scale);
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.75));
+          resolve(canvas.toDataURL('image/jpeg', 0.6));
         };
         img.onerror = reject;
       };
@@ -268,16 +275,21 @@ const SuperAdmin = () => {
     try {
       const dataUrl = await compressImage(file);
       setSplashAd(s => ({ ...s, imageUrl: dataUrl }));
-    } catch { alert('Errore caricamento immagine.'); }
+    } catch (err) { alert('Errore caricamento: ' + (err?.message || err)); }
     finally { setSplashAdUploading(false); }
   };
 
   const handleSaveSplashAd = async () => {
     setSplashAdSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'splash_ad'), splashAd, { merge: true });
+      // Salva immagine in documento separato (evita limite 1MB di Firestore)
+      const { imageUrl, ...configWithoutImage } = splashAd;
+      await Promise.all([
+        setDoc(doc(db, 'settings', 'splash_ad'), configWithoutImage, { merge: true }),
+        setDoc(doc(db, 'settings', 'splash_ad_image'), { imageUrl: imageUrl || '' }, { merge: false }),
+      ]);
       alert('Splash pub salvata!');
-    } catch { alert('Errore salvataggio.'); }
+    } catch (err) { alert('Errore salvataggio: ' + (err?.message || err)); }
     finally { setSplashAdSaving(false); }
   };
 
@@ -993,6 +1005,18 @@ const SuperAdmin = () => {
                 />
               </div>
 
+              {/* Slogan / offerta */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Slogan / Offerta</p>
+                <input
+                  type="text"
+                  placeholder="es. Ingresso gratuito fino alle 24:00"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={splashAd.slogan}
+                  onChange={e => setSplashAd(s => ({ ...s, slogan: e.target.value }))}
+                />
+              </div>
+
               {/* Upload immagine locandina */}
               <div>
                 <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
@@ -1049,9 +1073,20 @@ const SuperAdmin = () => {
                 </p>
               </div>
 
-              <p className="text-[9px] text-zinc-600 normal-case italic border-t border-zinc-800 pt-4">
-                Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 3 ore.
-              </p>
+              <div className="border-t border-zinc-800 pt-4 space-y-3">
+                <p className="text-[9px] text-zinc-600 normal-case italic">
+                  Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 3 ore.
+                </p>
+                <button
+                  onClick={() => {
+                    sessionStorage.removeItem('ad_last_seen');
+                    alert('Cooldown azzerato — riapri la home per testare il popup.');
+                  }}
+                  className="w-full border border-purple-500/40 text-purple-400 p-3 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-transform"
+                >
+                  🔄 TESTA POPUP (azzera cooldown)
+                </button>
+              </div>
 
               <button
                 onClick={handleSaveSplashAd}

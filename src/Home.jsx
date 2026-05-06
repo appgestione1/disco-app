@@ -930,9 +930,9 @@ const Home = () => {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
   const handleExit = () => {
-    window.close();
-    // fallback per iOS/Chrome che non chiudono: porta a una pagina vuota
-    setTimeout(() => { window.location.href = 'about:blank'; }, 300);
+    try { window.open('', '_self', '').close(); } catch (e) {}
+    try { window.close(); } catch (e) {}
+    setTimeout(() => { window.location.href = 'about:blank'; }, 200);
   };
 
   // ── HOME / LISTA EVENTI ──
