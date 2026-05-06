@@ -31,19 +31,8 @@ export default function SplashScreen({ onDone }) {
 
     const t = setTimeout(() => { timerFired = true; decide(); }, 1800);
 
-    // Carica config + immagine (documento separato per non superare limite 1MB)
-    Promise.all([
-      getDoc(doc(db, 'settings', 'splash_ad')),
-      getDoc(doc(db, 'settings', 'splash_ad_image')),
-    ])
-      .then(([cfgSnap, imgSnap]) => {
-        if (cfgSnap.exists()) {
-          loadedConfig = {
-            ...cfgSnap.data(),
-            imageUrl: imgSnap.exists() ? (imgSnap.data().imageUrl || '') : '',
-          };
-        }
-      })
+    getDoc(doc(db, 'settings', 'splash_ad'))
+      .then(snap => { if (snap.exists()) loadedConfig = snap.data(); })
       .catch(() => {})
       .finally(() => { configLoaded = true; decide(); });
 

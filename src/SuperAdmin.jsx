@@ -76,19 +76,14 @@ const SuperAdmin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [evSnap, propSnap, settSnap, splashSnap, splashImgSnap] = await Promise.all([
+      const [evSnap, propSnap, settSnap, splashSnap] = await Promise.all([
         getDocs(collection(db, 'events')),
         getDocs(collection(db, 'event_proposals')),
         getDoc(doc(db, 'settings', 'eventSubmission')),
         getDoc(doc(db, 'settings', 'splash_ad')),
-        getDoc(doc(db, 'settings', 'splash_ad_image')),
       ]);
       if (splashSnap.exists()) {
-        setSplashAd({
-          enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '',
-          ...splashSnap.data(),
-          imageUrl: splashImgSnap.exists() ? (splashImgSnap.data().imageUrl || '') : '',
-        });
+        setSplashAd({ enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '', ...splashSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -248,32 +243,26 @@ const SuperAdmin = () => {
     }
   };
 
-  // toBlob è asincrono e non blocca il thread — poi FileReader converte in base64
+  // Copia esatta da SubmitEvent.jsx — funziona già
   const compressImage = (file) =>
-    new Promise((resolve, reject) => {
-      const objUrl = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(objUrl);
-        const maxW = 800;
-        const scale = img.width > maxW ? maxW / img.width : 1;
-        const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob(blob => {
-          if (!blob) { reject(new Error('toBlob fallito')); return; }
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        }, 'image/jpeg', 0.7);
+    new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.src = ev.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const scale = 800 / img.width;
+          canvas.width = 800;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
       };
-      img.onerror = reject;
-      img.src = objUrl;
+      reader.readAsDataURL(file);
     });
 
-  // Preview istantanea, nessuna compressione qui (stessa logica di SubmitEvent)
+  // Preview istantanea, nessuna compressione — uguale a SubmitEvent
   const handleSplashImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -284,22 +273,16 @@ const SuperAdmin = () => {
   const handleSaveSplashAd = async () => {
     setSplashAdSaving(true);
     try {
-      // Comprimi solo al salvataggio
       const imageUrl = splashAdSelectedFile
         ? await compressImage(splashAdSelectedFile)
         : splashAd.imageUrl;
-
-      const { imageUrl: _unused, ...configWithoutImage } = splashAd;
-      await Promise.all([
-        setDoc(doc(db, 'settings', 'splash_ad'), configWithoutImage, { merge: true }),
-        setDoc(doc(db, 'settings', 'splash_ad_image'), { imageUrl: imageUrl || '' }, { merge: false }),
-      ]);
-      // Aggiorna lo state con l'URL definitivo e svuota il file temporaneo
-      setSplashAd(s => ({ ...s, imageUrl }));
+      const dataToSave = { ...splashAd, imageUrl };
+      await setDoc(doc(db, 'settings', 'splash_ad'), dataToSave);
+      setSplashAd(dataToSave);
       setSplashAdSelectedFile(null);
       setSplashAdPreviewUrl('');
       alert('Splash pub salvata!');
-    } catch (err) { alert('Errore salvataggio: ' + (err?.message || err)); }
+    } catch (err) { alert('Errore: ' + (err?.message || err)); }
     finally { setSplashAdSaving(false); }
   };
 
