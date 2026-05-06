@@ -1086,7 +1086,7 @@ const SuperAdmin = () => {
 
               <button
                 onClick={handleSaveSplashAd}
-                disabled={splashAdSaving || splashAdUploading}
+                disabled={splashAdSaving}
                 className="w-full bg-purple-600 text-white p-5 rounded-full font-black uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
               >
                 {splashAdSaving ? 'Salvataggio...' : 'Salva Pubblicità'}
