@@ -223,7 +223,7 @@ import html2canvas from 'html2canvas';
 import {
   ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
   Music, Theater, Film, Mic2, Sun, Utensils, LayoutGrid, Download, Send, Phone,
-  Users, Edit3, X, PlusCircle, Share2
+  Users, Edit3, X, PlusCircle, Share2, Church, Power
 } from 'lucide-react';
 
 // --- GRATTA E VINCI ---
@@ -471,6 +471,7 @@ const Home = () => {
     { id: 'CONCERTI', label: 'CONCERTI', icon: Mic2 },
     { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE', icon: Sun },
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
+    { id: 'SACRE', label: 'SACRE', icon: Church },
   ];
 
   useEffect(() => { fetchEvents(); fetchPrInfo(); trackPageView('home'); }, [prRef]);
@@ -926,9 +927,26 @@ const Home = () => {
     );
   }
 
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+  const handleExit = () => {
+    window.close();
+    // fallback per iOS/Chrome che non chiudono: porta a una pagina vuota
+    setTimeout(() => { window.location.href = 'about:blank'; }, 300);
+  };
+
   // ── HOME / LISTA EVENTI ──
   return (
     <div className="min-h-screen bg-black text-white font-sans overflow-x-hidden select-none pb-24">
+      {isStandalone && (
+        <button
+          onClick={handleExit}
+          className="fixed bottom-6 left-5 z-50 w-9 h-9 rounded-full bg-zinc-900/80 border border-zinc-700/50 flex items-center justify-center text-zinc-600 active:text-red-500 active:border-red-500/50 transition-all backdrop-blur-sm"
+          title="Esci dall'app"
+        >
+          <Power size={15} />
+        </button>
+      )}
       {showPrAccess && (
         <button onClick={handleOpenPrDashboard} className="fixed top-6 right-6 z-[60] bg-[#D4AF37] text-black p-4 rounded-full shadow-[0_0_20px_rgba(212,175,55,0.5)] animate-bounce border-2 border-white">
           <Crown size={28} />

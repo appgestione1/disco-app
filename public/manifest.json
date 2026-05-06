@@ -4,10 +4,16 @@
   "description": "Portale eventi notturni — Catania e provincia",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#09090b",
+  "background_color": "#0a0014",
   "theme_color": "#09090b",
   "orientation": "portrait",
   "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "/logo.png",
       "sizes": "192x192",
