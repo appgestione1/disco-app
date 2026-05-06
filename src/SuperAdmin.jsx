@@ -244,40 +244,49 @@ const SuperAdmin = () => {
     }
   };
 
-  // Comprime subito alla selezione (500px, qualità 0.5) — piccolo e veloce
+  // Selezione file — solo preview istantanea, uguale ad Admin.jsx
   const handleSplashImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSplashAdUploading(true);
+    setSplashAdSelectedFile(file);
+    setSplashAdPreviewUrl(URL.createObjectURL(file));
+  };
+
+  // Salvataggio — pattern identico ad Admin.jsx (FileReader→Image→canvas→toDataURL→setDoc tutto dentro img.onload)
+  const handleSaveSplashAd = () => {
+    setSplashAdSaving(true);
+    const doSave = (imageUrl) => {
+      const data = { ...splashAd, imageUrl };
+      setDoc(doc(db, 'settings', 'splash_ad'), data)
+        .then(() => {
+          setSplashAd(data);
+          setSplashAdSelectedFile(null);
+          setSplashAdPreviewUrl('');
+          alert('Splash pub salvata!');
+        })
+        .catch(err => alert('Errore: ' + (err?.message || err)))
+        .finally(() => setSplashAdSaving(false));
+    };
+
+    if (!splashAdSelectedFile) {
+      doSave(splashAd.imageUrl);
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = (ev) => {
       const img = new Image();
       img.src = ev.target.result;
       img.onload = () => {
         const canvas = document.createElement('canvas');
-        const maxW = 500;
-        const scale = img.width > maxW ? maxW / img.width : 1;
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
+        const scaleSize = 800 / img.width;
+        canvas.width = 800;
+        canvas.height = img.height * scaleSize;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
-        setSplashAd(s => ({ ...s, imageUrl: dataUrl }));
-        setSplashAdPreviewUrl(dataUrl);
-        setSplashAdSelectedFile(null);
-        setSplashAdUploading(false);
+        doSave(canvas.toDataURL('image/jpeg', 0.7));
       };
     };
-    reader.readAsDataURL(file);
-  };
-
-  const handleSaveSplashAd = async () => {
-    setSplashAdSaving(true);
-    try {
-      // imageUrl già compressa nello state — salvataggio è solo scrittura Firestore
-      await setDoc(doc(db, 'settings', 'splash_ad'), splashAd);
-      alert('Splash pub salvata!');
-    } catch (err) { alert('Errore: ' + (err?.message || err)); }
-    finally { setSplashAdSaving(false); }
+    reader.readAsDataURL(splashAdSelectedFile);
   };
 
   const handleSaveSettings = async () => {
@@ -1017,14 +1026,11 @@ const SuperAdmin = () => {
                   onChange={handleSplashImageUpload}
                 />
                 <button
-                  onClick={() => !splashAdUploading && splashImageInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400 disabled:opacity-50"
-                  disabled={splashAdUploading}
+                  onClick={() => splashImageInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400"
                 >
-                  {splashAdUploading
-                    ? <span className="animate-pulse">Ottimizzazione...</span>
-                    : <><Upload size={18} /><span>{(splashAdPreviewUrl || splashAd.imageUrl) ? 'Cambia immagine' : 'Carica immagine'}</span></>
-                  }
+                  <Upload size={18} />
+                  <span>{(splashAdPreviewUrl || splashAd.imageUrl) ? 'Cambia immagine' : 'Carica immagine'}</span>
                 </button>
                 {(splashAdPreviewUrl || splashAd.imageUrl) && (
                   <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
