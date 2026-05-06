@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
@@ -241,15 +240,34 @@ const SuperAdmin = () => {
     }
   };
 
+  const compressImage = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.src = ev.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const maxW = 900;
+          const scale = img.width > maxW ? maxW / img.width : 1;
+          canvas.width = img.width * scale;
+          canvas.height = img.height * scale;
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.75));
+        };
+        img.onerror = reject;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+
   const handleSplashImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setSplashAdUploading(true);
     try {
-      const storageRef = ref(storage, 'splash_ad/banner');
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      setSplashAd(s => ({ ...s, imageUrl: url }));
+      const dataUrl = await compressImage(file);
+      setSplashAd(s => ({ ...s, imageUrl: dataUrl }));
     } catch { alert('Errore caricamento immagine.'); }
     finally { setSplashAdUploading(false); }
   };

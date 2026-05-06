@@ -941,10 +941,10 @@ const Home = () => {
       {isStandalone && (
         <button
           onClick={handleExit}
-          className="fixed bottom-6 left-5 z-50 w-9 h-9 rounded-full bg-zinc-900/80 border border-zinc-700/50 flex items-center justify-center text-zinc-600 active:text-red-500 active:border-red-500/50 transition-all backdrop-blur-sm"
+          className="fixed top-5 left-5 z-50 w-8 h-8 rounded-full bg-zinc-900/70 border border-zinc-800 flex items-center justify-center text-zinc-700 active:text-red-500 active:border-red-500/40 transition-all backdrop-blur-sm"
           title="Esci dall'app"
         >
-          <Power size={15} />
+          <Power size={13} />
         </button>
       )}
       {showPrAccess && (
