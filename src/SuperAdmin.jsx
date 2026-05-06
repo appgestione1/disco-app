@@ -56,7 +56,8 @@ const SuperAdmin = () => {
   // Splash & Pub
   const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '' });
   const [splashAdSaving, setSplashAdSaving] = useState(false);
-  const [splashAdUploading, setSplashAdUploading] = useState(false);
+  const [splashAdSelectedFile, setSplashAdSelectedFile] = useState(null); // File oggetto, compresso al salvataggio
+  const [splashAdPreviewUrl, setSplashAdPreviewUrl] = useState('');       // URL.createObjectURL per preview istantanea
   const splashImageInputRef = useRef(null);
 
   // Gruppi
@@ -248,46 +249,48 @@ const SuperAdmin = () => {
   };
 
   const compressImage = (file) =>
-    new Promise((resolve, reject) => {
+    new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
         const img = new Image();
         img.src = ev.target.result;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const maxW = 600;
-          const scale = img.width > maxW ? maxW / img.width : 1;
-          canvas.width = Math.round(img.width * scale);
+          const scale = 800 / img.width;
+          canvas.width = 800;
           canvas.height = Math.round(img.height * scale);
           canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.6));
+          resolve(canvas.toDataURL('image/jpeg', 0.7));
         };
-        img.onerror = reject;
       };
-      reader.onerror = reject;
       reader.readAsDataURL(file);
     });
 
-  const handleSplashImageUpload = async (e) => {
+  // Preview istantanea, nessuna compressione qui (stessa logica di SubmitEvent)
+  const handleSplashImageUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setSplashAdUploading(true);
-    try {
-      const dataUrl = await compressImage(file);
-      setSplashAd(s => ({ ...s, imageUrl: dataUrl }));
-    } catch (err) { alert('Errore caricamento: ' + (err?.message || err)); }
-    finally { setSplashAdUploading(false); }
+    setSplashAdSelectedFile(file);
+    setSplashAdPreviewUrl(URL.createObjectURL(file));
   };
 
   const handleSaveSplashAd = async () => {
     setSplashAdSaving(true);
     try {
-      // Salva immagine in documento separato (evita limite 1MB di Firestore)
-      const { imageUrl, ...configWithoutImage } = splashAd;
+      // Comprimi solo al salvataggio
+      const imageUrl = splashAdSelectedFile
+        ? await compressImage(splashAdSelectedFile)
+        : splashAd.imageUrl;
+
+      const { imageUrl: _unused, ...configWithoutImage } = splashAd;
       await Promise.all([
         setDoc(doc(db, 'settings', 'splash_ad'), configWithoutImage, { merge: true }),
         setDoc(doc(db, 'settings', 'splash_ad_image'), { imageUrl: imageUrl || '' }, { merge: false }),
       ]);
+      // Aggiorna lo state con l'URL definitivo e svuota il file temporaneo
+      setSplashAd(s => ({ ...s, imageUrl }));
+      setSplashAdSelectedFile(null);
+      setSplashAdPreviewUrl('');
       alert('Splash pub salvata!');
     } catch (err) { alert('Errore salvataggio: ' + (err?.message || err)); }
     finally { setSplashAdSaving(false); }
@@ -1031,23 +1034,16 @@ const SuperAdmin = () => {
                 />
                 <button
                   onClick={() => splashImageInputRef.current?.click()}
-                  disabled={splashAdUploading}
-                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400 disabled:opacity-50"
+                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400"
                 >
-                  {splashAdUploading ? (
-                    <span className="animate-pulse">Caricamento...</span>
-                  ) : (
-                    <>
-                      <Upload size={18} />
-                      <span>{splashAd.imageUrl ? 'Cambia immagine' : 'Carica immagine'}</span>
-                    </>
-                  )}
+                  <Upload size={18} />
+                  <span>{(splashAdPreviewUrl || splashAd.imageUrl) ? 'Cambia immagine' : 'Carica immagine'}</span>
                 </button>
-                {splashAd.imageUrl && (
+                {(splashAdPreviewUrl || splashAd.imageUrl) && (
                   <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
-                    <img src={splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-48" />
+                    <img src={splashAdPreviewUrl || splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-48" />
                     <button
-                      onClick={() => setSplashAd(s => ({ ...s, imageUrl: '' }))}
+                      onClick={() => { setSplashAdSelectedFile(null); setSplashAdPreviewUrl(''); setSplashAd(s => ({ ...s, imageUrl: '' })); }}
                       className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"
                     >
                       <X size={14} />

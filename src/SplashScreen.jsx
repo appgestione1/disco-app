@@ -3,7 +3,7 @@ import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { X } from 'lucide-react';
 
-const AD_COOLDOWN_MS = 3 * 60 * 60 * 1000;
+const AD_COOLDOWN_MS = 5 * 60 * 1000; // 5 minuti
 
 export default function SplashScreen({ onDone }) {
   const [phase, setPhase] = useState('logo'); // 'logo' | 'ad' | 'done'
