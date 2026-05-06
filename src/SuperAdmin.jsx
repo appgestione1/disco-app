@@ -248,22 +248,29 @@ const SuperAdmin = () => {
     }
   };
 
+  // toBlob è asincrono e non blocca il thread — poi FileReader converte in base64
   const compressImage = (file) =>
-    new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.src = ev.target.result;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const scale = 800 / img.width;
-          canvas.width = 800;
-          canvas.height = Math.round(img.height * scale);
-          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-          resolve(canvas.toDataURL('image/jpeg', 0.7));
-        };
+    new Promise((resolve, reject) => {
+      const objUrl = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(objUrl);
+        const maxW = 800;
+        const scale = img.width > maxW ? maxW / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        canvas.toBlob(blob => {
+          if (!blob) { reject(new Error('toBlob fallito')); return; }
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }, 'image/jpeg', 0.7);
       };
-      reader.readAsDataURL(file);
+      img.onerror = reject;
+      img.src = objUrl;
     });
 
   // Preview istantanea, nessuna compressione qui (stessa logica di SubmitEvent)
