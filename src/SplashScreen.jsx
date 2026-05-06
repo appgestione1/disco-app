@@ -1,26 +1,27 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { X } from 'lucide-react';
 
-const AD_COOLDOWN_MS = 3 * 60 * 60 * 1000; // non mostrare per 3h nella stessa sessione
+const AD_COOLDOWN_MS = 3 * 60 * 60 * 1000;
 
 export default function SplashScreen({ onDone }) {
   const [phase, setPhase] = useState('logo'); // 'logo' | 'ad' | 'done'
   const [adConfig, setAdConfig] = useState(null);
   const [countdown, setCountdown] = useState(5);
+  const videoRef = useRef(null);
 
   useEffect(() => {
     let timerFired = false;
     let configLoaded = false;
     let loadedConfig = null;
 
-    // Quando entrambi (timer + fetch) sono pronti, decide cosa mostrare
     const decide = () => {
       if (!timerFired || !configLoaded) return;
       const lastSeen = sessionStorage.getItem('ad_last_seen');
       const cooldownOk = !lastSeen || Date.now() - Number(lastSeen) > AD_COOLDOWN_MS;
-      if (loadedConfig?.enabled && loadedConfig?.imageUrl && cooldownOk) {
+      const hasContent = loadedConfig?.videoUrl || loadedConfig?.imageUrl;
+      if (loadedConfig?.enabled && hasContent && cooldownOk) {
         setAdConfig(loadedConfig);
         setPhase('ad');
       } else {
@@ -28,10 +29,7 @@ export default function SplashScreen({ onDone }) {
       }
     };
 
-    const t = setTimeout(() => {
-      timerFired = true;
-      decide();
-    }, 1800);
+    const t = setTimeout(() => { timerFired = true; decide(); }, 1800);
 
     getDoc(doc(db, 'settings', 'splash_ad'))
       .then(snap => { if (snap.exists()) loadedConfig = snap.data(); })
@@ -41,7 +39,7 @@ export default function SplashScreen({ onDone }) {
     return () => clearTimeout(t);
   }, []);
 
-  // Countdown per chiudere il popup pub
+  // Countdown chiusura
   useEffect(() => {
     if (phase !== 'ad' || countdown <= 0) return;
     const t = setTimeout(() => setCountdown(c => c - 1), 1000);
@@ -51,6 +49,9 @@ export default function SplashScreen({ onDone }) {
   useEffect(() => {
     if (phase === 'done') onDone();
   }, [phase, onDone]);
+
+  // Quando il video finisce, abilita la chiusura
+  const handleVideoEnd = () => setCountdown(0);
 
   const closeAd = () => {
     sessionStorage.setItem('ad_last_seen', String(Date.now()));
@@ -71,30 +72,36 @@ export default function SplashScreen({ onDone }) {
             animation: splashLogo 1.2s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
           }
         `}</style>
-        <img
-          src="/logo.png"
-          alt="Logo"
-          className="w-32 h-32 object-contain animate-splash-logo"
-        />
+        <img src="/logo.png" alt="Logo" className="w-32 h-32 object-contain animate-splash-logo" />
       </div>
     );
   }
 
   if (phase === 'ad' && adConfig) {
+    const isVideo = !!adConfig.videoUrl;
+
     return (
-      <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
+      <div className="fixed inset-0 z-[9999] bg-black/85 backdrop-blur-sm flex items-center justify-center p-6">
         <div className="relative w-full max-w-sm bg-zinc-900 rounded-3xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300">
-          <a
-            href={adConfig.linkUrl || undefined}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
+
+          {isVideo ? (
+            <video
+              ref={videoRef}
+              src={adConfig.videoUrl}
+              autoPlay
+              muted={false}
+              playsInline
+              onEnded={handleVideoEnd}
+              className="w-full object-cover"
+            />
+          ) : (
             <img
               src={adConfig.imageUrl}
               alt={adConfig.title || 'Pubblicità'}
               className="w-full object-cover"
             />
-          </a>
+          )}
+
           <div className="flex items-center justify-between px-4 py-3 bg-zinc-900">
             <span className="text-[10px] text-zinc-500 uppercase tracking-widest font-bold">
               {adConfig.title || 'Pubblicità'}
@@ -108,7 +115,7 @@ export default function SplashScreen({ onDone }) {
               }`}
             >
               {countdown > 0 ? (
-                <span>{countdown}s</span>
+                <span>{isVideo ? '▶ ' : ''}{countdown}s</span>
               ) : (
                 <>
                   <X size={12} />

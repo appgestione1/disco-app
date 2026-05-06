@@ -6,7 +6,7 @@ import {
   collection, getDocs, onSnapshot, query, where 
 } from 'firebase/firestore';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator } from 'lucide-react';
+import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator, X } from 'lucide-react';
 import Admin from './Admin';
 import Home from './Home';
 import SuperAdmin from './SuperAdmin';
@@ -323,6 +323,78 @@ const PRDashboard = () => {
   );
 };
 
+// --- BANNER INSTALLA PWA ---
+const InstallBanner = () => {
+  const [show, setShow] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+    || window.navigator.standalone === true;
+
+  useEffect(() => {
+    if (isStandalone) return;
+    if (sessionStorage.getItem('install_banner_dismissed')) return;
+
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShow(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // iOS non supporta beforeinstallprompt — mostra banner manuale su Safari
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isInSafari = /safari/i.test(navigator.userAgent) && !/chrome/i.test(navigator.userAgent);
+    if (isIOS && isInSafari) setShow(true);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstall = async () => {
+    if (deferredPrompt) {
+      deferredPrompt.prompt();
+      await deferredPrompt.userChoice;
+      setDeferredPrompt(null);
+    }
+    setShow(false);
+  };
+
+  const handleDismiss = () => {
+    sessionStorage.setItem('install_banner_dismissed', '1');
+    setShow(false);
+  };
+
+  if (!show || isStandalone) return null;
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-[9998] p-4 animate-in slide-in-from-bottom duration-300">
+      <div className="bg-zinc-900 border border-zinc-700 rounded-2xl p-4 flex items-center gap-3 shadow-2xl">
+        <img src="/logo.png" alt="logo" className="w-10 h-10 object-contain rounded-xl" />
+        <div className="flex-1 min-w-0">
+          <p className="text-white text-xs font-black uppercase tracking-wide">Installa l'app</p>
+          <p className="text-zinc-500 text-[10px] normal-case mt-0.5">
+            {isIOS
+              ? 'Tocca ⬜ Share → "Aggiungi a Home"'
+              : 'Aggiungi alla schermata home per usarla senza barra browser'}
+          </p>
+        </div>
+        {!isIOS && (
+          <button
+            onClick={handleInstall}
+            className="bg-white text-black text-[10px] font-black px-3 py-2 rounded-xl uppercase tracking-wide active:scale-95 shrink-0"
+          >
+            Installa
+          </button>
+        )}
+        <button onClick={handleDismiss} className="text-zinc-600 shrink-0">
+          <X size={16} />
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // --- ROUTER GENERALE ---
 export default function App() {
   const [splashDone, setSplashDone] = useState(false);
@@ -340,6 +412,7 @@ export default function App() {
           <Route path="/proponi-evento" element={<SubmitEvent />} />
         </Routes>
       </Router>
+      <InstallBanner />
     </>
   );
 }

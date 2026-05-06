@@ -1,13 +1,14 @@
-import React, { useState, useEffect } from 'react';
-import { db } from './firebase';
+import React, { useState, useEffect, useRef } from 'react';
+import { db, storage } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
   List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2,
-  Users, KeyRound, Eye, EyeOff, Plus, Building2
+  Users, KeyRound, Eye, EyeOff, Plus, Building2, Upload, Video, Image
 } from 'lucide-react';
 
 const LineChart = ({ data = [], color = '#D4AF37', height = 50 }) => {
@@ -54,8 +55,10 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Splash & Pub
-  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', linkUrl: '', title: '' });
+  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', videoUrl: '', title: '' });
   const [splashAdSaving, setSplashAdSaving] = useState(false);
+  const [splashAdUploading, setSplashAdUploading] = useState(false);
+  const splashImageInputRef = useRef(null);
 
   // Gruppi
   const [groups, setGroups] = useState([]);
@@ -236,6 +239,19 @@ const SuperAdmin = () => {
     } catch {
       alert("Errore durante l'eliminazione.");
     }
+  };
+
+  const handleSplashImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSplashAdUploading(true);
+    try {
+      const storageRef = ref(storage, 'splash_ad/banner');
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setSplashAd(s => ({ ...s, imageUrl: url }));
+    } catch { alert('Errore caricamento immagine.'); }
+    finally { setSplashAdUploading(false); }
   };
 
   const handleSaveSplashAd = async () => {
@@ -949,52 +965,79 @@ const SuperAdmin = () => {
 
               {/* Titolo / etichetta */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Etichetta (es. "Promo Serata")</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Etichetta</p>
                 <input
                   type="text"
-                  placeholder="Pubblicità"
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
+                  placeholder="es. Promo Serata"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
                   value={splashAd.title}
                   onChange={e => setSplashAd(s => ({ ...s, title: e.target.value }))}
                 />
               </div>
 
-              {/* URL immagine */}
+              {/* Upload immagine locandina */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">URL Immagine Banner</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
+                  <Image size={11} /> Locandina / Banner
+                </p>
                 <input
-                  type="url"
-                  placeholder="https://..."
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={splashAd.imageUrl}
-                  onChange={e => setSplashAd(s => ({ ...s, imageUrl: e.target.value }))}
+                  ref={splashImageInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSplashImageUpload}
                 />
-                {splashAd.imageUrl ? (
-                  <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-700">
-                    <img src={splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-40" onError={e => e.target.style.display='none'} />
+                <button
+                  onClick={() => splashImageInputRef.current?.click()}
+                  disabled={splashAdUploading}
+                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400 disabled:opacity-50"
+                >
+                  {splashAdUploading ? (
+                    <span className="animate-pulse">Caricamento...</span>
+                  ) : (
+                    <>
+                      <Upload size={18} />
+                      <span>{splashAd.imageUrl ? 'Cambia immagine' : 'Carica immagine'}</span>
+                    </>
+                  )}
+                </button>
+                {splashAd.imageUrl && (
+                  <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
+                    <img src={splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-48" />
+                    <button
+                      onClick={() => setSplashAd(s => ({ ...s, imageUrl: '' }))}
+                      className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                ) : null}
+                )}
               </div>
 
-              {/* URL link */}
+              {/* URL video spot */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">URL Link (clic sul banner)</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
+                  <Video size={11} /> URL Video Spot (opzionale)
+                </p>
                 <input
                   type="url"
-                  placeholder="https://... (opzionale)"
+                  placeholder="https://... (.mp4 o link diretto)"
                   className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={splashAd.linkUrl}
-                  onChange={e => setSplashAd(s => ({ ...s, linkUrl: e.target.value }))}
+                  value={splashAd.videoUrl}
+                  onChange={e => setSplashAd(s => ({ ...s, videoUrl: e.target.value }))}
                 />
+                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">
+                  Se impostato, mostra il video al posto della locandina
+                </p>
               </div>
 
-              <p className="text-[9px] text-zinc-600 normal-case italic">
-                Il popup appare all'apertura dell'app, con 5 secondi di attesa prima di poterlo chiudere. Non si ripete per 3 ore nella stessa sessione.
+              <p className="text-[9px] text-zinc-600 normal-case italic border-t border-zinc-800 pt-4">
+                Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 3 ore.
               </p>
 
               <button
                 onClick={handleSaveSplashAd}
-                disabled={splashAdSaving}
+                disabled={splashAdSaving || splashAdUploading}
                 className="w-full bg-purple-600 text-white p-5 rounded-full font-black uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
               >
                 {splashAdSaving ? 'Salvataggio...' : 'Salva Pubblicità'}
