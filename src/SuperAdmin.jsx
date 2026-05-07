@@ -7,7 +7,7 @@ import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
   List, Star, Inbox, Check, X, Settings, Euro, ChevronLeft, Phone, User, MapPin, Trash2,
-  Users, KeyRound, Eye, EyeOff, Plus, Building2, Upload, Video, Image
+  Users, KeyRound, Eye, EyeOff, Plus, Building2
 } from 'lucide-react';
 
 const LineChart = ({ data = [], color = '#D4AF37', height = 50 }) => {
@@ -53,13 +53,10 @@ const SuperAdmin = () => {
   const [submissionSettings, setSubmissionSettings] = useState({ price: 10, isFree: true });
   const [priceInput, setPriceInput] = useState('10');
 
-  // Splash & Pub
-  const [splashAd, setSplashAd] = useState({ enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '' });
-  const [splashAdSaving, setSplashAdSaving] = useState(false);
-  const [splashAdUploading, setSplashAdUploading] = useState(false);
-  const [splashAdSelectedFile, setSplashAdSelectedFile] = useState(null);
-  const [splashAdPreviewUrl, setSplashAdPreviewUrl] = useState('');
-  const splashImageInputRef = useRef(null);
+  // Popup pubblicità
+  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '' });
+  const [popupFile, setPopupFile] = useState(null);
+  const [popupSaving, setPopupSaving] = useState(false);
 
   // Gruppi
   const [groups, setGroups] = useState([]);
@@ -77,14 +74,14 @@ const SuperAdmin = () => {
   const fetchAll = async () => {
     setLoading(true);
     try {
-      const [evSnap, propSnap, settSnap, splashSnap] = await Promise.all([
+      const [evSnap, propSnap, settSnap, popupSnap] = await Promise.all([
         getDocs(collection(db, 'events')),
         getDocs(collection(db, 'event_proposals')),
         getDoc(doc(db, 'settings', 'eventSubmission')),
-        getDoc(doc(db, 'settings', 'splash_ad')),
+        getDoc(doc(db, 'settings', 'popup')),
       ]);
-      if (splashSnap.exists()) {
-        setSplashAd({ enabled: false, imageUrl: '', videoUrl: '', title: '', slogan: '', ...splashSnap.data() });
+      if (popupSnap.exists()) {
+        setPopupConfig({ imageUrl: '', videoUrl: '', ...popupSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -244,57 +241,34 @@ const SuperAdmin = () => {
     }
   };
 
-  // Selezione file — solo preview istantanea, uguale ad Admin.jsx
-  const handleSplashImageUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setSplashAdSelectedFile(file);
-    setSplashAdPreviewUrl(URL.createObjectURL(file));
-  };
-
-  const handleSaveSplashAd = () => {
-    setSplashAdSaving(true);
-    const doSave = (imageUrl) => {
-      const data = { ...splashAd, imageUrl };
-      setDoc(doc(db, 'settings', 'splash_ad'), data)
-        .then(() => {
-          setSplashAd(data);
-          setSplashAdSelectedFile(null);
-          setSplashAdPreviewUrl('');
-          alert('Splash pub salvata!');
-        })
-        .catch(err => alert('Errore salvataggio: ' + (err?.message || err)))
-        .finally(() => setSplashAdSaving(false));
-    };
-
-    if (!splashAdSelectedFile) {
-      doSave(splashAd.imageUrl);
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image(); img.src = event.target.result;
-      img.onload = async () => {
-        const canvas = document.createElement('canvas');
-        const scaleSize = 800 / img.width; canvas.width = 800; canvas.height = img.height * scaleSize;
-        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        const imageUrl = canvas.toDataURL('image/jpeg', 0.7);
-        const data = { ...splashAd, imageUrl };
-        try {
-          await setDoc(doc(db, 'settings', 'splash_ad'), data);
-          setSplashAd(data);
-          setSplashAdSelectedFile(null);
-          setSplashAdPreviewUrl('');
-          alert('Splash pub salvata!');
-        } catch (err) {
-          alert('Errore salvataggio: ' + (err?.message || err));
-        } finally {
-          setSplashAdSaving(false);
-        }
-      };
-    };
-    reader.readAsDataURL(splashAdSelectedFile);
+  const handleSavePopup = async () => {
+    setPopupSaving(true);
+    try {
+      if (popupFile) {
+        await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const img = new Image(); img.src = ev.target.result;
+            img.onload = async () => {
+              const canvas = document.createElement('canvas');
+              const scale = Math.min(1, 900 / img.width);
+              canvas.width = img.width * scale; canvas.height = img.height * scale;
+              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+              const newUrl = canvas.toDataURL('image/jpeg', 0.75);
+              const updated = { ...popupConfig, imageUrl: newUrl };
+              await setDoc(doc(db, 'settings', 'popup'), updated);
+              setPopupConfig(updated); setPopupFile(null); resolve();
+            };
+            img.onerror = reject;
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(popupFile);
+        });
+      } else {
+        await setDoc(doc(db, 'settings', 'popup'), popupConfig);
+      }
+      alert('Popup salvato!');
+    } catch (e) { alert('Errore salvataggio popup.'); } finally { setPopupSaving(false); }
   };
 
   const handleSaveSettings = async () => {
@@ -426,15 +400,15 @@ const SuperAdmin = () => {
               )}
             </button>
 
-            {/* SPLASH & PUB */}
+            {/* PUBBLICITÀ */}
             <button
-              onClick={() => setActiveView('splash')}
+              onClick={() => setActiveView('popup')}
               className="group relative w-full max-w-sm flex items-center gap-6 bg-zinc-900 border-2 border-purple-500/30 text-zinc-400 px-10 py-7 rounded-[2.5rem] hover:scale-105 active:scale-95 transition-all duration-300 hover:border-purple-500 hover:text-white"
             >
               <Star size={36} className="text-purple-400 group-hover:rotate-12 transition-transform" />
               <div className="text-left">
-                <span className="text-2xl italic tracking-tighter block">Splash & Pub</span>
-                {splashAd.enabled && <span className="text-[9px] text-purple-400 font-black tracking-widest">ATTIVA</span>}
+                <span className="text-2xl italic tracking-tighter block">Pubblicità</span>
+                {(popupConfig.imageUrl || popupConfig.videoUrl) && <span className="text-[9px] text-purple-400 font-black tracking-widest">CONFIGURATA</span>}
               </div>
             </button>
 
@@ -967,12 +941,12 @@ const SuperAdmin = () => {
           </div>
         )}
 
-        {/* SEZIONE SPLASH & PUB */}
-        {activeView === 'splash' && (
+        {/* SEZIONE PUBBLICITÀ POPUP */}
+        {activeView === 'popup' && (
           <div className="animate-in slide-in-from-bottom-10 duration-500 max-w-sm mx-auto space-y-6">
             <div className="flex items-center justify-between mb-2 px-4">
               <h2 className="text-purple-400 text-xs tracking-widest italic flex items-center gap-2">
-                <Star size={14} /> Splash & Pubblicità
+                <Star size={14} /> Pubblicità Apertura App
               </h2>
               <button onClick={() => setActiveView(null)} className="text-red-500 text-[10px] underline flex items-center gap-1">
                 <ChevronLeft size={14} /> Indietro
@@ -981,70 +955,24 @@ const SuperAdmin = () => {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 space-y-6">
 
-              {/* Toggle abilitazione */}
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-black text-white">Popup Pubblicità</p>
-                  <p className="text-[9px] text-zinc-500 mt-1 normal-case">
-                    {splashAd.enabled ? 'Attivo — visibile agli utenti' : 'Disattivato'}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setSplashAd(s => ({ ...s, enabled: !s.enabled }))}
-                  className={`relative w-16 h-8 rounded-full transition-colors border-2 ${splashAd.enabled ? 'bg-purple-600 border-purple-500' : 'bg-zinc-700 border-zinc-600'}`}
-                >
-                  <span className={`absolute top-0.5 w-6 h-6 bg-white rounded-full shadow transition-all ${splashAd.enabled ? 'left-8' : 'left-0.5'}`} />
-                </button>
-              </div>
-
-              {/* Titolo / etichetta */}
+              {/* LOCANDINA / BANNER */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Etichetta</p>
-                <input
-                  type="text"
-                  placeholder="es. Promo Serata"
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={splashAd.title}
-                  onChange={e => setSplashAd(s => ({ ...s, title: e.target.value }))}
-                />
-              </div>
-
-              {/* Slogan / offerta */}
-              <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">Slogan / Offerta</p>
-                <input
-                  type="text"
-                  placeholder="es. Ingresso gratuito fino alle 24:00"
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={splashAd.slogan}
-                  onChange={e => setSplashAd(s => ({ ...s, slogan: e.target.value }))}
-                />
-              </div>
-
-              {/* Upload immagine locandina */}
-              <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
-                  <Image size={11} /> Locandina / Banner
-                </p>
-                <input
-                  ref={splashImageInputRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleSplashImageUpload}
-                />
-                <button
-                  onClick={() => splashImageInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 p-4 bg-black border-2 border-dashed border-zinc-700 rounded-2xl text-zinc-400 font-black text-sm active:scale-95 transition-all hover:border-purple-500 hover:text-purple-400"
-                >
-                  <Upload size={18} />
-                  <span>{(splashAdPreviewUrl || splashAd.imageUrl) ? 'Cambia immagine' : 'Carica immagine'}</span>
-                </button>
-                {(splashAdPreviewUrl || splashAd.imageUrl) && (
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">🖼 Locandina / Banner</p>
+                <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) setPopupFile(e.target.files[0]); }} />
+                  <span className="text-purple-400 font-black text-sm uppercase">
+                    {popupFile ? popupFile.name : '⬆ Cambia immagine'}
+                  </span>
+                </label>
+                {(popupFile || popupConfig.imageUrl) && (
                   <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
-                    <img src={splashAdPreviewUrl || splashAd.imageUrl} alt="Anteprima" className="w-full object-cover max-h-48" />
+                    <img
+                      src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl}
+                      alt="Anteprima locandina"
+                      className="w-full object-contain max-h-48"
+                    />
                     <button
-                      onClick={() => { setSplashAdSelectedFile(null); setSplashAdPreviewUrl(''); setSplashAd(s => ({ ...s, imageUrl: '' })); }}
+                      onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }}
                       className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"
                     >
                       <X size={14} />
@@ -1053,17 +981,15 @@ const SuperAdmin = () => {
                 )}
               </div>
 
-              {/* URL video spot */}
+              {/* URL VIDEO SPOT */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
-                  <Video size={11} /> URL Video Spot (opzionale)
-                </p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 URL Video Spot (opzionale)</p>
                 <input
                   type="url"
                   placeholder="https://... (.mp4 o link diretto)"
                   className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={splashAd.videoUrl}
-                  onChange={e => setSplashAd(s => ({ ...s, videoUrl: e.target.value }))}
+                  value={popupConfig.videoUrl || ''}
+                  onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))}
                 />
                 <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">
                   Se impostato, mostra il video al posto della locandina
@@ -1076,30 +1002,21 @@ const SuperAdmin = () => {
                 </p>
                 <button
                   onClick={() => {
-                    sessionStorage.removeItem('ad_last_seen');
+                    localStorage.removeItem('popup_last_shown');
                     alert('Cooldown azzerato — riapri la home per testare il popup.');
                   }}
                   className="w-full border border-purple-500/40 text-purple-400 p-3 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-transform"
                 >
-                  🔄 TESTA POPUP (azzera cooldown)
+                  🔄 TESTA POPUP (AZZERA COOLDOWN)
                 </button>
               </div>
 
-              {splashAd.enabled && !splashAd.imageUrl && !splashAdPreviewUrl && !splashAd.videoUrl && (
-                <div className="bg-yellow-900/40 border border-yellow-600/50 rounded-2xl px-4 py-3">
-                  <p className="text-yellow-400 text-[10px] font-black uppercase tracking-widest">⚠ Attenzione</p>
-                  <p className="text-yellow-300/80 text-[10px] mt-1 normal-case">
-                    Il popup è attivo ma senza immagine né video non verrà mostrato. Carica una locandina o inserisci un URL video.
-                  </p>
-                </div>
-              )}
-
               <button
-                onClick={handleSaveSplashAd}
-                disabled={splashAdSaving || splashAdUploading}
+                onClick={handleSavePopup}
+                disabled={popupSaving}
                 className="w-full bg-purple-600 text-white p-5 rounded-full font-black uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
               >
-                {splashAdSaving ? 'Salvataggio...' : 'Salva Pubblicità'}
+                {popupSaving ? 'Salvataggio...' : '💾 Salva Pubblicità'}
               </button>
             </div>
           </div>
