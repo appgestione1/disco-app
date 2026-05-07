@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 07/05/2026 — commit `1b3a688`**
+> **Ultimo aggiornamento: 07/05/2026 — commit `86f0138`**
 
 ---
 
@@ -54,14 +54,20 @@ Header + tab in blocco sticky unico. Tab: LIVE / TEAM / SERATE / SPONSOR (icona 
 
 **Tab TEAM PR (`prs`)** — card verticali (non tabella), una per PR:
 - Intestazione nera/gialla con nome e ID badge
-- Slot serate: select evento + tariffa (InlinePayInput) + contatore ingressi + totale per slot
+- Slot serate: lista serate assegnate (titolo + InlinePayInput tariffa + contatore ingressi + totale) — NO dropdown, identica al MASTER
+- Se nessuna serata assegnata → "Nessuna serata — usa Setup Rapido"
 - Striscia link copia / supervisore / bonus
 - Azioni: RESET PWD, VEDI E PAGA, Sostituisci, cestino
 - Form "+ NUOVO COLLABORATORE" collassabile (chiuso di default)
 
+**Setup Rapido Serate** — modale con:
+- Selezione evento + impostazione tariffa di default
+- Lista PR verticale e gerarchica: top-level → sub-PR indentati (ml-5, border-l-2) con riferimento al supervisore
+- Checkbox selezione + pay input per ogni PR
+
 **Tab SERATE (`events`)** — form pubblica nuova serata + grid card eventi con toggle annulla/riattiva
 
-**Tab SPONSOR (`sponsors`)** — gestione sponsor
+**Tab SPONSOR (`sponsors`)** — placeholder "sezione in aggiornamento" (popup gestito da SuperAdmin)
 
 Tutti i dati filtrati per `groupId`.
 
@@ -78,10 +84,19 @@ Tutti i dati filtrati per `groupId`.
 - Input importo + CONFERMA PAGAMENTO + AZZERA CONTABILITÀ
 
 ### SuperAdmin (`SuperAdmin.jsx`)
-`activeView`: `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups'`
+`activeView`: `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups' | 'popup'`
 - **GRUPPI** — crea/elimina gruppi, commissioni (`perOrfano`, `perPR`, `perEvento`, `perQR`), lista PR per gruppo
 - **EVENTI** — toggle + elimina evento
 - **STATISTICHE** — analytics completo (vedi sezione Analytics)
+- **Pop-up Apertura** — gestione popup pubblicitario all'apertura app:
+  - Toggle ON/OFF, switch Immagine/Video
+  - Immagine: upload → base64 (resize max 900px)
+  - Video: URL diretto o YouTube (iframe embed auto-rilevato) + durata countdown
+  - Slogan, indirizzo, data scadenza
+  - Immagine extra (logo/QR) con 6 posizioni selezionabili (griglia 3×2)
+  - Toggle mostra/nascondi bottone "Salva Promo in Galleria"
+  - Bottone TESTA POPUP (resetta cooldown localStorage)
+  - Salva su `settings/popup`
 
 ---
 
@@ -158,7 +173,8 @@ Tutti i dati filtrati per `groupId`.
 
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
-- [x] Sistema popup pubblicitario apertura app (Admin tab SPONSOR + Home overlay)
+- [x] Sistema popup pubblicitario apertura app (SuperAdmin → Pop-up Apertura + Home overlay)
+- [x] Setup Rapido Serate — lista PR gerarchica supervisori/sub-PR + slot senza dropdown
 - [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 
