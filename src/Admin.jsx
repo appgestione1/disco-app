@@ -808,56 +808,70 @@ const AdminPanel = ({ session, onLogout }) => {
                               )}
                             </div>
 
-                            {/* lista PR per questa serata */}
+                            {/* lista PR per questa serata — verticale con gerarchia */}
                             {config.selected && nonMasterPrs.length > 0 && (
                               <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
                                 <p className="text-[9px] text-zinc-500 uppercase tracking-widest mb-2">Team assegnato a questa serata:</p>
-                                <div className="flex flex-wrap gap-1.5">
-                                  {nonMasterPrs.map(pr => {
-                                    const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
-                                    const isChecked = prConf ? prConf.selected : true;
-                                    const prPay = prConf ? prConf.pay : (config.pay ?? '');
+                                <div className="flex flex-col gap-1">
+                                  {(() => {
+                                    const topLevel = nonMasterPrs.filter(p => !p.supervisorId || !nonMasterPrs.find(s => s.id === p.supervisorId));
+                                    const subPrsOf = (supId) => nonMasterPrs.filter(p => p.supervisorId === supId);
 
-                                    const updatePrConf = (updater) => setBulkEventConfig(prev => prev.map((c, i) => {
-                                      if (i !== idx) return c;
-                                      const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
-                                      const base = exists
-                                        ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
-                                        : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '' })];
-                                      return { ...c, prConfigs: base };
-                                    }));
+                                    const PrRow = ({ pr, indent = false }) => {
+                                      const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
+                                      const isChecked = prConf ? prConf.selected : true;
+                                      const prPay = prConf ? prConf.pay : (config.pay ?? '');
+                                      const updatePrConf = (updater) => setBulkEventConfig(prev => prev.map((c, i) => {
+                                        if (i !== idx) return c;
+                                        const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
+                                        const base = exists
+                                          ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
+                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '' })];
+                                        return { ...c, prConfigs: base };
+                                      }));
+                                      return (
+                                        <div className={`flex items-center gap-2 ${indent ? 'ml-5 pl-3 border-l-2 border-zinc-700' : ''}`}>
+                                          <button
+                                            type="button"
+                                            onClick={() => updatePrConf(pc => ({ ...pc, selected: !pc.selected }))}
+                                            className={`flex items-center gap-1.5 flex-1 min-w-0 py-1.5 px-2 border-2 transition-all ${isChecked ? 'bg-[#FFEE00] text-black border-[#FFEE00]' : 'bg-zinc-950 text-zinc-500 border-zinc-700'}`}
+                                          >
+                                            <span className={`w-3 h-3 border shrink-0 flex items-center justify-center text-[8px] font-black ${isChecked ? 'bg-black border-black text-[#FFEE00]' : 'border-zinc-600'}`}>
+                                              {isChecked ? '✓' : ''}
+                                            </span>
+                                            <span className="text-[10px] font-black uppercase truncate">{pr.name}</span>
+                                            <span className="text-[8px] opacity-50 font-bold shrink-0">{pr.id}</span>
+                                          </button>
+                                          {isChecked && (
+                                            <div className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[80px] shrink-0">
+                                              <span className="px-1 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€</span>
+                                              <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder="0.00"
+                                                className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
+                                                value={prPay}
+                                                onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
+                                                onBlur={e => {
+                                                  const parsed = parseFloat(e.target.value);
+                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    };
 
-                                    return (
-                                      <div key={pr.id} className={`flex items-center border-2 transition-all ${isChecked ? 'bg-[#FFEE00] text-black border-[#FFEE00]' : 'bg-zinc-950 text-zinc-500 border-zinc-700'}`}>
-                                        <button
-                                          type="button"
-                                          onClick={() => updatePrConf(pc => ({ ...pc, selected: !pc.selected }))}
-                                          className="flex items-center gap-1 px-2 py-1 text-[9px] font-black uppercase"
-                                        >
-                                          {isChecked && <span className="text-[8px]">✓</span>}
-                                          {pr.name}
-                                          <span className="opacity-50 normal-case font-bold">{pr.id}</span>
-                                        </button>
-                                        {isChecked && (
-                                          <div className="flex items-center border-l-2 border-black/20 py-1">
-                                            <span className="px-1 text-[8px] font-black opacity-60">€</span>
-                                            <input
-                                              type="text"
-                                              inputMode="decimal"
-                                              placeholder="0.00"
-                                              className="w-[44px] pr-1 font-black text-[9px] text-center focus:outline-none bg-transparent"
-                                              value={prPay}
-                                              onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
-                                              onBlur={e => {
-                                                const parsed = parseFloat(e.target.value);
-                                                if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
-                                              }}
-                                            />
-                                          </div>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                    return topLevel.map(pr => (
+                                      <React.Fragment key={pr.id}>
+                                        <PrRow pr={pr} indent={false} />
+                                        {subPrsOf(pr.id).map(sub => (
+                                          <PrRow key={sub.id} pr={sub} indent={true} />
+                                        ))}
+                                      </React.Fragment>
+                                    ));
+                                  })()}
                                 </div>
                               </div>
                             )}
@@ -949,32 +963,28 @@ const AdminPanel = ({ session, onLogout }) => {
                             <span className="text-sm font-black w-16 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
                           </div>
                         );
-                      }) : [0,1,2,3,4,5].map(i => {
-                        const selId = pr.eventIds?.[i] || '';
-                        const currentPay = pr.eventPays?.[i] || '';
-                        const n = selId ? countT(selId) : 0;
-                        const finEv = selId ? calculatePrFinancialsForEvent(pr, selId) : null;
-                        return (
-                          <div key={i} className="px-3 py-1.5 flex items-center gap-2">
-                            <select
-                              className="flex-1 min-w-0 bg-white border-2 border-black text-[10px] font-bold uppercase px-1 py-1 outline-none"
-                              value={selId}
-                              onChange={e => handleUpdatePrEventSlot(pr.id, i, e.target.value, pr.eventIds)}
-                              disabled={loading}
-                            >
-                              <option value="">— slot {i+1} —</option>
-                              {events.map(ev => <option key={ev.id} value={ev.id}>{ev.title}</option>)}
-                            </select>
-                            {selId && <>
-                              <div className="h-[28px] shrink-0">
-                                <InlinePayInput initialValue={currentPay} onSave={val => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="0.00" />
+                      }) : (() => {
+                        const assignedSlots = (pr.eventIds || []).map((id, i) => ({ id, i })).filter(s => s.id);
+                        if (assignedSlots.length === 0) return (
+                          <p key="empty" className="text-[10px] text-zinc-400 italic text-center py-3 px-4">Nessuna serata — usa Setup Rapido</p>
+                        );
+                        return assignedSlots.map(({ id: evId, i }) => {
+                          const ev = events.find(e => e.id === evId);
+                          const n = countT(evId);
+                          const finEv = calculatePrFinancialsForEvent(pr, evId);
+                          const currentPay = pr.eventPays?.[i] || '';
+                          return (
+                            <div key={evId} className="px-3 py-2 flex items-center gap-2">
+                              <span className="text-[11px] font-black uppercase truncate flex-1">{ev?.title || evId}</span>
+                              <div className="h-[26px] shrink-0">
+                                <InlinePayInput initialValue={currentPay} onSave={val => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="€/ing" />
                               </div>
                               <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
                               <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
-                            </>}
-                          </div>
-                        );
-                      })}
+                            </div>
+                          );
+                        });
+                      })()}
                     </div>
 
                     {/* link + supervisore */}
