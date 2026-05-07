@@ -413,7 +413,7 @@ const SuperAdmin = () => {
             >
               <Star size={36} className="text-purple-400 group-hover:rotate-12 transition-transform" />
               <div className="text-left">
-                <span className="text-2xl italic tracking-tighter block">Pubblicità</span>
+                <span className="text-2xl italic tracking-tighter block">Pop-up Apertura</span>
                 {popupConfig.enabled
                   ? <span className="text-[9px] text-green-400 font-black tracking-widest">● ATTIVO</span>
                   : (popupConfig.imageUrl || popupConfig.videoUrl) && <span className="text-[9px] text-zinc-500 font-black tracking-widest">SPENTO</span>}
