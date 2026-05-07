@@ -1084,7 +1084,7 @@ const SuperAdmin = () => {
                 </button>
               </div>
 
-              {splashAd.enabled && !splashAd.imageUrl && !splashAd.videoUrl && (
+              {splashAd.enabled && !splashAd.imageUrl && !splashAdPreviewUrl && !splashAd.videoUrl && (
                 <div className="bg-yellow-900/40 border border-yellow-600/50 rounded-2xl px-4 py-3">
                   <p className="text-yellow-400 text-[10px] font-black uppercase tracking-widest">⚠ Attenzione</p>
                   <p className="text-yellow-300/80 text-[10px] mt-1 normal-case">
