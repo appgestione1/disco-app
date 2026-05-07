@@ -252,7 +252,6 @@ const SuperAdmin = () => {
     setSplashAdPreviewUrl(URL.createObjectURL(file));
   };
 
-  // Salvataggio — pattern identico ad Admin.jsx (FileReader→Image→canvas→toDataURL→setDoc tutto dentro img.onload)
   const handleSaveSplashAd = () => {
     setSplashAdSaving(true);
     const doSave = (imageUrl) => {
@@ -264,7 +263,7 @@ const SuperAdmin = () => {
           setSplashAdPreviewUrl('');
           alert('Splash pub salvata!');
         })
-        .catch(err => alert('Errore: ' + (err?.message || err)))
+        .catch(err => alert('Errore salvataggio: ' + (err?.message || err)))
         .finally(() => setSplashAdSaving(false));
     };
 
@@ -274,9 +273,16 @@ const SuperAdmin = () => {
     }
 
     const reader = new FileReader();
+    reader.onerror = () => {
+      setSplashAdSaving(false);
+      alert('Errore: impossibile leggere il file immagine.');
+    };
     reader.onload = (ev) => {
       const img = new Image();
-      img.src = ev.target.result;
+      img.onerror = () => {
+        setSplashAdSaving(false);
+        alert('Errore: file immagine non valido.');
+      };
       img.onload = () => {
         const canvas = document.createElement('canvas');
         const scaleSize = 800 / img.width;
@@ -285,6 +291,7 @@ const SuperAdmin = () => {
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         doSave(canvas.toDataURL('image/jpeg', 0.7));
       };
+      img.src = ev.target.result;
     };
     reader.readAsDataURL(splashAdSelectedFile);
   };
@@ -1064,7 +1071,7 @@ const SuperAdmin = () => {
 
               <div className="border-t border-zinc-800 pt-4 space-y-3">
                 <p className="text-[9px] text-zinc-600 normal-case italic">
-                  Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 3 ore.
+                  Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 5 minuti.
                 </p>
                 <button
                   onClick={() => {
@@ -1076,6 +1083,15 @@ const SuperAdmin = () => {
                   🔄 TESTA POPUP (azzera cooldown)
                 </button>
               </div>
+
+              {splashAd.enabled && !splashAd.imageUrl && !splashAd.videoUrl && (
+                <div className="bg-yellow-900/40 border border-yellow-600/50 rounded-2xl px-4 py-3">
+                  <p className="text-yellow-400 text-[10px] font-black uppercase tracking-widest">⚠ Attenzione</p>
+                  <p className="text-yellow-300/80 text-[10px] mt-1 normal-case">
+                    Il popup è attivo ma senza immagine né video non verrà mostrato. Carica una locandina o inserisci un URL video.
+                  </p>
+                </div>
+              )}
 
               <button
                 onClick={handleSaveSplashAd}
