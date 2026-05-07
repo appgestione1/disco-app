@@ -54,7 +54,7 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Popup pubblicità
-  const [popupConfig, setPopupConfig] = useState({ enabled: false, imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false });
+  const [popupConfig, setPopupConfig] = useState({ enabled: false, mediaType: 'image', imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
   const [extraImageFile, setExtraImageFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
@@ -82,7 +82,7 @@ const SuperAdmin = () => {
         getDoc(doc(db, 'settings', 'popup')),
       ]);
       if (popupSnap.exists()) {
-        setPopupConfig({ enabled: false, imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false, ...popupSnap.data() });
+        setPopupConfig({ enabled: false, mediaType: 'image', imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false, ...popupSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -979,31 +979,64 @@ const SuperAdmin = () => {
                 </button>
               </div>
 
-              {/* LOCANDINA / BANNER */}
+              {/* SWITCH IMMAGINE / VIDEO */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">🖼 Locandina / Banner</p>
-                <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
-                  <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) setPopupFile(e.target.files[0]); }} />
-                  <span className="text-purple-400 font-black text-sm uppercase">
-                    {popupFile ? popupFile.name : '⬆ Cambia immagine'}
-                  </span>
-                </label>
-                {(popupFile || popupConfig.imageUrl) && (
-                  <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
-                    <img src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl} alt="Anteprima" className="w-full object-contain max-h-48" />
-                    <button onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"><X size={14} /></button>
-                  </div>
-                )}
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">Tipo di contenuto</p>
+                <div className="flex bg-black border-2 border-zinc-700 rounded-2xl p-1 gap-1">
+                  {[{ val: 'image', icon: '🖼', label: 'Immagine' }, { val: 'video', icon: '🎬', label: 'Video' }].map(({ val, icon, label }) => (
+                    <button
+                      key={val}
+                      type="button"
+                      onClick={() => setPopupConfig(p => ({ ...p, mediaType: val }))}
+                      className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-black text-sm transition-all
+                        ${popupConfig.mediaType === val
+                          ? 'bg-purple-600 text-white shadow-lg'
+                          : 'text-zinc-500 active:bg-zinc-800'}`}
+                    >
+                      <span>{icon}</span> {label}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* URL VIDEO SPOT */}
-              <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 URL Video Spot (opzionale)</p>
-                <input type="url" placeholder="https://... (.mp4 o link diretto)"
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={popupConfig.videoUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))} />
-                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Se impostato, mostra il video al posto della locandina</p>
-              </div>
+              {/* IMMAGINE */}
+              {popupConfig.mediaType === 'image' && (
+                <div>
+                  <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">🖼 Locandina / Banner</p>
+                  <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
+                    <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) setPopupFile(e.target.files[0]); }} />
+                    <span className="text-purple-400 font-black text-sm uppercase">
+                      {popupFile ? popupFile.name : '⬆ Cambia immagine'}
+                    </span>
+                  </label>
+                  {(popupFile || popupConfig.imageUrl) && (
+                    <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
+                      <img src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl} alt="Anteprima" className="w-full object-contain max-h-48" />
+                      <button onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"><X size={14} /></button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* VIDEO */}
+              {popupConfig.mediaType === 'video' && (
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 URL Video Spot</p>
+                    <input type="url" placeholder="https://... (.mp4 o link diretto)"
+                      className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                      value={popupConfig.videoUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))} />
+                  </div>
+                  <div>
+                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">⏱ Durata popup (secondi)</p>
+                    <input type="number" min="1" max="120" placeholder="5"
+                      className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
+                      value={popupConfig.videoDuration || 5}
+                      onChange={e => setPopupConfig(p => ({ ...p, videoDuration: Math.max(1, Number(e.target.value)) }))} />
+                    <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Il pulsante ✕ appare dopo questi secondi</p>
+                  </div>
+                </div>
+              )}
 
               {/* SLOGAN */}
               <div>
@@ -1080,18 +1113,6 @@ const SuperAdmin = () => {
                   </div>
                 )}
               </div>
-
-              {/* DURATA VIDEO */}
-              {popupConfig.videoUrl && (
-                <div>
-                  <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">⏱ Durata popup video (secondi)</p>
-                  <input type="number" min="1" max="120" placeholder="5"
-                    className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
-                    value={popupConfig.videoDuration || 5}
-                    onChange={e => setPopupConfig(p => ({ ...p, videoDuration: Math.max(1, Number(e.target.value)) }))} />
-                  <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Il pulsante ✕ appare dopo questi secondi</p>
-                </div>
-              )}
 
               {/* SALVA IN GALLERIA */}
               <div className="flex items-center justify-between bg-black border border-zinc-700 rounded-2xl px-5 py-4">

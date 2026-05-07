@@ -530,7 +530,7 @@ const Home = () => {
       const last = localStorage.getItem('popup_last_shown');
       if (last && Date.now() - Number(last) < 5 * 60 * 1000) return;
       setPopupData(data);
-      setPopupCountdown(data.videoUrl ? (Number(data.videoDuration) || 5) : 5);
+      setPopupCountdown(data.mediaType === 'video' ? (Number(data.videoDuration) || 5) : 5);
       setShowPopup(true);
     } catch (e) { console.error(e); }
   };
@@ -1302,7 +1302,7 @@ const Home = () => {
 
                   {/* Media + overlay immagine extra */}
                   <div className="relative">
-                    {popupData.videoUrl ? (
+                    {popupData.mediaType === 'video' && popupData.videoUrl ? (
                       <video src={popupData.videoUrl} className="w-full object-contain" autoPlay playsInline loop />
                     ) : popupData.imageUrl ? (
                       <img src={popupData.imageUrl} alt="Promo" className="w-full object-contain" />
