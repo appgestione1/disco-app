@@ -384,11 +384,12 @@ const AdminPanel = ({ session, onLogout }) => {
           const ev = events.find(e => e.id === config.eventId);
           if (ev) eventTitlesUpdate[`eventTitles.${config.eventId}`] = ev.title;
         });
-        await updateDoc(doc(db, 'prs_registry', pr.id), {
-          eventIds: newEventIds,
-          eventPays: newEventPays,
-          ...eventTitlesUpdate
-        });
+        const prConf = selectedConfigs.flatMap(c => c.prConfigs || []).find(pc => pc.prId === pr.id);
+        const updateData = { eventIds: newEventIds, eventPays: newEventPays, ...eventTitlesUpdate };
+        if (pr.supervisorId && prConf?.supervisorBonus !== undefined && prConf.supervisorBonus !== '') {
+          updateData.supervisorPay = Number(prConf.supervisorBonus) || 0;
+        }
+        await updateDoc(doc(db, 'prs_registry', pr.id), updateData);
       }
       await fetchData();
       alert(`Setup applicato a ${prsToUpdate.length} PR!`);
@@ -821,12 +822,13 @@ const AdminPanel = ({ session, onLogout }) => {
                                       const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
                                       const isChecked = prConf ? prConf.selected : true;
                                       const prPay = prConf ? prConf.pay : (config.pay ?? '');
+                                      const supervisorBonus = prConf?.supervisorBonus ?? (pr.supervisorPay || '');
                                       const updatePrConf = (updater) => setBulkEventConfig(prev => prev.map((c, i) => {
                                         if (i !== idx) return c;
                                         const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
                                         const base = exists
                                           ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
-                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '' })];
+                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '', supervisorBonus: pr.supervisorPay || '' })];
                                         return { ...c, prConfigs: base };
                                       }));
                                       return (
@@ -855,6 +857,24 @@ const AdminPanel = ({ session, onLogout }) => {
                                                 onBlur={e => {
                                                   const parsed = parseFloat(e.target.value);
                                                   if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+                                          {isChecked && indent && (
+                                            <div className="flex items-center border-2 border-zinc-500 bg-zinc-900 h-[30px] w-[72px] shrink-0" title="Bonus supervisore per ingresso">
+                                              <span className="px-1 text-[8px] font-black text-zinc-500 border-r border-zinc-600 h-full flex items-center shrink-0">SUP</span>
+                                              <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder="0.00"
+                                                className="w-full h-full px-1 font-black text-[10px] text-center focus:outline-none bg-transparent text-zinc-300"
+                                                value={supervisorBonus}
+                                                onChange={e => updatePrConf(pc => ({ ...pc, supervisorBonus: e.target.value }))}
+                                                onBlur={e => {
+                                                  const parsed = parseFloat(e.target.value);
+                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, supervisorBonus: parsed.toFixed(2) }));
+                                                  else if (e.target.value === '') updatePrConf(pc => ({ ...pc, supervisorBonus: '' }));
                                                 }}
                                               />
                                             </div>
@@ -976,9 +996,7 @@ const AdminPanel = ({ session, onLogout }) => {
                           return (
                             <div key={evId} className="px-3 py-2 flex items-center gap-2">
                               <span className="text-[11px] font-black uppercase truncate flex-1">{ev?.title || evId}</span>
-                              <div className="h-[26px] shrink-0">
-                                <InlinePayInput initialValue={currentPay} onSave={val => handleUpdateEventPay(pr.id, i, val, pr.eventPays)} placeholder="€/ing" />
-                              </div>
+                              <span className="text-[11px] font-black text-zinc-400 shrink-0">€{currentPay || '—'}</span>
                               <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
                               <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
                             </div>
