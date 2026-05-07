@@ -54,7 +54,7 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Popup pubblicità
-  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', videoDuration: 5, showSaveButton: false });
+  const [popupConfig, setPopupConfig] = useState({ enabled: false, imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
   const [extraImageFile, setExtraImageFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
@@ -82,7 +82,7 @@ const SuperAdmin = () => {
         getDoc(doc(db, 'settings', 'popup')),
       ]);
       if (popupSnap.exists()) {
-        setPopupConfig({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', videoDuration: 5, showSaveButton: false, ...popupSnap.data() });
+        setPopupConfig({ enabled: false, imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false, ...popupSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -414,7 +414,9 @@ const SuperAdmin = () => {
               <Star size={36} className="text-purple-400 group-hover:rotate-12 transition-transform" />
               <div className="text-left">
                 <span className="text-2xl italic tracking-tighter block">Pubblicità</span>
-                {(popupConfig.imageUrl || popupConfig.videoUrl) && <span className="text-[9px] text-purple-400 font-black tracking-widest">CONFIGURATA</span>}
+                {popupConfig.enabled
+                  ? <span className="text-[9px] text-green-400 font-black tracking-widest">● ATTIVO</span>
+                  : (popupConfig.imageUrl || popupConfig.videoUrl) && <span className="text-[9px] text-zinc-500 font-black tracking-widest">SPENTO</span>}
               </div>
             </button>
 
@@ -961,6 +963,22 @@ const SuperAdmin = () => {
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-[2.5rem] p-8 space-y-6">
 
+              {/* ON / OFF */}
+              <div className={`flex items-center justify-between rounded-2xl px-5 py-4 border-2 transition-colors ${popupConfig.enabled ? 'bg-green-950 border-green-600' : 'bg-black border-zinc-700'}`}>
+                <div>
+                  <p className="text-sm font-black text-white">Popup all'apertura</p>
+                  <p className={`text-[9px] mt-0.5 font-black uppercase tracking-widest ${popupConfig.enabled ? 'text-green-400' : 'text-zinc-500'}`}>
+                    {popupConfig.enabled ? '● ATTIVO — visibile agli utenti' : '○ SPENTO'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setPopupConfig(p => ({ ...p, enabled: !p.enabled }))}
+                  className={`relative w-14 h-7 rounded-full transition-colors border-2 flex-shrink-0 ${popupConfig.enabled ? 'bg-green-500 border-green-400' : 'bg-zinc-700 border-zinc-600'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${popupConfig.enabled ? 'left-7' : 'left-0.5'}`} />
+                </button>
+              </div>
+
               {/* LOCANDINA / BANNER */}
               <div>
                 <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">🖼 Locandina / Banner</p>
@@ -1025,6 +1043,40 @@ const SuperAdmin = () => {
                   <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
                     <img src={extraImageFile ? URL.createObjectURL(extraImageFile) : popupConfig.extraImageUrl} alt="Anteprima" className="w-full object-contain max-h-32" />
                     <button onClick={() => { setExtraImageFile(null); setPopupConfig(p => ({ ...p, extraImageUrl: '' })); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"><X size={14} /></button>
+                  </div>
+                )}
+
+                {/* SELETTORE POSIZIONE */}
+                {(extraImageFile || popupConfig.extraImageUrl) && (
+                  <div className="mt-4">
+                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">Posizione nel popup</p>
+                    {/* griglia visiva 3×2 */}
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { val: 'top-left',     label: '↖', hint: 'Alto sx' },
+                        { val: 'top-center',   label: '↑', hint: 'Alto centro' },
+                        { val: 'top-right',    label: '↗', hint: 'Alto dx' },
+                        { val: 'bottom-left',  label: '↙', hint: 'Basso sx' },
+                        { val: 'bottom',       label: '↓', hint: 'Sotto' },
+                        { val: 'bottom-right', label: '↘', hint: 'Basso dx' },
+                      ].map(({ val, label, hint }) => (
+                        <button
+                          key={val}
+                          type="button"
+                          onClick={() => setPopupConfig(p => ({ ...p, extraImagePosition: val }))}
+                          className={`flex flex-col items-center justify-center py-3 rounded-2xl border-2 transition-all text-lg font-black
+                            ${popupConfig.extraImagePosition === val
+                              ? 'bg-purple-600 border-purple-400 text-white'
+                              : 'bg-black border-zinc-700 text-zinc-400 active:bg-zinc-900'}`}
+                        >
+                          <span>{label}</span>
+                          <span className="text-[8px] font-black uppercase tracking-widest mt-0.5 normal-case">{hint}</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-zinc-600 mt-2 normal-case italic">
+                      {popupConfig.extraImagePosition === 'bottom' ? 'Sotto il contenuto (non sovrapposta)' : 'Sovrapposta sull\'immagine principale'}
+                    </p>
                   </div>
                 )}
               </div>

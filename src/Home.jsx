@@ -525,6 +525,7 @@ const Home = () => {
       const snap = await getDoc(doc(db, 'settings', 'popup'));
       if (!snap.exists()) return;
       const data = snap.data();
+      if (!data.enabled) return;
       if (!data.imageUrl && !data.videoUrl) return;
       const last = localStorage.getItem('popup_last_shown');
       if (last && Date.now() - Number(last) < 5 * 60 * 1000) return;
@@ -1286,43 +1287,64 @@ const Home = () => {
           <div className="relative w-full max-w-sm my-auto">
 
             {/* Card catturabile per "Salva in Galleria" */}
-            <div ref={popupRef} className="bg-black rounded-3xl overflow-hidden shadow-2xl">
+            {(() => {
+              const pos = popupData.extraImagePosition || 'bottom';
+              const overlayClass = {
+                'top-left':     'absolute top-2 left-2',
+                'top-center':   'absolute top-2 left-1/2 -translate-x-1/2',
+                'top-right':    'absolute top-2 right-2',
+                'bottom-left':  'absolute bottom-2 left-2',
+                'bottom-right': 'absolute bottom-2 right-2',
+              }[pos];
+              const isOverlay = pos !== 'bottom';
+              return (
+                <div ref={popupRef} className="bg-black rounded-3xl overflow-hidden shadow-2xl">
 
-              {/* Media */}
-              {popupData.videoUrl ? (
-                <video src={popupData.videoUrl} className="w-full object-contain" autoPlay playsInline loop />
-              ) : popupData.imageUrl ? (
-                <img src={popupData.imageUrl} alt="Promo" className="w-full object-contain" />
-              ) : null}
+                  {/* Media + overlay immagine extra */}
+                  <div className="relative">
+                    {popupData.videoUrl ? (
+                      <video src={popupData.videoUrl} className="w-full object-contain" autoPlay playsInline loop />
+                    ) : popupData.imageUrl ? (
+                      <img src={popupData.imageUrl} alt="Promo" className="w-full object-contain" />
+                    ) : null}
 
-              {/* Info extra */}
-              {(popupData.slogan || popupData.address || popupData.expiry || popupData.qrUrl) && (
-                <div className="px-5 pt-4 pb-5 flex flex-col gap-3">
+                    {popupData.extraImageUrl && isOverlay && (
+                      <div className={overlayClass}>
+                        <img src={popupData.extraImageUrl} alt="Extra" className="w-16 h-16 object-contain rounded-xl bg-white/10 p-1 shadow-lg" />
+                      </div>
+                    )}
+                  </div>
 
-                  {popupData.slogan && (
-                    <p className="text-white font-black text-base text-center leading-snug">{popupData.slogan}</p>
-                  )}
+                  {/* Info testo + immagine extra "sotto" */}
+                  {(popupData.slogan || popupData.address || popupData.expiry || (popupData.extraImageUrl && !isOverlay)) && (
+                    <div className="px-5 pt-4 pb-5 flex flex-col gap-3">
 
-                  {(savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)) && (
-                    <div className="bg-red-600 rounded-xl px-4 py-2 text-center">
-                      <p className="text-white font-black text-sm uppercase tracking-wide">
-                        ⏳ {savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)}
-                      </p>
-                    </div>
-                  )}
+                      {popupData.slogan && (
+                        <p className="text-white font-black text-base text-center leading-snug">{popupData.slogan}</p>
+                      )}
 
-                  {popupData.address && (
-                    <p className="text-zinc-400 text-xs text-center font-bold">📍 {popupData.address}</p>
-                  )}
+                      {(savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)) && (
+                        <div className="bg-red-600 rounded-xl px-4 py-2 text-center">
+                          <p className="text-white font-black text-sm uppercase tracking-wide">
+                            ⏳ {savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)}
+                          </p>
+                        </div>
+                      )}
 
-                  {popupData.extraImageUrl && (
-                    <div className="flex justify-center pt-1">
-                      <img src={popupData.extraImageUrl} alt="Info" className="max-h-24 object-contain rounded-xl" />
+                      {popupData.address && (
+                        <p className="text-zinc-400 text-xs text-center font-bold">📍 {popupData.address}</p>
+                      )}
+
+                      {popupData.extraImageUrl && !isOverlay && (
+                        <div className="flex justify-center pt-1">
+                          <img src={popupData.extraImageUrl} alt="Extra" className="max-h-24 object-contain rounded-xl" />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             {/* Pulsante Salva in Galleria */}
             {popupData.showSaveButton && (
