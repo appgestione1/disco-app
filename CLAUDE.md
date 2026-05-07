@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 07/05/2026 — commit `86f0138`**
+> **Ultimo aggiornamento: 07/05/2026 — commit `32a5b90`**
 
 ---
 
@@ -54,16 +54,22 @@ Header + tab in blocco sticky unico. Tab: LIVE / TEAM / SERATE / SPONSOR (icona 
 
 **Tab TEAM PR (`prs`)** — card verticali (non tabella), una per PR:
 - Intestazione nera/gialla con nome e ID badge
-- Slot serate: lista serate assegnate (titolo + InlinePayInput tariffa + contatore ingressi + totale) — NO dropdown, identica al MASTER
+- Slot serate: lista serate assegnate (titolo + tariffa statica + contatore ingressi + totale netto) — NO dropdown, NO inline edit
 - Se nessuna serata assegnata → "Nessuna serata — usa Setup Rapido"
-- Striscia link copia / supervisore / bonus
+- Striscia link copia / supervisore / bonus (InlinePayInput bonus ancora presente nel card)
 - Azioni: RESET PWD, VEDI E PAGA, Sostituisci, cestino
 - Form "+ NUOVO COLLABORATORE" collassabile (chiuso di default)
 
-**Setup Rapido Serate** — modale con:
-- Selezione evento + impostazione tariffa di default
-- Lista PR verticale e gerarchica: top-level → sub-PR indentati (ml-5, border-l-2) con riferimento al supervisore
-- Checkbox selezione + pay input per ogni PR
+**Setup Rapido Serate** — sezione collassabile con:
+- Selezione evento + impostazione tariffa globale "€ TUTTI"
+- Lista PR verticale e gerarchica: top-level (mb-3 tra gruppi) → sub-PR indentati (ml-5, border-l-2, mt-1)
+- Per ogni PR: checkbox + nome + ID + [SUP input se sub-PR] + [€ pay input]
+- Campo **SUP** (bonus supervisore per ingresso): `type=number step=0.01`, salva su Firestore `supervisorPay` subito all'onBlur → aggiorna i riquadri PR in tempo reale
+- APPLICA SETUP AL TEAM: scrive eventIds/eventPays (+ supervisorPay se sub-PR) su tutti i PR selezionati
+
+**Logica calcolo netto sub-PR:**
+- `calculatePrFinancials` / `calculatePrFinancialsForEvent`: tariffa netta = `eventPay - supervisorPay`
+- Il supervisore riceve +`supervisorPay` × ingressi del sub-PR come bonus
 
 **Tab SERATE (`events`)** — form pubblica nuova serata + grid card eventi con toggle annulla/riattiva
 
@@ -174,7 +180,7 @@ Tutti i dati filtrati per `groupId`.
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
 - [x] Sistema popup pubblicitario apertura app (SuperAdmin → Pop-up Apertura + Home overlay)
-- [x] Setup Rapido Serate — lista PR gerarchica supervisori/sub-PR + slot senza dropdown
+- [x] Setup Rapido Serate — lista PR gerarchica + campo SUP bonus supervisore + calcolo netto sub-PR
 - [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 
