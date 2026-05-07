@@ -158,8 +158,6 @@ const AdminPanel = ({ session, onLogout }) => {
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' });
   const [selectedFile, setSelectedFile] = useState(null);
 
-  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '', enabled: true });
-  const [popupFile, setPopupFile] = useState(null);
 
   const categories = session.groupType === 'LOUNGE/PUB'
     ? [{ id: 'PUB', label: 'LOUNGE/PUB' }]
@@ -236,9 +234,6 @@ const AdminPanel = ({ session, onLogout }) => {
 
       const spSnap = await getDocs(collection(db, "sponsors"));
       setSponsors(spSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-
-      const popupSnap = await getDoc(doc(db, 'settings', 'popup'));
-      if (popupSnap.exists()) setPopupConfig({ imageUrl: '', videoUrl: '', enabled: true, ...popupSnap.data() });
 
     } catch (e) { console.error("Errore fetch:", e); }
     setLoading(false);
@@ -645,36 +640,6 @@ const AdminPanel = ({ session, onLogout }) => {
       await setDoc(doc(db, "settings", "admin"), { password: newAdminPassword }, { merge: true });
       setNewAdminPassword(''); setPasswordModalOpen(false);
     } catch (error) { alert("Errore salvataggio password."); } finally { setLoading(false); }
-  };
-
-  const handleSavePopup = async () => {
-    setLoading(true);
-    try {
-      if (popupFile) {
-        await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const img = new Image(); img.src = ev.target.result;
-            img.onload = async () => {
-              const canvas = document.createElement('canvas');
-              const scale = Math.min(1, 900 / img.width);
-              canvas.width = img.width * scale; canvas.height = img.height * scale;
-              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-              const newUrl = canvas.toDataURL('image/jpeg', 0.75);
-              const updated = { ...popupConfig, imageUrl: newUrl };
-              await setDoc(doc(db, 'settings', 'popup'), updated, { merge: true });
-              setPopupConfig(updated); setPopupFile(null); resolve();
-            };
-            img.onerror = reject;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(popupFile);
-        });
-      } else {
-        await setDoc(doc(db, 'settings', 'popup'), popupConfig, { merge: true });
-      }
-      alert('Popup salvato!');
-    } catch (e) { alert('Errore salvataggio popup.'); } finally { setLoading(false); }
   };
 
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
@@ -1191,77 +1156,11 @@ const AdminPanel = ({ session, onLogout }) => {
           </div>
         )}
 
-        {/* TAB 4: SPONSOR / POPUP */}
+        {/* TAB 4: SPONSOR */}
         {activeTab === 'sponsors' && (
-          <div className="animate-in fade-in duration-300 flex flex-col gap-6">
-
-            {/* intestazione */}
-            <div className="bg-[#FFEE00] border-4 border-black p-5 shadow-[8px_8px_0px_#000] text-left">
-              <h2 className="text-xl font-black mb-1 uppercase italic flex items-center gap-2"><Gift size={20}/> Pubblicità Apertura App</h2>
-              <p className="text-[11px] font-bold uppercase leading-tight">
-                Il popup appare all'apertura con 5s di attesa prima di chiudere. Non si ripete per 5 minuti.
-              </p>
-            </div>
-
-            {/* LOCANDINA / BANNER */}
-            <div className="border-4 border-zinc-700 bg-zinc-900 p-4">
-              <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-3 flex items-center gap-1">
-                <span>🖼</span> LOCANDINA / BANNER
-              </p>
-              <label className="block w-full border-2 border-dashed border-zinc-600 bg-zinc-800 rounded-none p-4 text-center cursor-pointer active:bg-zinc-700 transition-all mb-3">
-                <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) setPopupFile(e.target.files[0]); }} />
-                <span className="text-[#FFEE00] font-black text-sm uppercase">
-                  {popupFile ? popupFile.name : '⬆ Cambia immagine'}
-                </span>
-              </label>
-              {(popupFile || popupConfig.imageUrl) && (
-                <div className="relative w-full max-w-xs mx-auto">
-                  <img
-                    src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl}
-                    alt="Anteprima locandina"
-                    className="w-full rounded object-contain border-2 border-zinc-600"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }}
-                    className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-7 h-7 flex items-center justify-center font-black text-sm border-2 border-white shadow"
-                  >×</button>
-                </div>
-              )}
-            </div>
-
-            {/* URL VIDEO SPOT */}
-            <div className="border-4 border-zinc-700 bg-zinc-900 p-4">
-              <p className="text-[10px] text-zinc-400 font-black uppercase tracking-widest mb-3 flex items-center gap-1">
-                <span>🎬</span> URL VIDEO SPOT (OPZIONALE)
-              </p>
-              <input
-                type="url"
-                placeholder="https://... (.mp4 o link diretto)"
-                className="w-full bg-black border-2 border-zinc-700 text-white font-bold text-sm p-3 focus:border-[#FFEE00] outline-none"
-                value={popupConfig.videoUrl || ''}
-                onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))}
-              />
-              <p className="text-[10px] text-zinc-500 mt-2">Se impostato, mostra il video al posto della locandina</p>
-            </div>
-
-            {/* AZIONI */}
-            <button
-              type="button"
-              onClick={() => { localStorage.removeItem('popup_last_shown'); alert('Cooldown azzerato! Al prossimo caricamento della Home il popup apparirà.'); }}
-              className="w-full border-4 border-[#FFEE00] bg-black text-[#FFEE00] font-black uppercase py-3 text-sm flex items-center justify-center gap-2 active:bg-zinc-900 transition-all shadow-[4px_4px_0px_#FFEE00]"
-            >
-              <RefreshCw size={16}/> TESTA POPUP (AZZERA COOLDOWN)
-            </button>
-
-            <button
-              type="button"
-              onClick={handleSavePopup}
-              disabled={loading}
-              className="w-full bg-[#FFEE00] text-black font-black uppercase py-4 text-base border-4 border-black shadow-[4px_4px_0px_#FFF] active:translate-y-1 transition-all disabled:opacity-40"
-            >
-              {loading ? 'SALVATAGGIO...' : '💾 SALVA PUBBLICITÀ'}
-            </button>
+          <div className="animate-in fade-in duration-300">
+            <div className="bg-[#FFEE00] border-4 border-black p-6 mb-8 shadow-[8px_8px_0px_#000] text-left"><h2 className="text-xl font-black mb-2 uppercase italic flex items-center gap-2"><Gift/> Gestione Gratta e Vinci</h2><p className="text-xs font-bold leading-tight uppercase">Definisci i premi e le probabilità di vincita per attirare clienti.</p></div>
+            <p className="text-center font-black opacity-20 py-20 italic border-4 border-dashed border-black">SEZIONE IN FASE DI AGGIORNAMENTO...</p>
           </div>
         )}
       </div>

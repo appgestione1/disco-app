@@ -520,13 +520,12 @@ const Home = () => {
 
   const fetchPopup = async () => {
     try {
-      const snap = await getDoc(doc(db, 'settings', 'popup'));
+      const snap = await getDoc(doc(db, 'settings', 'splash_ad'));
       if (!snap.exists()) return;
       const data = snap.data();
+      if (!data.enabled) return;
       if (!data.imageUrl && !data.videoUrl) return;
-      const last = localStorage.getItem('popup_last_shown');
-      const cooldownMs = 5 * 60 * 1000;
-      if (last && Date.now() - Number(last) < cooldownMs) return;
+      if (sessionStorage.getItem('ad_last_seen')) return;
       setPopupData(data);
       setPopupCountdown(5);
       setShowPopup(true);
@@ -534,7 +533,7 @@ const Home = () => {
   };
 
   const handleClosePopup = () => {
-    localStorage.setItem('popup_last_shown', String(Date.now()));
+    sessionStorage.setItem('ad_last_seen', '1');
     setShowPopup(false);
   };
 
