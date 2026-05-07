@@ -272,28 +272,29 @@ const SuperAdmin = () => {
       return;
     }
 
-    // Usa il blob URL già creato per il preview — evita FileReader che si blocca su iOS/mobile
-    const img = new Image();
-    img.onerror = () => {
-      setSplashAdSaving(false);
-      alert('Errore: impossibile caricare l\'immagine selezionata.');
-    };
-    img.onload = () => {
-      try {
-        const MAX_W = 800;
-        const MAX_H = 1200;
-        const scale = Math.min(MAX_W / img.width, MAX_H / img.height, 1);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image(); img.src = event.target.result;
+      img.onload = async () => {
         const canvas = document.createElement('canvas');
-        canvas.width = Math.round(img.width * scale);
-        canvas.height = Math.round(img.height * scale);
+        const scaleSize = 800 / img.width; canvas.width = 800; canvas.height = img.height * scaleSize;
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        doSave(canvas.toDataURL('image/jpeg', 0.7));
-      } catch (e) {
-        setSplashAdSaving(false);
-        alert('Errore conversione immagine: ' + (e?.message || e));
-      }
+        const imageUrl = canvas.toDataURL('image/jpeg', 0.7);
+        const data = { ...splashAd, imageUrl };
+        try {
+          await setDoc(doc(db, 'settings', 'splash_ad'), data);
+          setSplashAd(data);
+          setSplashAdSelectedFile(null);
+          setSplashAdPreviewUrl('');
+          alert('Splash pub salvata!');
+        } catch (err) {
+          alert('Errore salvataggio: ' + (err?.message || err));
+        } finally {
+          setSplashAdSaving(false);
+        }
+      };
     };
-    img.src = splashAdPreviewUrl;
+    reader.readAsDataURL(splashAdSelectedFile);
   };
 
   const handleSaveSettings = async () => {
