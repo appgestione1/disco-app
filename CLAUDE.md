@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 04/05/2026 — commit `83f7cb5`**
+> **Ultimo aggiornamento: 07/05/2026 — commit `1b3a688`**
 
 ---
 
@@ -150,6 +150,7 @@ Tutti i dati filtrati per `groupId`.
 | `external_events_cache/TEATRO_v4` | Cache teatro (26h) |
 | `showtimes/{YYYY-MM-DD}` | Orari cinema per data |
 | `analytics/{date}` | Dati analytics giornalieri |
+| `settings/popup` | Config popup pubblicitario (imageUrl, videoUrl) |
 
 ---
 
@@ -157,7 +158,8 @@ Tutti i dati filtrati per `groupId`.
 
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
-- [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE, SPONSOR)
+- [x] Sistema popup pubblicitario apertura app (Admin tab SPONSOR + Home overlay)
+- [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 
 ---
