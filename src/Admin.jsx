@@ -850,16 +850,19 @@ const AdminPanel = ({ session, onLogout }) => {
                                             <div className="flex items-center border-2 border-zinc-500 bg-zinc-900 h-[30px] w-[72px] shrink-0" title="Bonus supervisore per ingresso">
                                               <span className="px-1 text-[8px] font-black text-zinc-500 border-r border-zinc-600 h-full flex items-center shrink-0">SUP</span>
                                               <input
-                                                type="text"
+                                                type="number"
                                                 inputMode="decimal"
+                                                min="0"
+                                                step="0.01"
                                                 placeholder="0.00"
                                                 className="w-full h-full px-1 font-black text-[10px] text-center focus:outline-none bg-transparent text-zinc-300"
                                                 value={supervisorBonus}
                                                 onChange={e => updatePrConf(pc => ({ ...pc, supervisorBonus: e.target.value }))}
                                                 onBlur={e => {
                                                   const parsed = parseFloat(e.target.value);
-                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, supervisorBonus: parsed.toFixed(2) }));
-                                                  else if (e.target.value === '') updatePrConf(pc => ({ ...pc, supervisorBonus: '' }));
+                                                  const finalVal = !isNaN(parsed) ? parsed.toFixed(2) : '';
+                                                  updatePrConf(pc => ({ ...pc, supervisorBonus: finalVal }));
+                                                  handleUpdateSupervisorPay(pr.id, !isNaN(parsed) ? parsed : 0);
                                                 }}
                                               />
                                             </div>
@@ -886,12 +889,14 @@ const AdminPanel = ({ session, onLogout }) => {
                                     };
 
                                     return topLevel.map(pr => (
-                                      <React.Fragment key={pr.id}>
+                                      <div key={pr.id} className="mb-3">
                                         <PrRow pr={pr} indent={false} />
                                         {subPrsOf(pr.id).map(sub => (
-                                          <PrRow key={sub.id} pr={sub} indent={true} />
+                                          <div key={sub.id} className="mt-1">
+                                            <PrRow pr={sub} indent={true} />
+                                          </div>
                                         ))}
-                                      </React.Fragment>
+                                      </div>
                                     ));
                                   })()}
                                 </div>
