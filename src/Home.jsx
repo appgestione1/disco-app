@@ -463,6 +463,10 @@ const Home = () => {
 
   const passRef = useRef(null);
 
+  const [popupData, setPopupData] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupCountdown, setPopupCountdown] = useState(5);
+
   const categories = [
     { id: 'TUTTI', label: 'TUTTI GLI EVENTI', icon: LayoutGrid },
     { id: 'DISCOTECA', label: 'DISCOTECA', icon: Music },
@@ -474,7 +478,13 @@ const Home = () => {
     { id: 'SACRE', label: 'SACRE', icon: Church },
   ];
 
-  useEffect(() => { fetchEvents(); fetchPrInfo(); trackPageView('home'); }, [prRef]);
+  useEffect(() => { fetchEvents(); fetchPrInfo(); fetchPopup(); trackPageView('home'); }, [prRef]);
+
+  useEffect(() => {
+    if (!showPopup || popupCountdown <= 0) return;
+    const t = setTimeout(() => setPopupCountdown(c => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [showPopup, popupCountdown]);
 
   useEffect(() => {
     if (!activeCategory || !EXTERNAL_CATS.includes(activeCategory)) return;
@@ -506,6 +516,26 @@ const Home = () => {
       const snap = await getDoc(doc(db, 'prs_registry', prRef));
       setPrName(snap.exists() ? snap.data().name : prRef);
     } catch (e) { console.error(e); }
+  };
+
+  const fetchPopup = async () => {
+    try {
+      const snap = await getDoc(doc(db, 'settings', 'popup'));
+      if (!snap.exists()) return;
+      const data = snap.data();
+      if (!data.imageUrl && !data.videoUrl) return;
+      const last = localStorage.getItem('popup_last_shown');
+      const cooldownMs = 5 * 60 * 1000;
+      if (last && Date.now() - Number(last) < cooldownMs) return;
+      setPopupData(data);
+      setPopupCountdown(5);
+      setShowPopup(true);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleClosePopup = () => {
+    localStorage.setItem('popup_last_shown', String(Date.now()));
+    setShowPopup(false);
   };
 
   const handleStarClick = (side) => {
@@ -1215,6 +1245,40 @@ const Home = () => {
                 <button onClick={() => { setShowAdminLogin(false); setLockClickCount(0); }} className="text-zinc-500 text-[10px] font-black uppercase underline">Chiudi</button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* POPUP PUBBLICITARIO APERTURA */}
+      {showPopup && popupData && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-300">
+          <div className="relative w-full max-w-sm">
+            {popupData.videoUrl ? (
+              <video
+                src={popupData.videoUrl}
+                className="w-full rounded-2xl object-contain"
+                autoPlay
+                playsInline
+                loop
+                muted={false}
+              />
+            ) : (
+              <img
+                src={popupData.imageUrl}
+                alt="Evento in evidenza"
+                className="w-full rounded-2xl object-contain shadow-2xl"
+              />
+            )}
+            <button
+              onClick={handleClosePopup}
+              disabled={popupCountdown > 0}
+              className={`absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center font-black text-base shadow-lg transition-all border-2
+                ${popupCountdown > 0
+                  ? 'bg-black/60 text-white border-white/30 cursor-not-allowed'
+                  : 'bg-red-600 text-white border-white active:scale-90'}`}
+            >
+              {popupCountdown > 0 ? popupCountdown : '✕'}
+            </button>
           </div>
         </div>
       )}
