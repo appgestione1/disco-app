@@ -54,8 +54,9 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Popup pubblicità
-  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', qrUrl: '', showSaveButton: false });
+  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', videoDuration: 5, showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
+  const [extraImageFile, setExtraImageFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
 
   // Gruppi
@@ -81,7 +82,7 @@ const SuperAdmin = () => {
         getDoc(doc(db, 'settings', 'popup')),
       ]);
       if (popupSnap.exists()) {
-        setPopupConfig({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', qrUrl: '', showSaveButton: false, ...popupSnap.data() });
+        setPopupConfig({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', videoDuration: 5, showSaveButton: false, ...popupSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -241,32 +242,37 @@ const SuperAdmin = () => {
     }
   };
 
+  const resizeImageToBase64 = (file, maxW = 900) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const img = new Image(); img.src = ev.target.result;
+      img.onload = () => {
+        const scale = Math.min(1, maxW / img.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width * scale; canvas.height = img.height * scale;
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', 0.75));
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
   const handleSavePopup = async () => {
     setPopupSaving(true);
     try {
+      let updated = { ...popupConfig };
       if (popupFile) {
-        await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const img = new Image(); img.src = ev.target.result;
-            img.onload = async () => {
-              const canvas = document.createElement('canvas');
-              const scale = Math.min(1, 900 / img.width);
-              canvas.width = img.width * scale; canvas.height = img.height * scale;
-              canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-              const newUrl = canvas.toDataURL('image/jpeg', 0.75);
-              const updated = { ...popupConfig, imageUrl: newUrl };
-              await setDoc(doc(db, 'settings', 'popup'), updated);
-              setPopupConfig(updated); setPopupFile(null); resolve();
-            };
-            img.onerror = reject;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(popupFile);
-        });
-      } else {
-        await setDoc(doc(db, 'settings', 'popup'), popupConfig);
+        updated.imageUrl = await resizeImageToBase64(popupFile);
+        setPopupFile(null);
       }
+      if (extraImageFile) {
+        updated.extraImageUrl = await resizeImageToBase64(extraImageFile, 600);
+        setExtraImageFile(null);
+      }
+      await setDoc(doc(db, 'settings', 'popup'), updated);
+      setPopupConfig(updated);
       alert('Popup salvato!');
     } catch (e) { alert('Errore salvataggio popup.'); } finally { setPopupSaving(false); }
   };
@@ -1006,14 +1012,34 @@ const SuperAdmin = () => {
                 <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Mostra un conto alla rovescia nel popup</p>
               </div>
 
-              {/* QR CODE */}
+              {/* IMMAGINE EXTRA */}
               <div>
-                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">📲 URL per QR Code</p>
-                <input type="url" placeholder="https://... (link a cui punta il QR)"
-                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={popupConfig.qrUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, qrUrl: e.target.value }))} />
-                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Mostra un QR nel popup che porta a questo link</p>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-3">📲 Immagine aggiuntiva (es. QR, logo)</p>
+                <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
+                  <input type="file" accept="image/*" className="hidden" onChange={e => { if (e.target.files[0]) setExtraImageFile(e.target.files[0]); }} />
+                  <span className="text-purple-400 font-black text-sm uppercase">
+                    {extraImageFile ? extraImageFile.name : '⬆ Carica immagine'}
+                  </span>
+                </label>
+                {(extraImageFile || popupConfig.extraImageUrl) && (
+                  <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
+                    <img src={extraImageFile ? URL.createObjectURL(extraImageFile) : popupConfig.extraImageUrl} alt="Anteprima" className="w-full object-contain max-h-32" />
+                    <button onClick={() => { setExtraImageFile(null); setPopupConfig(p => ({ ...p, extraImageUrl: '' })); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"><X size={14} /></button>
+                  </div>
+                )}
               </div>
+
+              {/* DURATA VIDEO */}
+              {popupConfig.videoUrl && (
+                <div>
+                  <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">⏱ Durata popup video (secondi)</p>
+                  <input type="number" min="1" max="120" placeholder="5"
+                    className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
+                    value={popupConfig.videoDuration || 5}
+                    onChange={e => setPopupConfig(p => ({ ...p, videoDuration: Math.max(1, Number(e.target.value)) }))} />
+                  <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Il pulsante ✕ appare dopo questi secondi</p>
+                </div>
+              )}
 
               {/* SALVA IN GALLERIA */}
               <div className="flex items-center justify-between bg-black border border-zinc-700 rounded-2xl px-5 py-4">

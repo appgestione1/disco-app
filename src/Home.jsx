@@ -466,6 +466,7 @@ const Home = () => {
   const [popupData, setPopupData] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [popupCountdown, setPopupCountdown] = useState(5);
+  const [savingGallery, setSavingGallery] = useState(false);
   const popupRef = useRef(null);
 
   const categories = [
@@ -528,7 +529,7 @@ const Home = () => {
       const last = localStorage.getItem('popup_last_shown');
       if (last && Date.now() - Number(last) < 5 * 60 * 1000) return;
       setPopupData(data);
-      setPopupCountdown(5);
+      setPopupCountdown(data.videoUrl ? (Number(data.videoDuration) || 5) : 5);
       setShowPopup(true);
     } catch (e) { console.error(e); }
   };
@@ -540,25 +541,32 @@ const Home = () => {
 
   const handleSavePromoGallery = async () => {
     if (!popupRef.current) return;
+    setSavingGallery(true);
+    await new Promise(r => setTimeout(r, 80));
     try {
       const canvas = await html2canvas(popupRef.current, { backgroundColor: '#000000', scale: 2, useCORS: true });
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
       link.download = 'promo.png';
       link.click();
-    } catch (e) { console.error(e); }
+    } catch (e) { console.error(e); } finally { setSavingGallery(false); }
   };
 
   const formatExpiry = (dateStr) => {
     if (!dateStr) return null;
     const d = new Date(dateStr + 'T23:59:59');
-    const now = new Date();
-    const diffMs = d - now;
-    if (diffMs < 0) return null;
-    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (d - new Date() < 0) return null;
+    const diffDays = Math.ceil((d - new Date()) / (1000 * 60 * 60 * 24));
     if (diffDays === 0) return 'Scade oggi!';
     if (diffDays === 1) return 'Scade domani';
     return `Scade tra ${diffDays} giorni`;
+  };
+
+  const formatExpiryExact = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + 'T23:59:59');
+    if (d - new Date() < 0) return null;
+    return `Scade il ${d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' })}`;
   };
 
   const handleStarClick = (side) => {
@@ -1295,9 +1303,11 @@ const Home = () => {
                     <p className="text-white font-black text-base text-center leading-snug">{popupData.slogan}</p>
                   )}
 
-                  {formatExpiry(popupData.expiry) && (
+                  {(savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)) && (
                     <div className="bg-red-600 rounded-xl px-4 py-2 text-center">
-                      <p className="text-white font-black text-sm uppercase tracking-wide">⏳ {formatExpiry(popupData.expiry)}</p>
+                      <p className="text-white font-black text-sm uppercase tracking-wide">
+                        ⏳ {savingGallery ? formatExpiryExact(popupData.expiry) : formatExpiry(popupData.expiry)}
+                      </p>
                     </div>
                   )}
 
@@ -1305,12 +1315,9 @@ const Home = () => {
                     <p className="text-zinc-400 text-xs text-center font-bold">📍 {popupData.address}</p>
                   )}
 
-                  {popupData.qrUrl && (
-                    <div className="flex flex-col items-center gap-1 pt-1">
-                      <div className="bg-white p-2 rounded-xl">
-                        <QRCodeCanvas value={popupData.qrUrl} size={80} />
-                      </div>
-                      <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest">Scannerizza per info</p>
+                  {popupData.extraImageUrl && (
+                    <div className="flex justify-center pt-1">
+                      <img src={popupData.extraImageUrl} alt="Info" className="max-h-24 object-contain rounded-xl" />
                     </div>
                   )}
                 </div>
