@@ -466,6 +466,7 @@ const Home = () => {
   const [popupData, setPopupData] = useState(null);
   const [showPopup, setShowPopup] = useState(false);
   const [popupCountdown, setPopupCountdown] = useState(5);
+  const popupRef = useRef(null);
 
   const categories = [
     { id: 'TUTTI', label: 'TUTTI GLI EVENTI', icon: LayoutGrid },
@@ -535,6 +536,29 @@ const Home = () => {
   const handleClosePopup = () => {
     localStorage.setItem('popup_last_shown', String(Date.now()));
     setShowPopup(false);
+  };
+
+  const handleSavePromoGallery = async () => {
+    if (!popupRef.current) return;
+    try {
+      const canvas = await html2canvas(popupRef.current, { backgroundColor: '#000000', scale: 2, useCORS: true });
+      const link = document.createElement('a');
+      link.href = canvas.toDataURL('image/png');
+      link.download = 'promo.png';
+      link.click();
+    } catch (e) { console.error(e); }
+  };
+
+  const formatExpiry = (dateStr) => {
+    if (!dateStr) return null;
+    const d = new Date(dateStr + 'T23:59:59');
+    const now = new Date();
+    const diffMs = d - now;
+    if (diffMs < 0) return null;
+    const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+    if (diffDays === 0) return 'Scade oggi!';
+    if (diffDays === 1) return 'Scade domani';
+    return `Scade tra ${diffDays} giorni`;
   };
 
   const handleStarClick = (side) => {
@@ -1250,24 +1274,60 @@ const Home = () => {
 
       {/* POPUP PUBBLICITARIO APERTURA */}
       {showPopup && popupData && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/85 p-4 animate-in fade-in duration-300">
-          <div className="relative w-full max-w-sm">
-            {popupData.videoUrl ? (
-              <video
-                src={popupData.videoUrl}
-                className="w-full rounded-2xl object-contain"
-                autoPlay
-                playsInline
-                loop
-                muted={false}
-              />
-            ) : (
-              <img
-                src={popupData.imageUrl}
-                alt="Evento in evidenza"
-                className="w-full rounded-2xl object-contain shadow-2xl"
-              />
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-300 overflow-y-auto">
+          <div className="relative w-full max-w-sm my-auto">
+
+            {/* Card catturabile per "Salva in Galleria" */}
+            <div ref={popupRef} className="bg-black rounded-3xl overflow-hidden shadow-2xl">
+
+              {/* Media */}
+              {popupData.videoUrl ? (
+                <video src={popupData.videoUrl} className="w-full object-contain" autoPlay playsInline loop />
+              ) : popupData.imageUrl ? (
+                <img src={popupData.imageUrl} alt="Promo" className="w-full object-contain" />
+              ) : null}
+
+              {/* Info extra */}
+              {(popupData.slogan || popupData.address || popupData.expiry || popupData.qrUrl) && (
+                <div className="px-5 pt-4 pb-5 flex flex-col gap-3">
+
+                  {popupData.slogan && (
+                    <p className="text-white font-black text-base text-center leading-snug">{popupData.slogan}</p>
+                  )}
+
+                  {formatExpiry(popupData.expiry) && (
+                    <div className="bg-red-600 rounded-xl px-4 py-2 text-center">
+                      <p className="text-white font-black text-sm uppercase tracking-wide">⏳ {formatExpiry(popupData.expiry)}</p>
+                    </div>
+                  )}
+
+                  {popupData.address && (
+                    <p className="text-zinc-400 text-xs text-center font-bold">📍 {popupData.address}</p>
+                  )}
+
+                  {popupData.qrUrl && (
+                    <div className="flex flex-col items-center gap-1 pt-1">
+                      <div className="bg-white p-2 rounded-xl">
+                        <QRCodeCanvas value={popupData.qrUrl} size={80} />
+                      </div>
+                      <p className="text-zinc-500 text-[9px] font-black uppercase tracking-widest">Scannerizza per info</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Pulsante Salva in Galleria */}
+            {popupData.showSaveButton && (
+              <button
+                onClick={handleSavePromoGallery}
+                className="w-full mt-3 bg-white text-black font-black uppercase text-xs py-3 rounded-full tracking-widest shadow-lg active:scale-95 transition-transform flex items-center justify-center gap-2"
+              >
+                <Download size={14} /> Salva Promo in Galleria
+              </button>
             )}
+
+            {/* Pulsante chiudi */}
             <button
               onClick={handleClosePopup}
               disabled={popupCountdown > 0}

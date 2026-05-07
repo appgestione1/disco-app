@@ -54,7 +54,7 @@ const SuperAdmin = () => {
   const [priceInput, setPriceInput] = useState('10');
 
   // Popup pubblicità
-  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '' });
+  const [popupConfig, setPopupConfig] = useState({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', qrUrl: '', showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
 
@@ -81,7 +81,7 @@ const SuperAdmin = () => {
         getDoc(doc(db, 'settings', 'popup')),
       ]);
       if (popupSnap.exists()) {
-        setPopupConfig({ imageUrl: '', videoUrl: '', ...popupSnap.data() });
+        setPopupConfig({ imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', qrUrl: '', showSaveButton: false, ...popupSnap.data() });
       }
       setEvents(evSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => new Date(a.date) - new Date(b.date)));
       setProposals(propSnap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => b.timestamp?.seconds - a.timestamp?.seconds));
@@ -943,7 +943,7 @@ const SuperAdmin = () => {
 
         {/* SEZIONE PUBBLICITÀ POPUP */}
         {activeView === 'popup' && (
-          <div className="animate-in slide-in-from-bottom-10 duration-500 max-w-sm mx-auto space-y-6">
+          <div className="animate-in slide-in-from-bottom-10 duration-500 max-w-sm mx-auto space-y-6 pb-10">
             <div className="flex items-center justify-between mb-2 px-4">
               <h2 className="text-purple-400 text-xs tracking-widest italic flex items-center gap-2">
                 <Star size={14} /> Pubblicità Apertura App
@@ -966,17 +966,8 @@ const SuperAdmin = () => {
                 </label>
                 {(popupFile || popupConfig.imageUrl) && (
                   <div className="mt-3 rounded-2xl overflow-hidden border border-purple-500/40 relative">
-                    <img
-                      src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl}
-                      alt="Anteprima locandina"
-                      className="w-full object-contain max-h-48"
-                    />
-                    <button
-                      onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }}
-                      className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"
-                    >
-                      <X size={14} />
-                    </button>
+                    <img src={popupFile ? URL.createObjectURL(popupFile) : popupConfig.imageUrl} alt="Anteprima" className="w-full object-contain max-h-48" />
+                    <button onClick={() => { setPopupFile(null); setPopupConfig(p => ({ ...p, imageUrl: '' })); }} className="absolute top-2 right-2 bg-black/70 text-white rounded-full p-1"><X size={14} /></button>
                   </div>
                 )}
               </div>
@@ -984,16 +975,58 @@ const SuperAdmin = () => {
               {/* URL VIDEO SPOT */}
               <div>
                 <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 URL Video Spot (opzionale)</p>
-                <input
-                  type="url"
-                  placeholder="https://... (.mp4 o link diretto)"
+                <input type="url" placeholder="https://... (.mp4 o link diretto)"
                   className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                  value={popupConfig.videoUrl || ''}
-                  onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))}
-                />
-                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">
-                  Se impostato, mostra il video al posto della locandina
-                </p>
+                  value={popupConfig.videoUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))} />
+                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Se impostato, mostra il video al posto della locandina</p>
+              </div>
+
+              {/* SLOGAN */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">✏️ Slogan / Offerta</p>
+                <input type="text" placeholder="es. Ingresso gratuito fino alle 24:00"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={popupConfig.slogan || ''} onChange={e => setPopupConfig(p => ({ ...p, slogan: e.target.value }))} />
+              </div>
+
+              {/* INDIRIZZO */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">📍 Indirizzo</p>
+                <input type="text" placeholder="es. Via Roma 1, Catania"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={popupConfig.address || ''} onChange={e => setPopupConfig(p => ({ ...p, address: e.target.value }))} />
+              </div>
+
+              {/* SCADENZA OFFERTA */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">⏳ Scadenza Offerta</p>
+                <input type="date"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm"
+                  value={popupConfig.expiry || ''} onChange={e => setPopupConfig(p => ({ ...p, expiry: e.target.value }))} />
+                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Mostra un conto alla rovescia nel popup</p>
+              </div>
+
+              {/* QR CODE */}
+              <div>
+                <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">📲 URL per QR Code</p>
+                <input type="url" placeholder="https://... (link a cui punta il QR)"
+                  className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                  value={popupConfig.qrUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, qrUrl: e.target.value }))} />
+                <p className="text-[9px] text-zinc-600 mt-1.5 normal-case italic">Mostra un QR nel popup che porta a questo link</p>
+              </div>
+
+              {/* SALVA IN GALLERIA */}
+              <div className="flex items-center justify-between bg-black border border-zinc-700 rounded-2xl px-5 py-4">
+                <div>
+                  <p className="text-sm font-black text-white">Pulsante "Salva Promo"</p>
+                  <p className="text-[9px] text-zinc-500 mt-0.5 normal-case">Mostra il tasto per salvare il popup in galleria</p>
+                </div>
+                <button
+                  onClick={() => setPopupConfig(p => ({ ...p, showSaveButton: !p.showSaveButton }))}
+                  className={`relative w-14 h-7 rounded-full transition-colors border-2 flex-shrink-0 ${popupConfig.showSaveButton ? 'bg-purple-600 border-purple-500' : 'bg-zinc-700 border-zinc-600'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-all ${popupConfig.showSaveButton ? 'left-7' : 'left-0.5'}`} />
+                </button>
               </div>
 
               <div className="border-t border-zinc-800 pt-4 space-y-3">
@@ -1001,19 +1034,14 @@ const SuperAdmin = () => {
                   Il popup appare all'apertura, con 5s di attesa prima di chiudere. Non si ripete per 5 minuti.
                 </p>
                 <button
-                  onClick={() => {
-                    localStorage.removeItem('popup_last_shown');
-                    alert('Cooldown azzerato — riapri la home per testare il popup.');
-                  }}
+                  onClick={() => { localStorage.removeItem('popup_last_shown'); alert('Cooldown azzerato — riapri la home per testare il popup.'); }}
                   className="w-full border border-purple-500/40 text-purple-400 p-3 rounded-2xl font-black uppercase tracking-widest text-[10px] active:scale-95 transition-transform"
                 >
                   🔄 TESTA POPUP (AZZERA COOLDOWN)
                 </button>
               </div>
 
-              <button
-                onClick={handleSavePopup}
-                disabled={popupSaving}
+              <button onClick={handleSavePopup} disabled={popupSaving}
                 className="w-full bg-purple-600 text-white p-5 rounded-full font-black uppercase tracking-widest text-sm active:scale-95 transition-transform disabled:opacity-50"
               >
                 {popupSaving ? 'Salvataggio...' : '💾 Salva Pubblicità'}
