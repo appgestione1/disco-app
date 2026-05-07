@@ -268,11 +268,12 @@ const AdminPanel = ({ session, onLogout }) => {
     let directTotal = 0;
     let supervisorBonus = 0;
 
+    const bonusDeduction = Number(pr.supervisorPay) || 0;
     const myTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.used === true && afterReset(t, lastReset));
     myTickets.forEach(t => {
         const slotIndex = pr.eventIds?.indexOf(t.eventId);
-        const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
-        directTotal += rate;
+        const fullRate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
+        directTotal += Math.max(0, fullRate - bonusDeduction);
     });
 
     const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
@@ -292,8 +293,9 @@ const AdminPanel = ({ session, onLogout }) => {
 
     const myEvTickets = tickets.filter(t => (t.prId === pr.id || pr.aliases?.includes(t.prId)) && t.eventId === eventId && t.used === true && afterReset(t, lastReset));
     const slotIndex = pr.eventIds?.indexOf(eventId);
-    const rate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
-    directTotalEv = myEvTickets.length * rate;
+    const fullRate = (slotIndex !== -1 && slotIndex !== undefined) ? (Number(pr.eventPays?.[slotIndex]) || 0) : 0;
+    const bonusDeduction = Number(pr.supervisorPay) || 0;
+    directTotalEv = myEvTickets.length * Math.max(0, fullRate - bonusDeduction);
 
     const subPrs = activePrs.filter(sub => sub.supervisorId === pr.id || pr.aliases?.includes(sub.supervisorId));
     subPrs.forEach(sub => {
@@ -844,23 +846,6 @@ const AdminPanel = ({ session, onLogout }) => {
                                             <span className="text-[10px] font-black uppercase truncate">{pr.name}</span>
                                             <span className="text-[8px] opacity-50 font-bold shrink-0">{pr.id}</span>
                                           </button>
-                                          {isChecked && (
-                                            <div className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[80px] shrink-0">
-                                              <span className="px-1 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€</span>
-                                              <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                placeholder="0.00"
-                                                className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
-                                                value={prPay}
-                                                onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
-                                                onBlur={e => {
-                                                  const parsed = parseFloat(e.target.value);
-                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
-                                                }}
-                                              />
-                                            </div>
-                                          )}
                                           {isChecked && indent && (
                                             <div className="flex items-center border-2 border-zinc-500 bg-zinc-900 h-[30px] w-[72px] shrink-0" title="Bonus supervisore per ingresso">
                                               <span className="px-1 text-[8px] font-black text-zinc-500 border-r border-zinc-600 h-full flex items-center shrink-0">SUP</span>
@@ -875,6 +860,23 @@ const AdminPanel = ({ session, onLogout }) => {
                                                   const parsed = parseFloat(e.target.value);
                                                   if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, supervisorBonus: parsed.toFixed(2) }));
                                                   else if (e.target.value === '') updatePrConf(pc => ({ ...pc, supervisorBonus: '' }));
+                                                }}
+                                              />
+                                            </div>
+                                          )}
+                                          {isChecked && (
+                                            <div className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[80px] shrink-0">
+                                              <span className="px-1 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€</span>
+                                              <input
+                                                type="text"
+                                                inputMode="decimal"
+                                                placeholder="0.00"
+                                                className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
+                                                value={prPay}
+                                                onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
+                                                onBlur={e => {
+                                                  const parsed = parseFloat(e.target.value);
+                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
                                                 }}
                                               />
                                             </div>
