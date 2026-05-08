@@ -113,6 +113,10 @@ const SuperAdmin = () => {
         perPR: g.commissions?.perPR ?? '',
         perEvento: g.commissions?.perEvento ?? '',
         perQR: g.commissions?.perQR ?? '',
+        bonusDaPR: g.commissions?.bonusDaPR ?? '',
+        fissoPublicita: g.commissions?.fissoPublicita ?? '',
+        prive: g.commissions?.prive ?? '',
+        extra: g.commissions?.extra ?? '',
       };
     });
     setCommissionInputs(inputs);
@@ -164,6 +168,10 @@ const SuperAdmin = () => {
         perPR: Number(c.perPR) || 0,
         perEvento: Number(c.perEvento) || 0,
         perQR: Number(c.perQR) || 0,
+        bonusDaPR: Number(c.bonusDaPR) || 0,
+        fissoPublicita: Number(c.fissoPublicita) || 0,
+        prive: Number(c.prive) || 0,
+        extra: Number(c.extra) || 0,
       };
       await updateDoc(doc(db, 'groups', groupId), { commissions });
       setGroups(groups.map(g => g.id === groupId ? { ...g, commissions } : g));
@@ -777,10 +785,14 @@ const SuperAdmin = () => {
                       <p className="text-[9px] text-[#D4AF37] font-black tracking-widest flex items-center gap-1"><Euro size={10}/> COMMISSIONI MASTER</p>
                       <div className="grid grid-cols-2 gap-2">
                         {[
-                          { key: 'perOrfano', label: 'Per ingresso orfano' },
-                          { key: 'perPR', label: 'Per ingresso da PR' },
+                          { key: 'perOrfano', label: 'Per ingresso extra' },
+                          { key: 'perPR', label: 'Per ingresso' },
                           { key: 'perEvento', label: 'Fisso per evento' },
                           { key: 'perQR', label: 'Per QR realizzato' },
+                          { key: 'bonusDaPR', label: 'Bonus da PR' },
+                          { key: 'fissoPublicita', label: 'Fisso Pubblicità' },
+                          { key: 'prive', label: 'Privé' },
+                          { key: 'extra', label: 'Extra' },
                         ].map(({ key, label }) => (
                           <div key={key} className="bg-black/40 rounded-xl p-2">
                             <p className="text-[8px] text-zinc-600 mb-1">{label}</p>
