@@ -7,7 +7,7 @@ import {
 import {
   Users, Calendar, Ticket, Gift, Trash2,
   Plus, Save, RefreshCw, Phone, BarChart, DollarSign, Award, X, Lock, Wallet, Calculator, Tag, MapPin, KeyRound, Ban, Crown,
-  LogOut, Eye, EyeOff, Building2, Zap
+  LogOut, Eye, EyeOff, Building2, Zap, ChevronDown
 } from 'lucide-react';
 
 // Converte input grezzo in importo euro formattato: "350" → "3.50", "3" → "3.00"
@@ -153,6 +153,7 @@ const AdminPanel = ({ session, onLogout }) => {
   const [replaceName, setReplaceName] = useState('');
   const [replacePhone, setReplacePhone] = useState('');
   const [replaceTargetId, setReplaceTargetId] = useState('');
+  const [replaceSupervisorId, setReplaceSupervisorId] = useState('');
   const [payPrData, setPayPrData] = useState(null);
   const [payAmount, setPayAmount] = useState('');
   const [masterModalOpen, setMasterModalOpen] = useState(false);
@@ -171,6 +172,10 @@ const AdminPanel = ({ session, onLogout }) => {
   const [autoPrCode, setAutoPrCode] = useState('PR001');
   const [showNewPrForm, setShowNewPrForm] = useState(false);
   const [showBulkSetup, setShowBulkSetup] = useState(false);
+  const [expandedPrIds, setExpandedPrIds] = useState(new Set());
+  const [showArchivedPrs, setShowArchivedPrs] = useState(false);
+  const [archivedTargets, setArchivedTargets] = useState({});
+  const togglePrExpanded = (id) => setExpandedPrIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [bulkEventConfig, setBulkEventConfig] = useState([]);
 
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' });
@@ -197,7 +202,7 @@ const AdminPanel = ({ session, onLogout }) => {
           return { ...existing, prConfigs };
         }
         return {
-          eventId: ev.id, selected: false, pay: '',
+          eventId: ev.id, selected: false, expanded: false, pay: '',
           prConfigs: activePrIds.map(prId => ({ prId, selected: true, pay: '' }))
         };
       });
@@ -379,16 +384,10 @@ const AdminPanel = ({ session, onLogout }) => {
     } catch (error) { console.error("Errore salvataggio bonus."); }
   };
 
-  const handleApplyBulkSetup = async () => {
-    const selectedConfigs = bulkEventConfig.filter(c => c.selected);
-    if (selectedConfigs.length === 0) return alert('Seleziona almeno una serata!');
-    const involvedPrIds = new Set(
-      selectedConfigs.flatMap(c => (c.prConfigs || []).filter(pc => pc.selected).map(pc => pc.prId))
-    );
-    if (involvedPrIds.size === 0) return alert('Nessun PR selezionato!');
-    const prsToUpdate = activePrs.filter(p => involvedPrIds.has(p.id));
-    if (!window.confirm(`Applicare il setup a ${prsToUpdate.length} PR?\n\nSovrascrive gli slot esistenti.`)) return;
-    setLoading(true);
+  const applySetupSilently = async (configs, targetPrIds) => {
+    if (!targetPrIds || targetPrIds.size === 0) return;
+    const selectedConfigs = configs.filter(c => c.selected);
+    const prsToUpdate = activePrs.filter(p => targetPrIds.has(p.id));
     try {
       for (const pr of prsToUpdate) {
         const prEvents = selectedConfigs.filter(c =>
@@ -411,9 +410,21 @@ const AdminPanel = ({ session, onLogout }) => {
         }
         await updateDoc(doc(db, 'prs_registry', pr.id), updateData);
       }
-      await fetchData();
-      alert(`Setup applicato a ${prsToUpdate.length} PR!`);
-    } catch { alert("Errore durante l'applicazione."); } finally { setLoading(false); }
+      setPrs(prev => prev.map(p => {
+        if (!targetPrIds.has(p.id)) return p;
+        const prEvents = selectedConfigs.filter(c =>
+          (c.prConfigs || []).find(pc => pc.prId === p.id && pc.selected)
+        );
+        const newEventIds = Array(6).fill('');
+        const newEventPays = Array(6).fill(0);
+        prEvents.slice(0, 6).forEach((config, i) => {
+          newEventIds[i] = config.eventId;
+          const prConf = config.prConfigs?.find(pc => pc.prId === p.id);
+          newEventPays[i] = Number(prConf?.pay ?? config.pay) || 0;
+        });
+        return { ...p, eventIds: newEventIds, eventPays: newEventPays };
+      }));
+    } catch (err) { console.error('Auto-save setup error:', err); }
   };
 
   const handleDeletePr = async (pr) => {
@@ -436,6 +447,26 @@ const AdminPanel = ({ session, onLogout }) => {
     } catch (error) { alert("Errore eliminazione."); } finally { setLoading(false); }
   };
 
+  const handleReasignArchived = async (pr) => {
+    const newTarget = archivedTargets[pr.id];
+    if (!newTarget) return alert('Seleziona un PR di destinazione.');
+    if (!window.confirm(`Spostare "${pr.name}" → ${newTarget === masterId ? 'MASTER' : activePrs.find(p => p.id === newTarget)?.name || newTarget}?`)) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'prs_registry', pr.id), { mergedInto: newTarget });
+      await fetchData();
+    } catch { alert('Errore spostamento.'); } finally { setLoading(false); }
+  };
+
+  const handleDeleteArchived = async (pr) => {
+    if (!window.confirm(`Inglobare definitivamente "${pr.name}" nel MASTER?\nL'ID verrà conservato nel sistema.`)) return;
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, 'prs_registry', pr.id), { mergedInto: masterId });
+      await fetchData();
+    } catch { alert('Errore.'); } finally { setLoading(false); }
+  };
+
   const handleDeleteAlias = async (aliasId) => {
     const conferma = window.confirm(`ATTENZIONE!\nVuoi davvero eliminare in modo definitivo l'alias ${aliasId}?`);
     if (!conferma) return;
@@ -449,7 +480,7 @@ const AdminPanel = ({ session, onLogout }) => {
 
   const openReplaceModal = (pr) => {
     if (pr.id === masterId) return alert("Il Profilo MASTER non può essere sostituito!");
-    setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceTargetId('');
+    setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceTargetId(''); setReplaceSupervisorId(pr.supervisorId || '');
   };
 
   const eseguiSostituzioneNuovo = async (pr) => {
@@ -459,6 +490,14 @@ const AdminPanel = ({ session, onLogout }) => {
       await updateDoc(doc(db, "prs_registry", pr.id), { name: replaceName, phone: replacePhone, mergedInto: null });
       await fetchData(); setReplacePrData(null);
     } catch (error) { alert("Errore sostituzione."); } finally { setLoading(false); }
+  };
+
+  const eseguiAggiornaSupervisore = async (pr) => {
+    setLoading(true);
+    try {
+      await updateDoc(doc(db, "prs_registry", pr.id), { supervisorId: replaceSupervisorId });
+      await fetchData(); setReplacePrData(null);
+    } catch { alert("Errore aggiornamento supervisore."); } finally { setLoading(false); }
   };
 
   const eseguiSostituzioneIngloba = async (pr) => {
@@ -663,6 +702,46 @@ const AdminPanel = ({ session, onLogout }) => {
     } catch (error) { alert("Errore salvataggio password."); } finally { setLoading(false); }
   };
 
+  const handleResetPrs = async () => {
+    const conferma = window.prompt(`RESET PR — Gruppo "${groupName}"\n\nQuesta azione elimina tutti i collaboratori, gli ID e i conteggi.\nScrivi il nome del gruppo per confermare:`);
+    if (conferma?.trim().toLowerCase() !== groupName.trim().toLowerCase()) return alert('Nome non corrispondente. Reset annullato.');
+    setLoading(true);
+    try {
+      const prSnap = await getDocs(query(collection(db, 'prs_registry'), where('groupId', '==', groupId)));
+      const prIds = prSnap.docs.map(d => d.id).filter(id => id !== masterId);
+      for (const id of prIds) {
+        await deleteDoc(doc(db, 'prs_registry', id));
+        await deleteDoc(doc(db, 'prs', id));
+      }
+      const ticketSnap = await getDocs(query(collection(db, 'tickets'), where('groupId', '==', groupId)));
+      for (const d of ticketSnap.docs) await deleteDoc(d.ref);
+      await setDoc(doc(db, 'prs_registry', masterId), {
+        name: 'PROFILO MASTER', phone: '', groupId, isMaster: true,
+        eventIds: Array(6).fill(''), eventPays: Array(6).fill(0),
+        supervisorId: '', active: true, mergedInto: null,
+        acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0
+      });
+      await setDoc(doc(db, 'prs', masterId), { count: 0 }, { merge: true });
+      await fetchData();
+      alert('Reset PR completato.');
+    } catch { alert('Errore durante il reset PR.'); } finally { setLoading(false); }
+  };
+
+  const handleResetEvents = async () => {
+    const conferma = window.prompt(`RESET SERATE — Gruppo "${groupName}"\n\nQuesta azione elimina tutte le serate e i relativi ticket.\nScrivi il nome del gruppo per confermare:`);
+    if (conferma?.trim().toLowerCase() !== groupName.trim().toLowerCase()) return alert('Nome non corrispondente. Reset annullato.');
+    setLoading(true);
+    try {
+      const evSnap = await getDocs(query(collection(db, 'events'), where('groupId', '==', groupId)));
+      const evIds = evSnap.docs.map(d => d.id);
+      for (const id of evIds) await deleteDoc(doc(db, 'events', id));
+      const ticketSnap = await getDocs(query(collection(db, 'tickets'), where('groupId', '==', groupId)));
+      for (const d of ticketSnap.docs) await deleteDoc(d.ref);
+      await fetchData();
+      alert('Reset serate completato.');
+    } catch { alert('Errore durante il reset serate.'); } finally { setLoading(false); }
+  };
+
   const totalScanned = activePrs.reduce((acc, p) => acc + p.count, 0);
   const totalWon = tickets.filter(t => t.won === true).length;
 
@@ -749,7 +828,7 @@ const AdminPanel = ({ session, onLogout }) => {
           <div className="animate-in slide-in-from-bottom-4 duration-300">
 
             {/* SETUP RAPIDO SERATE */}
-            <div className="mb-6">
+            <div className="mb-2">
               <button
                 type="button"
                 onClick={() => setShowBulkSetup(v => !v)}
@@ -783,12 +862,22 @@ const AdminPanel = ({ session, onLogout }) => {
                             {/* riga evento */}
                             <div
                               className="flex items-center gap-3 px-4 py-3 cursor-pointer"
-                              onClick={() => {
-                                if (isLimitReached) return;
-                                setBulkEventConfig(prev => prev.map((c, i) => i === idx ? { ...c, selected: !c.selected } : c));
-                              }}
+                              onClick={() => setBulkEventConfig(prev => prev.map((c, i) => i === idx ? { ...c, expanded: !c.expanded } : c))}
                             >
-                              <div className={`w-5 h-5 border-2 shrink-0 flex items-center justify-center transition-all ${config.selected ? 'bg-[#FFEE00] border-[#FFEE00]' : 'border-zinc-500'}`}>
+                              <div
+                                className={`w-5 h-5 border-2 shrink-0 flex items-center justify-center transition-all ${config.selected ? 'bg-[#FFEE00] border-[#FFEE00]' : isLimitReached ? 'border-zinc-700 opacity-40' : 'border-zinc-500'}`}
+                                onClick={e => {
+                                  e.stopPropagation();
+                                  if (isLimitReached) return;
+                                  const newSelected = !config.selected;
+                                  const newConfigs = bulkEventConfig.map((c, i) => {
+                                    if (i !== idx) return c;
+                                    return { ...c, selected: newSelected, prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, selected: newSelected })) };
+                                  });
+                                  setBulkEventConfig(newConfigs);
+                                  applySetupSilently(newConfigs, new Set(activePrs.filter(p => p.id !== masterId).map(p => p.id)));
+                                }}
+                              >
                                 {config.selected && <span className="text-[10px] font-black text-black">✓</span>}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -816,18 +905,26 @@ const AdminPanel = ({ session, onLogout }) => {
                                     }}
                                     onBlur={e => {
                                       const fmt = formatCurrency(e.target.value);
-                                      setBulkEventConfig(prev => prev.map((c, i) => i !== idx ? c : {
+                                      const newConfigs = bulkEventConfig.map((c, i) => i !== idx ? c : {
                                         ...c, pay: fmt,
                                         prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, pay: fmt }))
-                                      }));
+                                      });
+                                      setBulkEventConfig(newConfigs);
+                                      const eventPrIds = new Set((bulkEventConfig[idx]?.prConfigs || []).filter(pc => pc.selected).map(pc => pc.prId));
+                                      applySetupSilently(newConfigs, eventPrIds);
                                     }}
                                   />
                                 </div>
                               )}
+                              <ChevronDown
+                                size={16}
+                                className={`shrink-0 text-zinc-400 transition-transform duration-200 ${config.expanded ? 'rotate-180' : ''}`}
+                                onClick={e => e.stopPropagation()}
+                              />
                             </div>
 
                             {/* lista PR per questa serata — verticale con gerarchia */}
-                            {config.selected && nonMasterPrs.length > 0 && (
+                            {config.expanded && nonMasterPrs.length > 0 && (
                               <div className="px-4 pb-3" onClick={e => e.stopPropagation()}>
                                 <p className="text-[9px] text-zinc-500 uppercase tracking-widest mb-2">Team assegnato a questa serata:</p>
                                 <div className="flex flex-col gap-1">
@@ -862,8 +959,21 @@ const AdminPanel = ({ session, onLogout }) => {
                                         <div className={`flex items-center gap-2 ${indent ? 'ml-5 pl-3 border-l-2 border-zinc-700' : ''}`}>
                                           <button
                                             type="button"
-                                            onClick={() => updatePrConf(pc => ({ ...pc, selected: !pc.selected }))}
-                                            className={`flex items-center gap-1.5 flex-1 min-w-0 py-1.5 px-2 border-2 transition-all ${isChecked ? 'bg-[#FFEE00] text-black border-[#FFEE00]' : 'bg-zinc-950 text-zinc-500 border-zinc-700'}`}
+                                            disabled={!config.selected}
+                                            onClick={() => {
+                                              const updater = pc => ({ ...pc, selected: !pc.selected });
+                                              const newConfigs = bulkEventConfig.map((c, i) => {
+                                                if (i !== idx) return c;
+                                                const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
+                                                const base = exists
+                                                  ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
+                                                  : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '', supervisorBonus: Number(pr.supervisorPay || 0).toFixed(2) })];
+                                                return { ...c, prConfigs: base };
+                                              });
+                                              setBulkEventConfig(newConfigs);
+                                              applySetupSilently(newConfigs, new Set([pr.id]));
+                                            }}
+                                            className={`flex items-center gap-1.5 flex-1 min-w-0 py-1.5 px-2 border-2 transition-all ${!config.selected ? 'opacity-30 cursor-not-allowed' : isChecked ? 'bg-[#FFEE00] text-black border-[#FFEE00]' : 'bg-zinc-950 text-zinc-500 border-zinc-700'}`}
                                           >
                                             <span className={`w-3 h-3 border shrink-0 flex items-center justify-center text-[8px] font-black ${isChecked ? 'bg-black border-black text-[#FFEE00]' : 'border-zinc-600'}`}>
                                               {isChecked ? '✓' : ''}
@@ -909,7 +1019,17 @@ const AdminPanel = ({ session, onLogout }) => {
                                                     defaultValue={displayPay}
                                                     onBlur={e => {
                                                       const formatted = formatCurrency(e.target.value);
-                                                      updatePrConf(pc => ({ ...pc, pay: formatted }));
+                                                      const updater = pc => ({ ...pc, pay: formatted });
+                                                      const newConfigs = bulkEventConfig.map((c, i) => {
+                                                        if (i !== idx) return c;
+                                                        const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
+                                                        const base = exists
+                                                          ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
+                                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '', supervisorBonus: Number(pr.supervisorPay || 0).toFixed(2) })];
+                                                        return { ...c, prConfigs: base };
+                                                      });
+                                                      setBulkEventConfig(newConfigs);
+                                                      applySetupSilently(newConfigs, new Set([pr.id]));
                                                     }}
                                                   />
                                               }
@@ -939,33 +1059,18 @@ const AdminPanel = ({ session, onLogout }) => {
                     </div>
                   )}
 
-                  <div className="p-4 border-t border-zinc-800">
-                    <button
-                      onClick={handleApplyBulkSetup}
-                      disabled={loading || bulkEventConfig.filter(c => c.selected).length === 0}
-                      className="w-full bg-[#FFEE00] text-black font-black py-4 uppercase text-sm shadow-[4px_4px_0px_#FFF] active:translate-y-1 transition-all disabled:opacity-40 flex items-center justify-center gap-2"
-                    >
-                      <Zap size={18}/>
-                      APPLICA SETUP AL TEAM
-                      {bulkEventConfig.filter(c => c.selected).length > 0 && (
-                        <span className="bg-black text-[#FFEE00] text-[9px] font-black px-2 py-0.5 ml-1">
-                          {bulkEventConfig.filter(c => c.selected).length} {bulkEventConfig.filter(c => c.selected).length === 1 ? 'SERATA' : 'SERATE'}
-                        </span>
-                      )}
-                    </button>
-                  </div>
                 </div>
               )}
             </div>
 
-            <div className="mb-10">
+            <div className="mb-6">
               <button
                 type="button"
                 onClick={() => setShowNewPrForm(v => !v)}
-                className="flex items-center gap-2 font-black uppercase text-sm border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0px_#000] hover:bg-[#FFEE00] transition-all active:translate-y-1"
+                className="flex items-center justify-between gap-2 font-black uppercase text-sm border-4 border-black bg-white px-5 py-3 shadow-[4px_4px_0px_#000] w-full active:translate-y-1 transition-all"
               >
-                <Plus size={18}/> NUOVO COLLABORATORE
-                <span className="ml-1 text-zinc-500">{showNewPrForm ? '▲' : '▼'}</span>
+                <span className="flex items-center gap-2"><Plus size={18}/> NUOVO COLLABORATORE</span>
+                <span className="text-zinc-500 text-xs">{showNewPrForm ? '▲' : '▼'}</span>
               </button>
               {showNewPrForm && (
                 <form onSubmit={handleAddPr} className="bg-white border-4 border-black border-t-0 p-6 shadow-[8px_8px_0px_#000]">
@@ -985,7 +1090,7 @@ const AdminPanel = ({ session, onLogout }) => {
               )}
             </div>
 
-            <div className="flex flex-col gap-3">
+            <div className="border-t-4 border-black pt-4 flex flex-col gap-3">
               {activePrs.map(pr => {
                 const isMaster = pr.id === masterId;
                 const lr = getLastReset(pr);
@@ -998,108 +1103,194 @@ const AdminPanel = ({ session, onLogout }) => {
                 return (
                   <div key={pr.id} className={`border-4 bg-white overflow-hidden ${isMaster ? 'border-[#FFEE00] shadow-[5px_5px_0px_#FFEE00]' : 'border-black shadow-[5px_5px_0px_#000]'}`}>
 
-                    {/* intestazione card */}
-                    <div className={`px-4 py-3 flex justify-between items-center ${isMaster ? 'bg-[#FFEE00]' : 'bg-black'}`}>
-                      <div>
-                        <p className={`font-black text-base leading-none ${isMaster ? 'text-black' : 'text-white'}`}>{pr.name}</p>
+                    {/* intestazione — cliccabile per espandere */}
+                    <div
+                      className={`px-4 py-3 flex items-center gap-3 cursor-pointer select-none ${isMaster ? 'bg-[#FFEE00]' : 'bg-black'}`}
+                      onClick={() => togglePrExpanded(pr.id)}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className={`font-black text-base leading-none truncate ${isMaster ? 'text-black' : 'text-white'}`}>{pr.name}</p>
                         {pr.phone && <p className={`text-[10px] flex items-center gap-1 mt-0.5 ${isMaster ? 'text-zinc-600' : 'text-zinc-400'}`}><Phone size={9}/> {pr.phone}</p>}
                       </div>
-                      <span className={`text-[9px] font-black px-2 py-1 border-2 ${isMaster ? 'bg-black text-[#FFEE00] border-black' : 'bg-[#FFEE00] text-black border-[#FFEE00]'}`}>
+                      <span className={`text-[9px] font-black px-2 py-1 border-2 shrink-0 ${isMaster ? 'bg-black text-[#FFEE00] border-black' : 'bg-[#FFEE00] text-black border-[#FFEE00]'}`}>
                         {isMaster ? '★ MASTER' : pr.id}
                       </span>
+                      <ChevronDown size={16} className={`shrink-0 transition-transform duration-200 ${expandedPrIds.has(pr.id) ? 'rotate-180' : ''} ${isMaster ? 'text-black' : 'text-zinc-400'}`} />
                     </div>
 
-                    {/* slot serate */}
-                    <div className="divide-y divide-zinc-100">
-                      {isMaster ? events.map(ev => {
-                        const n = countT(ev.id);
-                        const finEv = calculatePrFinancialsForEvent(pr, ev.id);
-                        return (
-                          <div key={ev.id} className="px-4 py-2 flex items-center gap-2">
-                            <span className="text-[11px] font-black uppercase truncate flex-1">{ev.title}</span>
-                            <span className={`text-xs font-black px-2 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
-                            <span className="text-sm font-black w-16 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
-                          </div>
-                        );
-                      }) : (() => {
-                        const assignedSlots = (pr.eventIds || []).map((id, i) => ({ id, i })).filter(s => s.id);
-                        if (assignedSlots.length === 0) return (
-                          <p key="empty" className="text-[10px] text-zinc-400 italic text-center py-3 px-4">Nessuna serata — usa Setup Rapido</p>
-                        );
-                        return assignedSlots.map(({ id: evId, i }) => {
-                          const ev = events.find(e => e.id === evId);
-                          const n = countT(evId);
-                          const finEv = calculatePrFinancialsForEvent(pr, evId);
-                          const grossPay = Number(pr.eventPays?.[i]) || 0;
-                          const supDeduction = Number(pr.supervisorPay) || 0;
-                          const subBonus = activePrs.filter(sub => sub.supervisorId === pr.id && (sub.eventIds || []).includes(evId))
-                            .reduce((s, sub) => s + (Number(sub.supervisorPay) || 0), 0);
-                          const effectiveRate = pr.supervisorId
-                            ? Math.max(0, grossPay - supDeduction)
-                            : grossPay + subBonus;
+                    {/* contenuto collassabile */}
+                    {expandedPrIds.has(pr.id) && (<>
+
+                      {/* slot serate */}
+                      <div className="divide-y divide-zinc-100">
+                        {isMaster ? events.map(ev => {
+                          const n = countT(ev.id);
+                          const finEv = calculatePrFinancialsForEvent(pr, ev.id);
                           return (
-                            <div key={evId} className="px-3 py-2 flex items-center gap-2">
-                              <span className="text-[11px] font-black uppercase truncate flex-1">{ev?.title || evId}</span>
-                              <span className="text-[11px] font-black text-zinc-400 shrink-0">{grossPay ? `€${effectiveRate.toFixed(2)}` : '—'}</span>
-                              <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
-                              <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
+                            <div key={ev.id} className="px-4 py-2 flex items-center gap-2">
+                              <span className="text-[11px] font-black uppercase truncate flex-1">{ev.title}</span>
+                              <span className={`text-xs font-black px-2 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
+                              <span className="text-sm font-black w-16 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
                             </div>
                           );
-                        });
-                      })()}
-                    </div>
-
-                    {/* link + supervisore */}
-                    {(!isMaster) && (
-                      <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-50 flex flex-wrap items-center gap-x-4 gap-y-1">
-                        <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/?ref=${pr.id}`); alert("Link copiato!"); }}
-                          className="text-[10px] font-black underline text-blue-600 uppercase">Copia Link App</button>
-                        {supNameText && (
-                          <span className="text-[10px] text-zinc-500 font-black uppercase">Sup: {supNameText}</span>
-                        )}
-                        {pr.supervisorId && (
-                          <div className="flex items-center gap-1 h-[24px]">
-                            <span className="text-[9px] text-zinc-500 uppercase">Bonus:</span>
-                            <InlinePayInput initialValue={pr.supervisorPay} onSave={val => handleUpdateSupervisorPay(pr.id, val)} placeholder="0.00" />
-                          </div>
-                        )}
+                        }) : (() => {
+                          const assignedSlots = (pr.eventIds || []).map((id, i) => ({ id, i })).filter(s => s.id);
+                          if (assignedSlots.length === 0) return (
+                            <p key="empty" className="text-[10px] text-zinc-400 italic text-center py-3 px-4">Nessuna serata — usa Setup Rapido</p>
+                          );
+                          return assignedSlots.map(({ id: evId, i }) => {
+                            const ev = events.find(e => e.id === evId);
+                            const n = countT(evId);
+                            const finEv = calculatePrFinancialsForEvent(pr, evId);
+                            const grossPay = Number(pr.eventPays?.[i]) || 0;
+                            const supDeduction = Number(pr.supervisorPay) || 0;
+                            const subBonus = activePrs.filter(sub => sub.supervisorId === pr.id && (sub.eventIds || []).includes(evId))
+                              .reduce((s, sub) => s + (Number(sub.supervisorPay) || 0), 0);
+                            const effectiveRate = pr.supervisorId
+                              ? Math.max(0, grossPay - supDeduction)
+                              : grossPay + subBonus;
+                            return (
+                              <div key={evId} className="px-3 py-2 flex items-center gap-2">
+                                <span className="text-[11px] font-black uppercase truncate flex-1">{ev?.title || evId}</span>
+                                <span className="text-[11px] font-black text-zinc-400 shrink-0">{grossPay ? `€${effectiveRate.toFixed(2)}` : '—'}</span>
+                                <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
+                                <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
+                              </div>
+                            );
+                          });
+                        })()}
                       </div>
-                    )}
 
-                    {/* azioni */}
-                    <div className="p-3 border-t-2 border-black grid grid-cols-2 gap-2">
-                      <button onClick={() => handleResetPrPassword(pr.id)}
-                        className="col-span-2 bg-black text-white text-[10px] font-black p-2 border-2 border-black flex items-center justify-center gap-1 uppercase shadow-[2px_2px_0px_#555] active:scale-95">
-                        <KeyRound size={11}/> RESET PWD
-                      </button>
-                      {isMaster ? (<>
-                        <button onClick={() => setProfitsModalOpen(true)}
-                          className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1">
-                          <Calculator size={11}/> CONTEGGI
+                      {/* link + supervisore */}
+                      {(!isMaster) && (
+                        <div className="px-4 py-2 border-t border-zinc-200 bg-zinc-50 flex flex-wrap items-center gap-x-4 gap-y-1">
+                          <button onClick={() => {
+                            const link = `${window.location.origin}/?ref=${pr.id}`;
+                            const phone = (pr.phone || '').replace(/\s+/g, '').replace(/^0/, '+390').replace(/^\+?39/, '+39');
+                            const msg = encodeURIComponent(`Ciao ${pr.name}! Ecco il tuo link personale per l'app: ${link}`);
+                            window.open(`whatsapp://send?phone=${phone.replace('+', '')}&text=${msg}`, '_blank');
+                          }} className="text-[10px] font-black underline text-green-600 uppercase">INVIA LINK APP</button>
+                          {supNameText && (
+                            <span className="text-[10px] text-zinc-500 font-black uppercase">Sup: {supNameText}</span>
+                          )}
+                          {pr.supervisorId && (
+                            <span className="text-[10px] text-zinc-500 font-black uppercase">Bonus: €{Number(pr.supervisorPay || 0).toFixed(2)}</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* azioni 2×2 */}
+                      <div className="p-3 border-t-2 border-black grid grid-cols-2 gap-2">
+                        <button onClick={() => handleResetPrPassword(pr.id)}
+                          className="bg-black text-white text-[10px] font-black p-3 border-2 border-black flex items-center justify-center gap-1 uppercase shadow-[2px_2px_0px_#555] active:scale-95">
+                          <KeyRound size={11}/> RESET PWD
                         </button>
-                        <button onClick={() => setMasterModalOpen(true)}
-                          className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
-                          MODIFICA ALIAS
+                        {isMaster ? (
+                          <button onClick={() => setProfitsModalOpen(true)}
+                            className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1">
+                            <Calculator size={11}/> CONTEGGI
+                          </button>
+                        ) : (
+                          <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
+                            className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
+                            VEDI E PAGA
+                          </button>
+                        )}
+                        {isMaster ? (
+                          <button onClick={() => setMasterModalOpen(true)}
+                            className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
+                            MOD. ALIAS
+                          </button>
+                        ) : (
+                          <button onClick={() => openReplaceModal(pr)}
+                            className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-3 uppercase flex items-center justify-center">
+                            SOSTITUISCI
+                          </button>
+                        )}
+                        <button onClick={() => handleDeletePr(pr)}
+                          className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'} border-2 border-red-600 p-3 flex items-center justify-center`}>
+                          <Trash2 size={14}/>
                         </button>
-                      </>) : (<>
-                        <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
-                          className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-2 uppercase shadow-[2px_2px_0px_#000]">
-                          VEDI E PAGA
-                        </button>
-                        <button onClick={() => openReplaceModal(pr)}
-                          className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-2 uppercase">
-                          Sostituisci
-                        </button>
-                      </>)}
-                      <button onClick={() => handleDeletePr(pr)}
-                        className={`col-span-2 ${isMaster ? 'opacity-30 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'} border-2 border-red-600 p-2 flex justify-center`}>
-                        <Trash2 size={14}/>
-                      </button>
-                    </div>
+                        {isMaster && <div />}
+                      </div>
+
+                    </>)}
                   </div>
                 );
               })}
             </div>
+
+            {/* ARCHIVIATI / INGLOBATI */}
+            {(() => {
+              const archivedPrs = prs.filter(p => p.mergedInto);
+              if (archivedPrs.length === 0) return null;
+              return (
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setShowArchivedPrs(v => !v)}
+                    className="flex items-center justify-between w-full px-4 py-3 border-4 border-zinc-400 bg-zinc-100 font-black uppercase text-xs text-zinc-600 shadow-[3px_3px_0px_#aaa]"
+                  >
+                    <span className="flex items-center gap-2"><Trash2 size={14}/> COLLABORATORI ARCHIVIATI ({archivedPrs.length})</span>
+                    <ChevronDown size={14} className={`transition-transform duration-200 ${showArchivedPrs ? 'rotate-180' : ''}`} />
+                  </button>
+                  {showArchivedPrs && (
+                    <div className="border-4 border-t-0 border-zinc-400 divide-y divide-zinc-200 bg-white">
+                      {archivedPrs.map(p => {
+                        const dest = prs.find(x => x.id === p.mergedInto);
+                        const destLabel = p.mergedInto === masterId
+                          ? '★ MASTER'
+                          : dest ? `${dest.name} (${dest.id})` : p.mergedInto;
+                        return (
+                          <div key={p.id} className="px-4 py-3 flex flex-col gap-2">
+                            {/* info riga */}
+                            <div className="flex items-center gap-3">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-black uppercase text-zinc-500 line-through truncate">{p.name}</p>
+                                <p className="text-[10px] text-zinc-400">{p.id}{p.phone ? ` · ${p.phone}` : ''}</p>
+                              </div>
+                              <div className="text-right shrink-0">
+                                <p className="text-[9px] text-zinc-400 uppercase tracking-widest">inglobato in</p>
+                                <p className="text-[11px] font-black text-zinc-700 uppercase">{destLabel}</p>
+                              </div>
+                            </div>
+                            {/* azioni */}
+                            <div className="flex gap-2">
+                              <select
+                                className="flex-1 min-w-0 p-2 border-2 border-zinc-400 text-[11px] font-black uppercase bg-white outline-none"
+                                value={archivedTargets[p.id] || ''}
+                                onChange={e => setArchivedTargets(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              >
+                                <option value="">— Sposta in —</option>
+                                <option value={masterId}>★ MASTER</option>
+                                {activePrs.filter(x => x.id !== masterId).map(x => (
+                                  <option key={x.id} value={x.id}>{x.name} ({x.id})</option>
+                                ))}
+                              </select>
+                              <button
+                                onClick={() => handleReasignArchived(p)}
+                                disabled={loading || !archivedTargets[p.id]}
+                                className="px-3 py-2 bg-black text-[#FFEE00] text-[10px] font-black uppercase border-2 border-black disabled:opacity-30 active:scale-95 shrink-0"
+                              >
+                                SPOSTA
+                              </button>
+                              <button
+                                onClick={() => handleDeleteArchived(p)}
+                                disabled={loading}
+                                className="px-3 py-2 border-2 border-red-600 text-red-600 text-[10px] font-black uppercase active:scale-95 shrink-0"
+                              >
+                                <Trash2 size={13}/>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
           </div>
         )}
 
@@ -1239,14 +1430,62 @@ const AdminPanel = ({ session, onLogout }) => {
 
       {/* PASSWORD ADMIN */}
       {passwordModalOpen && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-zinc-900 border-4 border-[#FFEE00] p-6 w-full max-w-sm shadow-[10px_10px_0px_#FFEE00]">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-zinc-800 pb-4 text-left">
-              <h2 className="text-2xl font-black italic uppercase text-white">Security Vault</h2>
-              <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000]"><X size={24} /></button>
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center animate-in fade-in">
+          <div className="bg-zinc-900 border-t-4 sm:border-4 border-[#FFEE00] w-full sm:max-w-sm shadow-[0_-6px_0px_#FFEE00] sm:shadow-[8px_8px_0px_#FFEE00] max-h-[92vh] overflow-y-auto">
+
+            {/* header sticky */}
+            <div className="flex items-center justify-between px-4 py-3 bg-black sticky top-0 z-10 border-b border-zinc-800">
+              <div>
+                <p className="text-[9px] text-[#FFEE00] uppercase tracking-widest">Security Vault</p>
+                <p className="text-sm font-black text-white uppercase">{groupName}</p>
+              </div>
+              <button onClick={() => setPasswordModalOpen(false)} className="bg-red-600 text-white p-2 border-2 border-red-400 active:scale-95"><X size={20} /></button>
             </div>
-            <input type="text" placeholder="NUOVA PASSWORD" className="w-full p-4 bg-black border border-zinc-700 text-white font-bold uppercase mb-6 focus:border-[#FFEE00] outline-none text-center" value={newAdminPassword} onChange={(e) => setNewAdminPassword(e.target.value)} />
-            <button onClick={handleSavePassword} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black p-4 uppercase border-2 border-black shadow-[4px_4px_0px_#FFF]">{loading ? '...' : 'SALVA PASSWORD'}</button>
+
+            <div className="flex flex-col divide-y divide-zinc-800">
+
+              {/* cambio password */}
+              <div className="p-4">
+                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-3">Password Admin</p>
+                <input
+                  type="text"
+                  placeholder="NUOVA PASSWORD"
+                  className="w-full p-3 bg-black border border-zinc-700 text-white font-bold uppercase mb-3 focus:border-[#FFEE00] outline-none text-center text-sm"
+                  value={newAdminPassword}
+                  onChange={e => setNewAdminPassword(e.target.value)}
+                />
+                <button onClick={handleSavePassword} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black py-3 text-sm uppercase border-2 border-black shadow-[3px_3px_0px_#FFF] active:translate-y-0.5 disabled:opacity-50">
+                  {loading ? '...' : 'SALVA PASSWORD'}
+                </button>
+              </div>
+
+              {/* reset zona pericolosa */}
+              <div className="p-4">
+                <p className="text-[9px] font-black uppercase text-red-500 tracking-widest mb-1">Zona Pericolosa</p>
+                <p className="text-[10px] text-zinc-500 mb-4">Per confermare verrà chiesto di digitare il nome del gruppo.</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={handleResetPrs}
+                    disabled={loading}
+                    className="flex flex-col items-center gap-1 p-3 border-2 border-red-600 text-red-500 font-black uppercase text-[10px] active:scale-95 transition-transform disabled:opacity-40"
+                  >
+                    <Users size={18}/>
+                    RESET PR
+                    <span className="text-[8px] text-red-400 normal-case font-normal leading-tight text-center">Cancella tutti i collaboratori e i conteggi</span>
+                  </button>
+                  <button
+                    onClick={handleResetEvents}
+                    disabled={loading}
+                    className="flex flex-col items-center gap-1 p-3 border-2 border-red-600 text-red-500 font-black uppercase text-[10px] active:scale-95 transition-transform disabled:opacity-40"
+                  >
+                    <Calendar size={18}/>
+                    RESET SERATE
+                    <span className="text-[8px] text-red-400 normal-case font-normal leading-tight text-center">Cancella tutti gli eventi e i ticket</span>
+                  </button>
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       )}
@@ -1430,27 +1669,53 @@ const AdminPanel = ({ session, onLogout }) => {
 
       {/* SOSTITUZIONE */}
       {replacePrData && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-white border-4 border-black p-6 w-full max-w-3xl shadow-[10px_10px_0px_#FFEE00] max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-6 border-b-4 border-black pb-4 text-left">
-              <h2 className="text-2xl font-black italic uppercase leading-none">Gestione PR: {replacePrData.name}</h2>
-              <button onClick={() => setReplacePrData(null)} className="bg-red-600 text-white p-2 border-2 border-black shadow-[2px_2px_0px_#000] transition-all"><X size={24} /></button>
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-end sm:items-center justify-center animate-in fade-in">
+          <div className="bg-white border-t-4 sm:border-4 border-black w-full sm:max-w-md shadow-[0_-6px_0px_#FFEE00] sm:shadow-[8px_8px_0px_#FFEE00] max-h-[92vh] overflow-y-auto">
+
+            {/* header */}
+            <div className="flex items-center justify-between px-4 py-3 bg-black sticky top-0 z-10">
+              <div>
+                <p className="text-[9px] text-zinc-400 uppercase tracking-widest">Gestione PR</p>
+                <p className="text-base font-black text-white uppercase leading-tight">{replacePrData.name}</p>
+              </div>
+              <button onClick={() => setReplacePrData(null)} className="bg-red-600 text-white p-2 border-2 border-red-400 active:scale-95"><X size={20} /></button>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
-               <div className="border-4 border-black p-6 bg-zinc-50 flex flex-col justify-between">
-                  <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4 italic">Sostituzione (Nuovo PR)</h3>
-                  <input type="text" placeholder="NUOVO NOME" className="w-full p-3 border-2 border-black mb-4 font-black uppercase outline-none" value={replaceName} onChange={e => setReplaceName(e.target.value)} />
-                  <input type="tel" placeholder="TELEFONO" className="w-full p-3 border-2 border-black mb-4 font-black outline-none" value={replacePhone} onChange={e => setReplacePhone(e.target.value)} />
-                  <button onClick={() => eseguiSostituzioneNuovo(replacePrData)} className="w-full bg-black text-[#FFEE00] font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#FFEE00]">AGGIORNA ANAGRAFICA</button>
-               </div>
-               <div className="border-4 border-black p-6 bg-zinc-50 flex flex-col justify-between">
-                  <h3 className="font-black text-lg mb-2 uppercase underline decoration-[#FFEE00] decoration-4 italic">Ingloba in Esistente</h3>
-                  <select className="w-full p-3 border-2 border-black mb-4 font-black uppercase outline-none bg-white cursor-pointer" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
-                     <option value="">-- SELEZIONA PR --</option>
-                     {activePrs.filter(p => p.id !== replacePrData.id && p.id !== masterId).map(p => (<option key={p.id} value={p.id}>{p.name} ({p.id})</option>))}
-                  </select>
-                  <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} className="w-full bg-red-600 text-white font-black p-4 uppercase active:translate-y-1 transition-all shadow-[4px_4px_0px_#000]">ESAGUI FUSIONE</button>
-               </div>
+
+            <div className="flex flex-col gap-0 divide-y-4 divide-black">
+
+              {/* anagrafica */}
+              <div className="p-4">
+                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-3">Anagrafica</p>
+                <input type="text" placeholder="NOME" className="w-full p-3 border-2 border-black mb-3 font-black uppercase outline-none focus:border-[#FFEE00] text-sm" value={replaceName} onChange={e => setReplaceName(e.target.value)} />
+                <input type="tel" placeholder="TELEFONO" className="w-full p-3 border-2 border-black mb-3 font-black outline-none focus:border-[#FFEE00] text-sm" value={replacePhone} onChange={e => setReplacePhone(e.target.value)} />
+                <button onClick={() => eseguiSostituzioneNuovo(replacePrData)} disabled={loading} className="w-full bg-black text-[#FFEE00] font-black py-3 text-sm uppercase active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#FFEE00] disabled:opacity-50">AGGIORNA ANAGRAFICA</button>
+              </div>
+
+              {/* supervisore */}
+              <div className="p-4">
+                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-3">Supervisore</p>
+                <select className="w-full p-3 border-2 border-black font-black uppercase outline-none bg-white mb-3 text-sm" value={replaceSupervisorId} onChange={e => setReplaceSupervisorId(e.target.value)}>
+                  <option value="">— Nessun supervisore —</option>
+                  {activePrs.filter(p => p.id !== replacePrData.id && p.id !== masterId).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                  ))}
+                </select>
+                <button onClick={() => eseguiAggiornaSupervisore(replacePrData)} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black py-3 text-sm uppercase active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#000] disabled:opacity-50">SALVA SUPERVISORE</button>
+              </div>
+
+              {/* ingloba */}
+              <div className="p-4">
+                <p className="text-[9px] font-black uppercase text-red-500 tracking-widest mb-1">Zona Pericolosa</p>
+                <p className="text-[10px] text-zinc-500 mb-3">Ingloba questo PR in un altro. I suoi dati passano al PR selezionato.</p>
+                <select className="w-full p-3 border-2 border-red-600 font-black uppercase outline-none bg-white mb-3 text-sm" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
+                  <option value="">— Seleziona PR destinazione —</option>
+                  {activePrs.filter(p => p.id !== replacePrData.id && p.id !== masterId).map(p => (
+                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                  ))}
+                </select>
+                <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} disabled={loading} className="w-full bg-red-600 text-white font-black py-3 text-sm uppercase active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#000] disabled:opacity-50">ESEGUI FUSIONE</button>
+              </div>
+
             </div>
           </div>
         </div>
