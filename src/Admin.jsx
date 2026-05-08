@@ -10,19 +10,37 @@ import {
   LogOut, Eye, EyeOff, Building2, Zap
 } from 'lucide-react';
 
+// Converte input grezzo in importo euro formattato: "350" → "3.50", "3" → "3.00"
+const formatCurrency = (raw) => {
+  const str = String(raw || '').trim().replace(',', '.');
+  if (!str) return '0.00';
+  const digits = str.replace(/[^0-9]/g, '');
+  if (!str.includes('.') && digits.length >= 3) {
+    return (parseInt(digits, 10) / 100).toFixed(2);
+  }
+  const parsed = parseFloat(str);
+  return isNaN(parsed) ? '0.00' : parsed.toFixed(2);
+};
+
 // --- COMPONENTE INLINE PER TARIFFE: STESSA ALTEZZA DEL SELECT E DECIMALI ---
 const InlinePayInput = ({ initialValue, onSave, placeholder }) => {
-  const [val, setVal] = useState(initialValue || '');
-  useEffect(() => { setVal(initialValue || ''); }, [initialValue]);
+  const [val, setVal] = useState(Number(initialValue || 0).toFixed(2));
+  useEffect(() => { setVal(Number(initialValue || 0).toFixed(2)); }, [initialValue]);
   return (
     <div className="flex items-center border-2 border-black bg-white w-[72px] h-full">
       <span className="px-1.5 text-[10px] font-black text-zinc-500 bg-zinc-100 border-r-2 border-black h-full flex items-center justify-center">€</span>
-      <input 
-        type="number" min="0" step="0.01" placeholder={placeholder}
+      <input
+        type="text"
+        inputMode="decimal"
+        placeholder={placeholder || '0.00'}
         className="w-full h-full p-0 font-black text-[10px] text-center focus:outline-none bg-transparent"
         value={val}
         onChange={(e) => setVal(e.target.value)}
-        onBlur={() => onSave(val)}
+        onBlur={() => {
+          const formatted = formatCurrency(val);
+          setVal(formatted);
+          onSave(formatted);
+        }}
       />
     </div>
   );
@@ -797,14 +815,11 @@ const AdminPanel = ({ session, onLogout }) => {
                                       }));
                                     }}
                                     onBlur={e => {
-                                      const parsed = parseFloat(e.target.value);
-                                      if (!isNaN(parsed)) {
-                                        const fmt = parsed.toFixed(2);
-                                        setBulkEventConfig(prev => prev.map((c, i) => i !== idx ? c : {
-                                          ...c, pay: fmt,
-                                          prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, pay: fmt }))
-                                        }));
-                                      }
+                                      const fmt = formatCurrency(e.target.value);
+                                      setBulkEventConfig(prev => prev.map((c, i) => i !== idx ? c : {
+                                        ...c, pay: fmt,
+                                        prConfigs: (c.prConfigs || []).map(pc => ({ ...pc, pay: fmt }))
+                                      }));
                                     }}
                                   />
                                 </div>
@@ -824,13 +839,23 @@ const AdminPanel = ({ session, onLogout }) => {
                                       const prConf = config.prConfigs?.find(pc => pc.prId === pr.id);
                                       const isChecked = prConf ? prConf.selected : true;
                                       const prPay = prConf ? prConf.pay : (config.pay ?? '');
-                                      const supervisorBonus = prConf?.supervisorBonus ?? (pr.supervisorPay || '');
+                                      const supervisorBonus = prConf?.supervisorBonus !== undefined ? prConf.supervisorBonus : Number(pr.supervisorPay || 0).toFixed(2);
+                                      const totalSubSup = !indent ? subPrsOf(pr.id).reduce((sum, sub) => {
+                                        const subConf = config.prConfigs?.find(pc => pc.prId === sub.id);
+                                        return sum + (parseFloat(subConf?.supervisorBonus !== undefined ? subConf.supervisorBonus : (sub.supervisorPay || 0)) || 0);
+                                      }, 0) : 0;
+                                      const prPayNum = parseFloat(prPay || 0) || 0;
+                                      const supNum = parseFloat(supervisorBonus || 0) || 0;
+                                      const displayPay = indent
+                                        ? Math.max(0, prPayNum - supNum).toFixed(2)
+                                        : totalSubSup > 0 ? (prPayNum + totalSubSup).toFixed(2) : prPay;
+                                      const isPayReadOnly = indent || totalSubSup > 0;
                                       const updatePrConf = (updater) => setBulkEventConfig(prev => prev.map((c, i) => {
                                         if (i !== idx) return c;
                                         const exists = (c.prConfigs || []).some(pc => pc.prId === pr.id);
                                         const base = exists
                                           ? c.prConfigs.map(pc => pc.prId === pr.id ? updater(pc) : pc)
-                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '', supervisorBonus: pr.supervisorPay || '' })];
+                                          : [...(c.prConfigs || []), updater({ prId: pr.id, selected: true, pay: c.pay || '', supervisorBonus: Number(pr.supervisorPay || 0).toFixed(2) })];
                                         return { ...c, prConfigs: base };
                                       }));
                                       return (
@@ -850,19 +875,16 @@ const AdminPanel = ({ session, onLogout }) => {
                                             <div className="flex items-center border-2 border-zinc-500 bg-zinc-900 h-[30px] w-[72px] shrink-0" title="Bonus supervisore per ingresso">
                                               <span className="px-1 text-[8px] font-black text-zinc-500 border-r border-zinc-600 h-full flex items-center shrink-0">SUP</span>
                                               <input
-                                                type="number"
+                                                key={supervisorBonus}
+                                                type="text"
                                                 inputMode="decimal"
-                                                min="0"
-                                                step="0.01"
                                                 placeholder="0.00"
                                                 className="w-full h-full px-1 font-black text-[10px] text-center focus:outline-none bg-transparent text-zinc-300"
-                                                value={supervisorBonus}
-                                                onChange={e => updatePrConf(pc => ({ ...pc, supervisorBonus: e.target.value }))}
+                                                defaultValue={supervisorBonus}
                                                 onBlur={e => {
-                                                  const parsed = parseFloat(e.target.value);
-                                                  const finalVal = !isNaN(parsed) ? parsed.toFixed(2) : '';
+                                                  const finalVal = formatCurrency(e.target.value);
                                                   updatePrConf(pc => ({ ...pc, supervisorBonus: finalVal }));
-                                                  handleUpdateSupervisorPay(pr.id, !isNaN(parsed) ? parsed : 0);
+                                                  handleUpdateSupervisorPay(pr.id, parseFloat(finalVal) || 0);
                                                 }}
                                               />
                                             </div>
@@ -870,18 +892,27 @@ const AdminPanel = ({ session, onLogout }) => {
                                           {isChecked && (
                                             <div className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[80px] shrink-0">
                                               <span className="px-1 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€</span>
-                                              <input
-                                                type="text"
-                                                inputMode="decimal"
-                                                placeholder="0.00"
-                                                className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
-                                                value={prPay}
-                                                onChange={e => updatePrConf(pc => ({ ...pc, pay: e.target.value }))}
-                                                onBlur={e => {
-                                                  const parsed = parseFloat(e.target.value);
-                                                  if (!isNaN(parsed)) updatePrConf(pc => ({ ...pc, pay: parsed.toFixed(2) }));
-                                                }}
-                                              />
+                                              {isPayReadOnly
+                                                ? <input
+                                                    type="text"
+                                                    readOnly
+                                                    className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00] cursor-default"
+                                                    value={displayPay}
+                                                    onChange={() => {}}
+                                                  />
+                                                : <input
+                                                    key={prPay}
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder="0.00"
+                                                    className="w-full h-full px-1 font-black text-[11px] text-center focus:outline-none bg-transparent text-[#FFEE00]"
+                                                    defaultValue={displayPay}
+                                                    onBlur={e => {
+                                                      const formatted = formatCurrency(e.target.value);
+                                                      updatePrConf(pc => ({ ...pc, pay: formatted }));
+                                                    }}
+                                                  />
+                                              }
                                             </div>
                                           )}
                                         </div>
@@ -890,10 +921,10 @@ const AdminPanel = ({ session, onLogout }) => {
 
                                     return topLevel.map(pr => (
                                       <div key={pr.id} className="mb-3">
-                                        <PrRow pr={pr} indent={false} />
+                                        {PrRow({ pr, indent: false })}
                                         {subPrsOf(pr.id).map(sub => (
                                           <div key={sub.id} className="mt-1">
-                                            <PrRow pr={sub} indent={true} />
+                                            {PrRow({ pr: sub, indent: true })}
                                           </div>
                                         ))}
                                       </div>
@@ -999,11 +1030,17 @@ const AdminPanel = ({ session, onLogout }) => {
                           const ev = events.find(e => e.id === evId);
                           const n = countT(evId);
                           const finEv = calculatePrFinancialsForEvent(pr, evId);
-                          const currentPay = pr.eventPays?.[i] || '';
+                          const grossPay = Number(pr.eventPays?.[i]) || 0;
+                          const supDeduction = Number(pr.supervisorPay) || 0;
+                          const subBonus = activePrs.filter(sub => sub.supervisorId === pr.id && (sub.eventIds || []).includes(evId))
+                            .reduce((s, sub) => s + (Number(sub.supervisorPay) || 0), 0);
+                          const effectiveRate = pr.supervisorId
+                            ? Math.max(0, grossPay - supDeduction)
+                            : grossPay + subBonus;
                           return (
                             <div key={evId} className="px-3 py-2 flex items-center gap-2">
                               <span className="text-[11px] font-black uppercase truncate flex-1">{ev?.title || evId}</span>
-                              <span className="text-[11px] font-black text-zinc-400 shrink-0">€{currentPay || '—'}</span>
+                              <span className="text-[11px] font-black text-zinc-400 shrink-0">{grossPay ? `€${effectiveRate.toFixed(2)}` : '—'}</span>
                               <span className={`text-xs font-black px-1.5 py-0.5 shrink-0 ${n > 0 ? 'bg-black text-[#FFEE00]' : 'text-zinc-400'}`}>{n}</span>
                               <span className="text-xs font-black w-14 text-right shrink-0">€{finEv.guadagnoTotaleEv.toFixed(2)}</span>
                             </div>
