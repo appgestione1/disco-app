@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 07/05/2026 — commit `32a5b90`**
+> **Ultimo aggiornamento: 09/05/2026 — commit `80a4a26`**
 
 ---
 
@@ -52,20 +52,42 @@ Header + tab in blocco sticky unico. Tab: LIVE / TEAM / SERATE / SPONSOR (icona 
 
 **Tab DATI LIVE (`stats`)** — card per ogni serata con stats (pass, ingressi, drink, costo PR)
 
-**Tab TEAM PR (`prs`)** — card verticali (non tabella), una per PR:
-- Intestazione nera/gialla con nome e ID badge
-- Slot serate: lista serate assegnate (titolo + tariffa statica + contatore ingressi + totale netto) — NO dropdown, NO inline edit
-- Se nessuna serata assegnata → "Nessuna serata — usa Setup Rapido"
-- Striscia link copia / supervisore / bonus (InlinePayInput bonus ancora presente nel card)
-- Azioni: RESET PWD, VEDI E PAGA, Sostituisci, cestino
-- Form "+ NUOVO COLLABORATORE" collassabile (chiuso di default)
+**Tab TEAM PR (`prs`)** — bottoni SETUP RAPIDO SERATE e + NUOVO COLLABORATORE a larghezza piena (w-full), ravvicinati (mb-2), separati dalle card da bordo nero spesso (border-t-4).
+
+Card PR (collassabili di default, stato in `expandedPrIds` Set):
+- Intestazione nera/gialla: click espande/collassa (ChevronDown)
+- Slot serate assegnate: titolo + tariffa statica + contatore ingressi + totale netto (NO dropdown, NO inline edit)
+- Se nessuna serata → "Nessuna serata — usa Setup Rapido"
+- Bottoni azioni in griglia 2×2: **RESET PWD** | **VEDI E PAGA** (o CONTEGGI) / **SOSTITUISCI** (o MOD.ALIAS) | 🗑️
+- **INVIA LINK APP** → WhatsApp nativo (`whatsapp://send?phone=...`)
+- Bonus supervisore: solo visualizzazione statica nel card (modifica solo da Setup Rapido SUP)
 
 **Setup Rapido Serate** — sezione collassabile con:
-- Selezione evento + impostazione tariffa globale "€ TUTTI"
-- Lista PR verticale e gerarchica: top-level (mb-3 tra gruppi) → sub-PR indentati (ml-5, border-l-2, mt-1)
+- Flag serata (checkbox ON/OFF) e chevron collapse/expand **separati e indipendenti**
+- Flag evento → sync automatico di tutti i PR (seleziona/deseleziona)
+- PR disabilitati (opacity-30) se la serata non è flaggata
+- Lista PR gerarchica: top-level (mb-3) → sub-PR indentati (ml-5, border-l-2, mt-1)
 - Per ogni PR: checkbox + nome + ID + [SUP input se sub-PR] + [€ pay input]
-- Campo **SUP** (bonus supervisore per ingresso): `type=number step=0.01`, salva su Firestore `supervisorPay` subito all'onBlur → aggiorna i riquadri PR in tempo reale
-- APPLICA SETUP AL TEAM: scrive eventIds/eventPays (+ supervisorPay se sub-PR) su tutti i PR selezionati
+- Campo **SUP**: `type=number step=0.01`, salva `supervisorPay` su Firestore all'onBlur in tempo reale
+- Salvataggio **real-time** su Firestore: ogni modifica aggiorna subito le schede PR — **nessun bottone APPLICA** (rimosso)
+- `applySetupSilently(configs, prIds)` gestisce il salvataggio silenzioso
+
+**Modal SOSTITUISCI** (bottom sheet mobile, 3 sezioni):
+- **Anagrafica**: modifica nome/alias
+- **Supervisore**: select per assegnare/rimuovere supervisore (salva su Firestore)
+- **Zona Pericolosa**: fusione/archiviazione (campo `mergedInto`)
+
+**Collaboratori Archiviati** (fondo tab TEAM, sezione collassabile):
+- Mostra PR con `mergedInto` impostato
+- Per ogni archiviato: select destinazione + SPOSTA + 🗑️ (ingloba nel Master, non cancella)
+
+**Security Vault** (lucchetto in header Admin — bottom sheet mobile):
+- Cambio password + Zona Pericolosa
+- **RESET PR**: elimina tutti i collaboratori + contatori + ticket del gruppo, ricrea Master pulito (non tocca `MASTER_{groupId}`)
+- **RESET SERATE**: elimina tutti gli eventi + ticket del gruppo
+- Entrambi richiedono di digitare il nome del gruppo come conferma
+
+Form **+ NUOVO COLLABORATORE** collassabile (chiuso di default).
 
 **Logica calcolo netto sub-PR:**
 - `calculatePrFinancials` / `calculatePrFinancialsForEvent`: tariffa netta = `eventPay - supervisorPay`
@@ -91,7 +113,9 @@ Tutti i dati filtrati per `groupId`.
 
 ### SuperAdmin (`SuperAdmin.jsx`)
 `activeView`: `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups' | 'popup'`
-- **GRUPPI** — crea/elimina gruppi, commissioni (`perOrfano`, `perPR`, `perEvento`, `perQR`), lista PR per gruppo
+- **GRUPPI** — crea/elimina gruppi, lista PR per gruppo; commissioni Master (8 voci, griglia 2×4, salvate su `groups/{groupId}.commissions`):
+  - `perOrfano` → "Per ingresso extra", `perPR` → "Per ingresso", `perEvento` → "Fisso per evento", `perQR` → "Per QR realizzato"
+  - `bonusDaPR` → "Bonus da PR", `fissoPublicita` → "Fisso Pubblicità", `prive` → "Privé", `extra` → "Extra"
 - **EVENTI** — toggle + elimina evento
 - **STATISTICHE** — analytics completo (vedi sezione Analytics)
 - **Pop-up Apertura** — gestione popup pubblicitario all'apertura app:
@@ -180,7 +204,12 @@ Tutti i dati filtrati per `groupId`.
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
 - [x] Sistema popup pubblicitario apertura app (SuperAdmin → Pop-up Apertura + Home overlay)
-- [x] Setup Rapido Serate — lista PR gerarchica + campo SUP bonus supervisore + calcolo netto sub-PR
+- [x] Setup Rapido Serate — real-time, flag serata/evento, no bottone APPLICA
+- [x] Card PR collassabili, griglia azioni 2×2, INVIA LINK APP WhatsApp
+- [x] Modal SOSTITUISCI — 3 sezioni (Anagrafica / Supervisore / Zona Pericolosa)
+- [x] Collaboratori Archiviati (mergedInto)
+- [x] Security Vault (RESET PR + RESET SERATE con conferma nome gruppo)
+- [x] Commissioni Master espanse a 8 voci (bonusDaPR, fissoPublicita, prive, extra)
 - [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 
