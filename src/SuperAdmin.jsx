@@ -67,6 +67,7 @@ const SuperAdmin = () => {
   const [groupPrs, setGroupPrs] = useState({});
   const [commissionInputs, setCommissionInputs] = useState({});
   const [visiblePrPasswords, setVisiblePrPasswords] = useState({});
+  const [redirectInputs, setRedirectInputs] = useState({});
 
   useEffect(() => {
     fetchAll();
@@ -122,10 +123,13 @@ const SuperAdmin = () => {
     setCommissionInputs(inputs);
     const allPrs = prsSnap.docs.map(d => ({ id: d.id, ...d.data() }));
     const byGroup = {};
+    const rInputs = {};
     fetchedGroups.forEach(g => {
       byGroup[g.id] = allPrs.filter(p => p.groupId === g.id && !p.isMaster && !p.mergedInto);
     });
+    allPrs.forEach(p => { rInputs[p.id] = p.redirectTo || ''; });
     setGroupPrs(byGroup);
+    setRedirectInputs(rInputs);
   };
 
   const handleCreateGroup = async () => {
@@ -177,6 +181,14 @@ const SuperAdmin = () => {
       setGroups(groups.map(g => g.id === groupId ? { ...g, commissions } : g));
       alert('Commissioni salvate!');
     } catch { alert('Errore salvataggio commissioni'); }
+  };
+
+  const handleSetRedirect = async (prId, targetId) => {
+    try {
+      const value = targetId.trim() || null;
+      await updateDoc(doc(db, 'prs_registry', prId), { redirectTo: value });
+      setRedirectInputs(prev => ({ ...prev, [prId]: targetId }));
+    } catch { alert('Errore salvataggio redirect'); }
   };
 
   const handleDeleteGroup = async (group) => {
@@ -828,18 +840,34 @@ const SuperAdmin = () => {
                       {groupPrs[group.id]?.length > 0 ? (
                         <div className="space-y-1.5">
                           {groupPrs[group.id].map(pr => (
-                            <div key={pr.id} className="bg-black/40 rounded-xl p-2.5 flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 flex-1 min-w-0">
-                                <span className="text-[9px] font-black text-white truncate">{pr.name}</span>
-                                <span className="text-[8px] text-zinc-600 shrink-0">{pr.id}</span>
+                            <div key={pr.id} className="bg-black/40 rounded-xl p-2.5 space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2 flex-1 min-w-0">
+                                  <span className="text-[9px] font-black text-white truncate">{pr.name}</span>
+                                  <span className="text-[8px] text-zinc-600 shrink-0">{pr.id}</span>
+                                </div>
+                                <div className="flex items-center gap-1 shrink-0">
+                                  <span className="text-[9px] font-black text-[#D4AF37]">
+                                    {visiblePrPasswords[pr.id] ? (pr.prPassword || 'PR') : '•••'}
+                                  </span>
+                                  <button onClick={() => setVisiblePrPasswords(prev => ({ ...prev, [pr.id]: !prev[pr.id] }))} className="text-zinc-600 hover:text-white">
+                                    {visiblePrPasswords[pr.id] ? <EyeOff size={12}/> : <Eye size={12}/>}
+                                  </button>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <span className="text-[9px] font-black text-[#D4AF37]">
-                                  {visiblePrPasswords[pr.id] ? (pr.prPassword || 'PR') : '•••'}
-                                </span>
-                                <button onClick={() => setVisiblePrPasswords(prev => ({ ...prev, [pr.id]: !prev[pr.id] }))} className="text-zinc-600 hover:text-white">
-                                  {visiblePrPasswords[pr.id] ? <EyeOff size={12}/> : <Eye size={12}/>}
-                                </button>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[8px] text-zinc-600 shrink-0">→</span>
+                                <select
+                                  value={redirectInputs[pr.id] || ''}
+                                  onChange={e => handleSetRedirect(pr.id, e.target.value)}
+                                  className="flex-1 bg-black/60 text-[8px] text-zinc-300 rounded-lg px-2 py-1 border border-zinc-800 focus:border-[#D4AF37] outline-none"
+                                >
+                                  <option value="">Nessun redirect</option>
+                                  <option value="MASTER">MASTER</option>
+                                  {groupPrs[group.id].filter(p => p.id !== pr.id).map(p => (
+                                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
+                                  ))}
+                                </select>
                               </div>
                             </div>
                           ))}

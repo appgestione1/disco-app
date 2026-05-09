@@ -412,7 +412,7 @@ const PrivePassCard = ({ ticketId, guestIndex, totalGuests, customerName, priveN
 
 // --- HOME ---
 const Home = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const prRef = searchParams.get('ref') || 'MASTER';
 
@@ -516,7 +516,16 @@ const Home = () => {
   const fetchPrInfo = async () => {
     try {
       const snap = await getDoc(doc(db, 'prs_registry', prRef));
-      setPrName(snap.exists() ? snap.data().name : prRef);
+      if (!snap.exists()) {
+        setSearchParams({ ref: 'MASTER' }, { replace: true });
+        return;
+      }
+      const data = snap.data();
+      if (data.redirectTo) {
+        setSearchParams({ ref: data.redirectTo }, { replace: true });
+        return;
+      }
+      setPrName(data.name);
     } catch (e) { console.error(e); }
   };
 
