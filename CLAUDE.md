@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 09/05/2026 — commit `80a4a26`**
+> **Ultimo aggiornamento: 09/05/2026 — commit `d2cf1fe`**
 
 ---
 
@@ -99,6 +99,11 @@ Form **+ NUOVO COLLABORATORE** collassabile (chiuso di default).
 
 Tutti i dati filtrati per `groupId`.
 
+### Redirect link PR — logica `redirectTo`
+- `prs_registry/{prId}.redirectTo` — se impostato, `fetchPrInfo` in `Home.jsx` aggiorna silenziosamente `?ref=` al valore target (`setSearchParams replace:true`)
+- Se il doc non esiste affatto → redirect automatico a `MASTER`
+- Impostabile da SuperAdmin → GRUPPI → select sotto ogni PR del gruppo
+
 ### Contabilità PR — logica `lastReset`
 - `prs_registry/{prId}.lastReset` — timestamp salvato quando si preme "AZZERA CONTABILITÀ"
 - Tutti i calcoli (`calculatePrFinancials`, `calculatePrFinancialsForEvent`, colonna IN, modal VEDI E PAGA) escludono i ticket con `timestamp <= lastReset`
@@ -113,7 +118,7 @@ Tutti i dati filtrati per `groupId`.
 
 ### SuperAdmin (`SuperAdmin.jsx`)
 `activeView`: `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups' | 'popup'`
-- **GRUPPI** — crea/elimina gruppi, lista PR per gruppo; commissioni Master (8 voci, griglia 2×4, salvate su `groups/{groupId}.commissions`):
+- **GRUPPI** — crea/elimina gruppi, lista PR per gruppo con select **redirectTo** per ogni PR (redirect silenzioso al PR/MASTER scelto); commissioni Master (8 voci, griglia 2×4, salvate su `groups/{groupId}.commissions`):
   - `perOrfano` → "Per ingresso extra", `perPR` → "Per ingresso", `perEvento` → "Fisso per evento", `perQR` → "Per QR realizzato"
   - `bonusDaPR` → "Bonus da PR", `fissoPublicita` → "Fisso Pubblicità", `prive` → "Privé", `extra` → "Extra"
 - **EVENTI** — toggle + elimina evento
@@ -210,6 +215,7 @@ Tutti i dati filtrati per `groupId`.
 - [x] Collaboratori Archiviati (mergedInto)
 - [x] Security Vault (RESET PR + RESET SERATE con conferma nome gruppo)
 - [x] Commissioni Master espanse a 8 voci (bonusDaPR, fissoPublicita, prive, extra)
+- [x] Redirect automatico link PR licenziati (redirectTo su Firestore + fallback MASTER)
 - [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 
