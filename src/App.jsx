@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { BrowserRouter as Router, Routes, Route, useParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { 
-  doc, getDoc, updateDoc, increment, setDoc, 
-  collection, getDocs, onSnapshot, query, where 
+import {
+  doc, getDoc, updateDoc, increment, setDoc,
+  collection, getDocs, onSnapshot, query, where, serverTimestamp
 } from 'firebase/firestore';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator, X, UserX } from 'lucide-react';
@@ -206,8 +206,21 @@ const PRDashboard = () => {
     setExpandedMergedPr(pr.id);
     if (mergedPrTickets[pr.id]) return;
     const snap = await getDocs(query(collection(db, "tickets"), where("prId", "==", pr.id)));
-    const tks = snap.docs.map(d => d.data()).filter(t => t.used);
+    const clearedAt = pr.masterClearedAt?.toDate ? pr.masterClearedAt.toDate() : null;
+    const tks = snap.docs.map(d => d.data()).filter(t => {
+      if (!t.used) return false;
+      if (!clearedAt) return true;
+      const ts = t.timestamp?.toDate ? t.timestamp.toDate() : null;
+      return ts && ts > clearedAt;
+    });
     setMergedPrTickets(prev => ({ ...prev, [pr.id]: tks }));
+  };
+
+  const clearMergedPr = async (pr) => {
+    if (!window.confirm(`Svuotare la lista di "${pr.name}"? Gli utenti già contati non appariranno più.`)) return;
+    await updateDoc(doc(db, "prs_registry", pr.id), { masterClearedAt: serverTimestamp() });
+    setMergedPrs(prev => prev.filter(p => p.id !== pr.id));
+    setExpandedMergedPr(null);
   };
 
   if (loading) return (
@@ -384,19 +397,27 @@ const PRDashboard = () => {
                           {!tickets ? (
                             <p className="text-zinc-500 text-xs italic text-center py-2">Caricamento...</p>
                           ) : tickets.length === 0 ? (
-                            <p className="text-zinc-500 text-xs italic text-center py-2">Nessun ingresso registrato.</p>
+                            <p className="text-zinc-500 text-xs italic text-center py-2">Nessun nuovo ingresso.</p>
                           ) : (
-                            tickets.map((t, i) => (
-                              <div key={t.id || i} className="flex items-center justify-between gap-3 py-2 border-b border-white/5 last:border-0">
-                                <div className="min-w-0">
-                                  <p className="text-white text-xs font-black truncate">{t.customerName || '—'}</p>
-                                  {t.customerPhone && <p className="text-zinc-500 text-[10px] tracking-wide">{t.customerPhone}</p>}
+                            <>
+                              {tickets.map((t, i) => (
+                                <div key={t.id || i} className="flex items-center justify-between gap-3 py-2 border-b border-white/5 last:border-0">
+                                  <div className="min-w-0">
+                                    <p className="text-white text-xs font-black truncate">{t.customerName || '—'}</p>
+                                    {t.customerPhone && <p className="text-zinc-500 text-[10px] tracking-wide">{t.customerPhone}</p>}
+                                  </div>
+                                  <p className="text-[#D4AF37] text-[10px] font-black tracking-widest flex-shrink-0">
+                                    {t.timestamp?.toDate ? t.timestamp.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) : ''}
+                                  </p>
                                 </div>
-                                <p className="text-[#D4AF37] text-[10px] font-black tracking-widest flex-shrink-0">
-                                  {t.timestamp?.toDate ? t.timestamp.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) : ''}
-                                </p>
-                              </div>
-                            ))
+                              ))}
+                              <button
+                                onClick={() => clearMergedPr(pr)}
+                                className="w-full mt-3 py-3 border border-red-700 text-red-400 text-[10px] font-black tracking-widest uppercase rounded-xl hover:bg-red-900/20"
+                              >
+                                SVUOTA LISTA
+                              </button>
+                            </>
                           )}
                         </div>
                       )}

@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { db } from './firebase';
 import {
   collection, getDocs, updateDoc, where,
-  deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField
+  deleteDoc, doc, setDoc, query, orderBy, getDoc, deleteField,
+  runTransaction, serverTimestamp
 } from 'firebase/firestore';
 import {
   Users, Calendar, Ticket, Gift, Trash2,
@@ -333,7 +334,14 @@ const AdminPanel = ({ session, onLogout }) => {
   const handleAddPr = async (e) => {
     e.preventDefault();
     try {
-      const code = autoPrCode;
+      const counterRef = doc(db, "settings", "prCounter");
+      let code;
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(counterRef);
+        const next = (snap.exists() ? (snap.data().lastId || 0) : 0) + 1;
+        tx.set(counterRef, { lastId: next }, { merge: true });
+        code = `PR${String(next).padStart(3, '0')}`;
+      });
       await setDoc(doc(db, "prs_registry", code), {
         name: prForm.name,
         phone: prForm.phone,
