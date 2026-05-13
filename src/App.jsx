@@ -157,10 +157,24 @@ const PRDashboard = () => {
           if (prData.isMaster || prId.startsWith("MASTER")) {
             setIsMaster(true);
             const allSnap = await getDocs(collection(db, "prs_registry"));
-            const merged = allSnap.docs
+            const candidates = allSnap.docs
               .map(d => ({ id: d.id, ...d.data() }))
               .filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
-            setMergedPrs(merged);
+            const visible = [];
+            for (const p of candidates) {
+              if (!p.masterClearedAt) {
+                visible.push(p);
+              } else {
+                const snap = await getDocs(query(
+                  collection(db, "tickets"),
+                  where("prId", "==", p.id),
+                  where("used", "==", true),
+                  where("timestamp", ">", p.masterClearedAt)
+                ));
+                if (snap.size > 0) visible.push(p);
+              }
+            }
+            setMergedPrs(visible);
           }
         } else {
           setPrName(prId);
