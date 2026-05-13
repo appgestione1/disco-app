@@ -156,10 +156,11 @@ const PRDashboard = () => {
           validEventIds = (prData.eventIds || []).filter(id => id !== "");
           if (prData.isMaster || prId.startsWith("MASTER")) {
             setIsMaster(true);
-            const mergedSnap = await getDocs(
-              query(collection(db, "prs_registry"), where("mergedInto", "==", prId))
-            );
-            setMergedPrs(mergedSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+            const allSnap = await getDocs(collection(db, "prs_registry"));
+            const merged = allSnap.docs
+              .map(d => ({ id: d.id, ...d.data() }))
+              .filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
+            setMergedPrs(merged);
           }
         } else {
           setPrName(prId);
@@ -334,7 +335,7 @@ const PRDashboard = () => {
           <div className={`w-3 h-3 rounded-full animate-pulse ${activeSection === 'prive' ? 'bg-black' : 'bg-[#D4AF37]'}`}></div>
         </button>
 
-        {/* SEZIONE COLLABORATORI INGLOBATI — solo MASTER */}
+        {/* SEZIONE PR INGLOBATI — solo MASTER */}
         {isMaster && mergedPrs.length > 0 && (
           <>
             <button
@@ -348,7 +349,7 @@ const PRDashboard = () => {
               <div className="flex items-center gap-6">
                 <UserX size={32} className="text-red-500 group-hover:scale-110 transition-transform" />
                 <div className="text-left">
-                  <span className="text-xl italic tracking-tighter">COLLABORATORI INGLOBATI</span>
+                  <span className="text-xl italic tracking-tighter">PR INGLOBATI</span>
                   <p className="text-[10px] text-red-400 tracking-widest font-bold normal-case mt-0.5">
                     {mergedPrs.length} {mergedPrs.length === 1 ? 'licenziato' : 'licenziati'}
                   </p>
