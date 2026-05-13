@@ -429,7 +429,7 @@ const AdminPanel = ({ session, onLogout }) => {
 
   const handleDeletePr = async (pr) => {
     if (pr.id === masterId) return alert("Il Profilo MASTER non può essere eliminato!");
-    const conferma = window.confirm(`ATTENZIONE!\nSei sicuro di voler eliminare ${pr.name}?\n\nI suoi dati verranno trasferiti al "PROFILO MASTER".`);
+    const conferma = window.confirm(`Vuoi licenziare ${pr.name}?`);
     if (!conferma) return;
     setLoading(true);
     try {
@@ -441,9 +441,9 @@ const AdminPanel = ({ session, onLogout }) => {
         });
         await setDoc(doc(db, "prs", masterId), { count: 0 }, { merge: true });
       }
-      await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: masterId });
+      await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: masterId, redirectTo: masterId });
       await fetchData();
-      alert("Collaboratore rimosso. Dati passati al Profilo MASTER.");
+      alert("Collaboratore licenziato.");
     } catch (error) { alert("Errore eliminazione."); } finally { setLoading(false); }
   };
 

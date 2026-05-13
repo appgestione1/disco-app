@@ -6,7 +6,7 @@ import {
   collection, getDocs, onSnapshot, query, where 
 } from 'firebase/firestore';
 import { Html5Qrcode } from 'html5-qrcode';
-import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator, X } from 'lucide-react';
+import { Camera, Power, Trash2, ChevronLeft, Calendar, BarChart3, Users, List, Crown, Calculator, X, UserX } from 'lucide-react';
 import Admin from './Admin';
 import Home from './Home';
 import SuperAdmin from './SuperAdmin';
@@ -136,6 +136,10 @@ const PRDashboard = () => {
   const [selectedEventId, setSelectedEventId] = useState("");
   const [liveCount, setLiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [isMaster, setIsMaster] = useState(false);
+  const [mergedPrs, setMergedPrs] = useState([]);
+  const [expandedMergedPr, setExpandedMergedPr] = useState(null);
+  const [mergedPrTickets, setMergedPrTickets] = useState({});
 
   // Stati per gestire l'apertura delle varie sezioni
   const [activeSection, setActiveSection] = useState(null);
@@ -145,11 +149,18 @@ const PRDashboard = () => {
       try {
         const prSnap = await getDoc(doc(db, "prs_registry", prId));
         let validEventIds = [];
-        
+
         if (prSnap.exists()) {
           const prData = prSnap.data();
           setPrName(prData.name || prId);
           validEventIds = (prData.eventIds || []).filter(id => id !== "");
+          if (prData.isMaster) {
+            setIsMaster(true);
+            const mergedSnap = await getDocs(
+              query(collection(db, "prs_registry"), where("mergedInto", "==", prId))
+            );
+            setMergedPrs(mergedSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+          }
         } else {
           setPrName(prId);
         }
@@ -158,7 +169,7 @@ const PRDashboard = () => {
         const allEvents = evSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         const filtered = allEvents.filter(ev => validEventIds.includes(ev.id));
         setAssignedEvents(filtered);
-        
+
         if (filtered.length > 0) {
           setSelectedEventId(filtered[0].id);
         }
@@ -187,6 +198,15 @@ const PRDashboard = () => {
 
   const toggleSection = (section) => {
     setActiveSection(activeSection === section ? null : section);
+  };
+
+  const toggleMergedPr = async (pr) => {
+    if (expandedMergedPr === pr.id) { setExpandedMergedPr(null); return; }
+    setExpandedMergedPr(pr.id);
+    if (mergedPrTickets[pr.id]) return;
+    const snap = await getDocs(query(collection(db, "tickets"), where("prId", "==", pr.id)));
+    const tks = snap.docs.map(d => d.data()).filter(t => t.used);
+    setMergedPrTickets(prev => ({ ...prev, [pr.id]: tks }));
   };
 
   if (loading) return (
@@ -299,11 +319,11 @@ const PRDashboard = () => {
         </button>
 
         {/* PULSANTE PRIVE' */}
-        <button 
+        <button
           onClick={() => toggleSection('prive')}
           className={`w-full p-6 border-2 rounded-[2rem] flex items-center justify-between px-10 transition-all active:scale-95 group ${
-            activeSection === 'prive' 
-            ? 'bg-[#D4AF37] border-black text-black' 
+            activeSection === 'prive'
+            ? 'bg-[#D4AF37] border-black text-black'
             : 'bg-zinc-900 border-white/5 text-white hover:bg-zinc-800 shadow-2xl'
           }`}
         >
@@ -313,6 +333,79 @@ const PRDashboard = () => {
           </div>
           <div className={`w-3 h-3 rounded-full animate-pulse ${activeSection === 'prive' ? 'bg-black' : 'bg-[#D4AF37]'}`}></div>
         </button>
+
+        {/* SEZIONE COLLABORATORI INGLOBATI — solo MASTER */}
+        {isMaster && mergedPrs.length > 0 && (
+          <>
+            <button
+              onClick={() => toggleSection('inglobati')}
+              className={`w-full p-6 border-2 rounded-[2rem] flex items-center justify-between px-10 transition-all active:scale-95 group ${
+                activeSection === 'inglobati'
+                ? 'bg-red-700 border-black text-white'
+                : 'bg-zinc-900 border-red-900/40 text-white hover:bg-zinc-800 shadow-2xl'
+              }`}
+            >
+              <div className="flex items-center gap-6">
+                <UserX size={32} className="text-red-500 group-hover:scale-110 transition-transform" />
+                <div className="text-left">
+                  <span className="text-xl italic tracking-tighter">COLLABORATORI INGLOBATI</span>
+                  <p className="text-[10px] text-red-400 tracking-widest font-bold normal-case mt-0.5">
+                    {mergedPrs.length} {mergedPrs.length === 1 ? 'licenziato' : 'licenziati'}
+                  </p>
+                </div>
+              </div>
+              <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+            </button>
+
+            {activeSection === 'inglobati' && (
+              <div className="animate-in slide-in-from-top-10 duration-500 space-y-3 pb-4 pt-2">
+                {mergedPrs.map(pr => {
+                  const isExpanded = expandedMergedPr === pr.id;
+                  const tickets = mergedPrTickets[pr.id];
+                  return (
+                    <div key={pr.id} className="bg-zinc-900 border border-red-900/40 rounded-2xl overflow-hidden">
+                      <button
+                        onClick={() => toggleMergedPr(pr)}
+                        className="w-full p-5 flex items-center gap-4 text-left"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-red-900/30 flex items-center justify-center flex-shrink-0">
+                          <UserX size={18} className="text-red-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-white font-black text-sm tracking-wide truncate">{pr.name || pr.id}</p>
+                          {pr.phone && <p className="text-zinc-400 text-xs tracking-widest mt-0.5">{pr.phone}</p>}
+                        </div>
+                        <ChevronLeft size={16} className={`text-zinc-500 flex-shrink-0 transition-transform ${isExpanded ? '-rotate-90' : 'rotate-180'}`} />
+                      </button>
+
+                      {isExpanded && (
+                        <div className="border-t border-red-900/20 px-5 pb-4 pt-3 space-y-2">
+                          {!tickets ? (
+                            <p className="text-zinc-500 text-xs italic text-center py-2">Caricamento...</p>
+                          ) : tickets.length === 0 ? (
+                            <p className="text-zinc-500 text-xs italic text-center py-2">Nessun ingresso registrato.</p>
+                          ) : (
+                            tickets.map((t, i) => (
+                              <div key={t.id || i} className="flex items-center justify-between gap-3 py-2 border-b border-white/5 last:border-0">
+                                <div className="min-w-0">
+                                  <p className="text-white text-xs font-black truncate">{t.customerName || '—'}</p>
+                                  {t.customerPhone && <p className="text-zinc-500 text-[10px] tracking-wide">{t.customerPhone}</p>}
+                                </div>
+                                <p className="text-[#D4AF37] text-[10px] font-black tracking-widest flex-shrink-0">
+                                  {t.timestamp?.toDate ? t.timestamp.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' }) : ''}
+                                </p>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
+        )}
 
       </div>
 
