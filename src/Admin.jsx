@@ -170,7 +170,7 @@ const AdminPanel = ({ session, onLogout }) => {
   const [priveForm, setPriveForm] = useState({ name: '', price: '', inclusions: '' });
 
   const [prForm, setPrForm] = useState({ name: '', phone: '', supervisorId: '' });
-  const [autoPrCode, setAutoPrCode] = useState('PR001');
+  const [previewCode, setPreviewCode] = useState('---');
   const [showNewPrForm, setShowNewPrForm] = useState(false);
   const [showBulkSetup, setShowBulkSetup] = useState(false);
   const [expandedPrIds, setExpandedPrIds] = useState(new Set());
@@ -211,17 +211,13 @@ const AdminPanel = ({ session, onLogout }) => {
   }, [events, prs]);
 
   useEffect(() => {
-    if (prs && prs.length > 0) {
-      const prNumbers = prs
-        .filter(p => p.id.startsWith('PR'))
-        .map(p => parseInt(p.id.replace('PR', ''), 10))
-        .filter(n => !isNaN(n));
-      const maxNumber = prNumbers.length > 0 ? Math.max(...prNumbers) : 0;
-      setAutoPrCode(`PR${String(maxNumber + 1).padStart(3, '0')}`);
-    } else {
-      setAutoPrCode('PR001');
-    }
-  }, [prs]);
+    if (!prForm.name.trim()) { setPreviewCode('---'); return; }
+    getDoc(doc(db, "settings", "prCounter")).then(snap => {
+      const next = (snap.exists() ? (snap.data().lastId || 0) : 0) + 1;
+      setPreviewCode(`PR${String(next).padStart(4, '0')}`);
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prForm.name]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -340,7 +336,7 @@ const AdminPanel = ({ session, onLogout }) => {
         const snap = await tx.get(counterRef);
         const next = (snap.exists() ? (snap.data().lastId || 0) : 0) + 1;
         tx.set(counterRef, { lastId: next }, { merge: true });
-        code = `PR${String(next).padStart(3, '0')}`;
+        code = `PR${String(next).padStart(4, '0')}`;
       });
       await setDoc(doc(db, "prs_registry", code), {
         name: prForm.name,
@@ -356,6 +352,7 @@ const AdminPanel = ({ session, onLogout }) => {
       });
       await setDoc(doc(db, "prs", code), { count: 0 }, { merge: true });
       setPrForm({ name: '', phone: '', supervisorId: '' });
+      setPreviewCode('---');
       fetchData();
     } catch (e) { alert("Errore nel salvataggio"); }
   };
@@ -1083,9 +1080,9 @@ const AdminPanel = ({ session, onLogout }) => {
               {showNewPrForm && (
                 <form onSubmit={handleAddPr} className="bg-white border-4 border-black border-t-0 p-6 shadow-[8px_8px_0px_#000]">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Codice Automatico</label><input type="text" value={autoPrCode} className="p-3 border-2 border-black font-black bg-zinc-100 text-zinc-500 cursor-not-allowed outline-none" readOnly /></div>
                     <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Nome Completo *</label><input type="text" placeholder="Es. Mario Rossi" className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00]" value={prForm.name} onChange={e => setPrForm({...prForm, name: e.target.value})} required /></div>
                     <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Telefono</label><input type="tel" placeholder="Es. 3331234567" className="p-3 border-2 border-black font-bold outline-none focus:border-[#FFEE00]" value={prForm.phone} onChange={e => setPrForm({...prForm, phone: e.target.value})} /></div>
+                    <div className="flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Codice Assegnato</label><input type="text" value={previewCode} className={`p-3 border-2 border-black font-black outline-none cursor-not-allowed ${previewCode === '---' ? 'bg-zinc-100 text-zinc-400' : 'bg-yellow-50 text-black'}`} readOnly /></div>
                   </div>
                   <div className="mt-4 flex flex-col"><label className="text-[10px] font-black uppercase text-zinc-500 mb-1 tracking-widest text-left">Supervisore (Opzionale)</label>
                     <select className="p-3 border-2 border-black font-bold uppercase outline-none focus:border-[#FFEE00] bg-white" value={prForm.supervisorId} onChange={e => setPrForm({...prForm, supervisorId: e.target.value})}>
