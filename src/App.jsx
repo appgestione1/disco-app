@@ -154,7 +154,7 @@ const PRDashboard = () => {
           const prData = prSnap.data();
           setPrName(prData.name || prId);
           validEventIds = (prData.eventIds || []).filter(id => id !== "");
-          if (prData.isMaster || prId.startsWith("MASTER_")) {
+          if (prData.isMaster || prId.startsWith("MASTER")) {
             setIsMaster(true);
             const mergedSnap = await getDocs(
               query(collection(db, "prs_registry"), where("mergedInto", "==", prId))
