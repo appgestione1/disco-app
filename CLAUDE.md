@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 09/05/2026 — commit `d2cf1fe`**
+> **Ultimo aggiornamento: 13/05/2026 — commit `6b9cbc8`**
 
 ---
 
@@ -62,6 +62,12 @@ Card PR (collassabili di default, stato in `expandedPrIds` Set):
 - **INVIA LINK APP** → WhatsApp nativo (`whatsapp://send?phone=...`)
 - Bonus supervisore: solo visualizzazione statica nel card (modifica solo da Setup Rapido SUP)
 
+**Licenziamento PR** (bottone 🗑️):
+- Dialog semplificato: "Vuoi licenziare [nome]?" — nessun dettaglio tecnico
+- Imposta `mergedInto: masterId` + `redirectTo: masterId` → link utenti reindirizzati automaticamente al MASTER
+- Il PR licenziato appare nella sezione "Collaboratori Archiviati" dell'Admin (esistente)
+- Il MASTER vede i PR licenziati e i loro ingressi nella sezione "PR INGLOBATI" della sua pagina
+
 **Setup Rapido Serate** — sezione collassabile con:
 - Flag serata (checkbox ON/OFF) e chevron collapse/expand **separati e indipendenti**
 - Flag evento → sync automatico di tutti i PR (seleziona/deseleziona)
@@ -87,7 +93,15 @@ Card PR (collassabili di default, stato in `expandedPrIds` Set):
 - **RESET SERATE**: elimina tutti gli eventi + ticket del gruppo
 - Entrambi richiedono di digitare il nome del gruppo come conferma
 
-Form **+ NUOVO COLLABORATORE** collassabile (chiuso di default).
+Form **+ NUOVO COLLABORATORE** collassabile (chiuso di default):
+- Ordine campi: Nome → Telefono → Codice Assegnato (readonly)
+- Codice mostra `---` finché il nome è vuoto, poi fetcha `settings/prCounter` e mostra il prossimo ID
+- Formato: `PR0001` (4 cifre, es. PR0007)
+- All'invio: `runTransaction` su `settings/prCounter` per ID globale atomico
+
+**Contatore globale PR** (`settings/prCounter.lastId`):
+- Condiviso tra tutti i gruppi, sopravvive al RESET PR
+- Garantisce ID univoci globalmente — nessun riutilizzo dopo reset
 
 **Logica calcolo netto sub-PR:**
 - `calculatePrFinancials` / `calculatePrFinancialsForEvent`: tariffa netta = `eventPay - supervisorPay`
@@ -102,7 +116,8 @@ Tutti i dati filtrati per `groupId`.
 ### Redirect link PR — logica `redirectTo`
 - `prs_registry/{prId}.redirectTo` — se impostato, `fetchPrInfo` in `Home.jsx` aggiorna silenziosamente `?ref=` al valore target (`setSearchParams replace:true`)
 - Se il doc non esiste affatto → redirect automatico a `MASTER`
-- Impostabile da SuperAdmin → GRUPPI → select sotto ogni PR del gruppo
+- Al licenziamento: `redirectTo: masterId` impostato automaticamente
+- Impostabile manualmente da SuperAdmin → GRUPPI → select sotto ogni PR del gruppo
 
 ### Contabilità PR — logica `lastReset`
 - `prs_registry/{prId}.lastReset` — timestamp salvato quando si preme "AZZERA CONTABILITÀ"
@@ -115,6 +130,16 @@ Tutti i dati filtrati per `groupId`.
 - Bonus supervisore (se presente, da sub-PR)
 - Riepilogo: Totale Lordo → Acconti Versati → Residuo (sfondo nero/giallo)
 - Input importo + CONFERMA PAGAMENTO + AZZERA CONTABILITÀ
+
+### PRDashboard (`/pr/:prId`) — Pagina PR
+- Accessibile da Home con sequenza stelle (R R L L) + password
+- Sezioni: INGRESSI / CONTEGGI / ELENCO LISTA / PRIVÉ
+- **Sezione PR INGLOBATI** (solo MASTER, pulsante rosso):
+  - Rilevamento MASTER: `prData.isMaster === true` OR `prId.startsWith("MASTER")`
+  - Mostra PR licenziati con `mergedInto.startsWith("MASTER")` che hanno ticket non ancora svuotati
+  - Ogni card espandibile → lista ingressi (customerName, customerPhone, data) dopo `masterClearedAt`
+  - Pulsante **SVUOTA LISTA**: imposta `masterClearedAt: serverTimestamp()` → PR scompare
+  - Riappare al prossimo caricamento solo se nuovi ticket `timestamp > masterClearedAt`
 
 ### SuperAdmin (`SuperAdmin.jsx`)
 `activeView`: `null | 'events' | 'proposals' | 'settings' | 'stats' | 'groups' | 'popup'`
@@ -189,11 +214,12 @@ Tutti i dati filtrati per `groupId`.
 |---|---|
 | `groups/{groupId}` | name, type, password, commissions |
 | `events` | Serate (campo `groupId`) |
-| `tickets` | QR generati — campo `timestamp` usato per `lastReset` |
-| `prs_registry` | PR con eventIds, eventPays, eventTitles, lastReset, acconto, supervisorId, supervisorPay |
+| `tickets` | QR generati — campi: prId, eventId, customerName, customerPhone, used, timestamp, type, guestCount |
+| `prs_registry` | PR con eventIds, eventPays, eventTitles, lastReset, acconto, supervisorId, supervisorPay, mergedInto, redirectTo, masterClearedAt |
 | `prs` | Contatori ingressi live |
 | `event_proposals` | Proposte evento esterni |
 | `settings/admin` | Password admin |
+| `settings/prCounter` | `{ lastId: number }` — contatore globale ID PR (non resettabile) |
 | `settings/eventSubmission` | Prezzo proposta evento |
 | `external_events_cache/CINEMA_v4` | Cache film (6h) |
 | `external_events_cache/CONCERTI_v4` | Cache concerti (26h) |
@@ -208,16 +234,19 @@ Tutti i dati filtrati per `groupId`.
 
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
-- [x] Sistema popup pubblicitario apertura app (SuperAdmin → Pop-up Apertura + Home overlay)
-- [x] Setup Rapido Serate — real-time, flag serata/evento, no bottone APPLICA
-- [x] Card PR collassabili, griglia azioni 2×2, INVIA LINK APP WhatsApp
-- [x] Modal SOSTITUISCI — 3 sezioni (Anagrafica / Supervisore / Zona Pericolosa)
-- [x] Collaboratori Archiviati (mergedInto)
-- [x] Security Vault (RESET PR + RESET SERATE con conferma nome gruppo)
-- [x] Commissioni Master espanse a 8 voci (bonusDaPR, fissoPublicita, prive, extra)
-- [x] Redirect automatico link PR licenziati (redirectTo su Firestore + fallback MASTER)
-- [ ] Continuare ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
+- [ ] Ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
+- [x] Sistema popup pubblicitario apertura app
+- [x] Setup Rapido Serate — real-time, flag serata/evento
+- [x] Card PR collassabili, griglia azioni 2×2, INVIA LINK APP WhatsApp
+- [x] Modal SOSTITUISCI — 3 sezioni
+- [x] Collaboratori Archiviati (mergedInto)
+- [x] Security Vault (RESET PR + RESET SERATE)
+- [x] Commissioni Master 8 voci
+- [x] Redirect automatico link PR licenziati (redirectTo + fallback MASTER)
+- [x] PR INGLOBATI nella pagina MASTER (ingressi, SVUOTA LISTA, ricomparsa automatica)
+- [x] Contatore PR globale settings/prCounter (4 cifre, atomico, sopravvive a reset)
+- [x] Licenziamento PR: dialog semplificato + redirectTo automatico
 
 ---
 
