@@ -287,28 +287,35 @@ const SuperAdmin = () => {
     setUploadedVideoUrl(null);
     setVideoUploadProgress(0);
     try {
-      // Legge il file come base64 data URL
       const base64 = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = e => resolve(e.target.result);
         reader.onerror = reject;
         reader.readAsDataURL(file);
       });
-      setVideoUploadProgress(20);
 
-      // Divide in chunk da 800KB (limite sicuro Firestore)
       const CHUNK = 800 * 1024;
       const chunks = [];
       for (let i = 0; i < base64.length; i += CHUNK) chunks.push(base64.slice(i, i + CHUNK));
 
-      // Salva ogni chunk in Firestore
-      const batch = writeBatch(db);
-      chunks.forEach((data, i) => batch.set(doc(db, 'settings', `popup_video_chunk_${i}`), { data }));
-      // Salva metadati (tipo + numero chunk)
-      batch.set(doc(db, 'settings', 'popup_video_meta'), { chunks: chunks.length, type: file.type || 'video/mp4' });
-      setVideoUploadProgress(60);
-      await batch.commit();
+      // Elimina vecchi chunk se il video precedente ne aveva di più
+      const oldMeta = await getDoc(doc(db, 'settings', 'popup_video_meta'));
+      if (oldMeta.exists()) {
+        const { chunks: oldCount } = oldMeta.data();
+        if (oldCount > chunks.length) {
+          const delBatch = writeBatch(db);
+          for (let i = chunks.length; i < oldCount; i++) delBatch.delete(doc(db, 'settings', `popup_video_chunk_${i}`));
+          await delBatch.commit();
+        }
+      }
 
+      // Scrive i chunk uno alla volta (evita limite 10MB dei batch)
+      for (let i = 0; i < chunks.length; i++) {
+        await setDoc(doc(db, 'settings', `popup_video_chunk_${i}`), { data: chunks[i] });
+        setVideoUploadProgress(Math.round(((i + 1) / chunks.length) * 95));
+      }
+
+      await setDoc(doc(db, 'settings', 'popup_video_meta'), { chunks: chunks.length, type: file.type || 'video/mp4' });
       setUploadedVideoUrl('firestore://popup_video');
       setVideoUploadProgress('done');
     } catch (e) {
