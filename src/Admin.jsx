@@ -667,7 +667,7 @@ const AdminPanel = ({ session, onLogout }) => {
     if (importo > daPagareMaster) return alert("Il prelievo supera la giacenza in cassa!");
     setLoading(true);
     try {
-      await updateDoc(doc(db, "prs_registry", "MASTER"), { acconto: accontoAttualeMaster + importo });
+      await updateDoc(doc(db, "prs_registry", masterId), { acconto: accontoAttualeMaster + importo });
       await fetchData(); setMasterPayAmount('');
     } catch (e) { alert("Errore registrazione prelievo."); } finally { setLoading(false); }
   };
@@ -677,8 +677,8 @@ const AdminPanel = ({ session, onLogout }) => {
     if (!conferma) return;
     setLoading(true);
     try {
-      await setDoc(doc(db, "prs", "MASTER"), { count: 0 }, { merge: true });
-      await updateDoc(doc(db, "prs_registry", "MASTER"), { acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0 });
+      await setDoc(doc(db, "prs", masterId), { count: 0 }, { merge: true });
+      await updateDoc(doc(db, "prs_registry", masterId), { acconto: 0, historicalOrphanCount: 0, historicalOrphanProfit: 0 });
       await fetchData(); setProfitsModalOpen(false);
     } catch (e) { alert("Errore azzeramento Master."); } finally { setLoading(false); }
   };

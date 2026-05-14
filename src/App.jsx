@@ -143,6 +143,8 @@ const PRDashboard = () => {
 
   // Stati per gestire l'apertura delle varie sezioni
   const [activeSection, setActiveSection] = useState(null);
+  const [prFullData, setPrFullData] = useState(null);
+  const [allTickets, setAllTickets] = useState([]);
 
   useEffect(() => {
     const fetchPrAndEvents = async () => {
@@ -153,6 +155,7 @@ const PRDashboard = () => {
         if (prSnap.exists()) {
           const prData = prSnap.data();
           setPrName(prData.name || prId);
+          setPrFullData(prData);
           validEventIds = (prData.eventIds || []).filter(id => id !== "");
           if (prData.isMaster || prId.startsWith("MASTER")) {
             setIsMaster(true);
@@ -188,6 +191,12 @@ const PRDashboard = () => {
         if (filtered.length > 0) {
           setSelectedEventId(filtered[0].id);
         }
+
+        const ticketSnap = await getDocs(query(
+          collection(db, "tickets"),
+          where("prId", "==", prId)
+        ));
+        setAllTickets(ticketSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       } catch (e) {
         console.error("Errore fetch:", e);
       } finally {
@@ -235,6 +244,13 @@ const PRDashboard = () => {
     await updateDoc(doc(db, "prs_registry", pr.id), { masterClearedAt: serverTimestamp() });
     setMergedPrs(prev => prev.filter(p => p.id !== pr.id));
     setExpandedMergedPr(null);
+  };
+
+  const afterReset = (t, lastResetRaw) => {
+    if (!lastResetRaw) return true;
+    const lastReset = lastResetRaw?.toDate ? lastResetRaw.toDate() : new Date(lastResetRaw);
+    const tDate = t.timestamp?.toDate ? t.timestamp.toDate() : null;
+    return !tDate || tDate > lastReset;
   };
 
   if (loading) return (
@@ -330,6 +346,63 @@ const PRDashboard = () => {
           <div className={`w-3 h-3 rounded-full animate-pulse ${activeSection === 'conteggi' ? 'bg-black' : 'bg-[#D4AF37]'}`}></div>
         </button>
 
+        {/* AREA CONTEGGI */}
+        {activeSection === 'conteggi' && prFullData && (
+          <div className="animate-in slide-in-from-top-10 duration-500 space-y-4 pb-4 pt-2">
+            <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
+              {assignedEvents.length === 0 ? (
+                <p className="text-zinc-500 text-xs italic text-center p-8">Nessuna serata assegnata.</p>
+              ) : assignedEvents.map(ev => {
+                const slotIdx = (prFullData.eventIds || []).indexOf(ev.id);
+                const fullRate = slotIdx !== -1 ? (Number(prFullData.eventPays?.[slotIdx]) || 0) : 0;
+                const bonus = Number(prFullData.supervisorPay) || 0;
+                const netRate = Math.max(0, fullRate - bonus);
+                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true && afterReset(t, prFullData.lastReset));
+                const netto = evTickets.length * netRate;
+                return (
+                  <div key={ev.id} className="flex items-center justify-between p-4 border-b border-white/5 last:border-0">
+                    <div className="min-w-0">
+                      <p className="text-white text-xs font-black truncate">{ev.title}</p>
+                      <p className="text-zinc-500 text-[10px] mt-0.5">{evTickets.length} ingressi × €{netRate.toFixed(2)}</p>
+                    </div>
+                    <p className="text-[#D4AF37] font-black text-sm ml-4 flex-shrink-0">€{netto.toFixed(2)}</p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {(() => {
+              const bonus = Number(prFullData.supervisorPay) || 0;
+              let totale = 0;
+              assignedEvents.forEach(ev => {
+                const slotIdx = (prFullData.eventIds || []).indexOf(ev.id);
+                const fullRate = slotIdx !== -1 ? (Number(prFullData.eventPays?.[slotIdx]) || 0) : 0;
+                const netRate = Math.max(0, fullRate - bonus);
+                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true && afterReset(t, prFullData.lastReset));
+                totale += evTickets.length * netRate;
+              });
+              const acconto = Number(prFullData.acconto) || 0;
+              const residuo = Math.max(0, totale - acconto);
+              return (
+                <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="flex justify-between items-center p-4 border-b border-white/5">
+                    <p className="text-zinc-400 text-xs font-black tracking-widest">TOTALE LORDO</p>
+                    <p className="text-white font-black">€{totale.toFixed(2)}</p>
+                  </div>
+                  <div className="flex justify-between items-center p-4 border-b border-white/5">
+                    <p className="text-zinc-400 text-xs font-black tracking-widest">ACCONTI VERSATI</p>
+                    <p className="text-green-400 font-black">- €{acconto.toFixed(2)}</p>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-[#D4AF37]/10">
+                    <p className="text-[#D4AF37] text-sm font-black tracking-widest">RESIDUO</p>
+                    <p className="text-[#D4AF37] text-xl font-black">€{residuo.toFixed(2)}</p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* PULSANTE ELENCO LISTA */}
         <button 
           onClick={() => toggleSection('elenco')}
@@ -346,6 +419,59 @@ const PRDashboard = () => {
           <div className={`w-3 h-3 rounded-full animate-pulse ${activeSection === 'elenco' ? 'bg-black' : 'bg-[#D4AF37]'}`}></div>
         </button>
 
+        {/* AREA ELENCO LISTA */}
+        {activeSection === 'elenco' && (
+          <div className="animate-in slide-in-from-top-10 duration-500 space-y-3 pb-4 pt-2">
+            {assignedEvents.length > 1 && (
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 tracking-widest ml-2">FILTRA PER SERATA</label>
+                <select
+                  className="w-full p-4 bg-zinc-900 border border-white/10 rounded-2xl text-white font-black outline-none appearance-none"
+                  value={selectedEventId}
+                  onChange={e => setSelectedEventId(e.target.value)}
+                >
+                  {assignedEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(() => {
+              const lista = allTickets
+                .filter(t => t.eventId === selectedEventId && t.used === true && t.type !== 'prive')
+                .sort((a, b) => {
+                  const ta = a.timestamp?.toDate ? a.timestamp.toDate() : new Date(0);
+                  const tb = b.timestamp?.toDate ? b.timestamp.toDate() : new Date(0);
+                  return tb - ta;
+                });
+              if (lista.length === 0) return (
+                <div className="bg-zinc-900/50 p-10 rounded-[2rem] border border-white/5 text-center italic text-zinc-500">
+                  Nessun ingresso registrato.
+                </div>
+              );
+              return (
+                <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="flex justify-between items-center p-4 border-b border-white/5">
+                    <p className="text-[10px] text-zinc-500 font-black tracking-widest">TOTALE</p>
+                    <p className="text-[#D4AF37] font-black text-sm">{lista.length} ingressi</p>
+                  </div>
+                  {lista.map((t, i) => (
+                    <div key={t.id || i} className="flex items-center justify-between px-4 py-3 border-b border-white/5 last:border-0">
+                      <div className="min-w-0">
+                        <p className="text-white text-xs font-black truncate">{t.customerName || '—'}</p>
+                        {t.customerPhone && <p className="text-zinc-500 text-[10px] mt-0.5">{t.customerPhone}</p>}
+                      </div>
+                      <p className="text-zinc-600 text-[10px] font-black flex-shrink-0 ml-3">
+                        {t.timestamp?.toDate ? t.timestamp.toDate().toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+          </div>
+        )}
+
         {/* PULSANTE PRIVE' */}
         <button
           onClick={() => toggleSection('prive')}
@@ -361,6 +487,74 @@ const PRDashboard = () => {
           </div>
           <div className={`w-3 h-3 rounded-full animate-pulse ${activeSection === 'prive' ? 'bg-black' : 'bg-[#D4AF37]'}`}></div>
         </button>
+
+        {/* AREA PRIVE' */}
+        {activeSection === 'prive' && (
+          <div className="animate-in slide-in-from-top-10 duration-500 space-y-3 pb-4 pt-2">
+            {assignedEvents.length > 1 && (
+              <div className="space-y-1">
+                <label className="text-[10px] text-zinc-500 tracking-widest ml-2">FILTRA PER SERATA</label>
+                <select
+                  className="w-full p-4 bg-zinc-900 border border-white/10 rounded-2xl text-white font-black outline-none appearance-none"
+                  value={selectedEventId}
+                  onChange={e => setSelectedEventId(e.target.value)}
+                >
+                  {assignedEvents.map(ev => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {(() => {
+              const priveTickets = allTickets.filter(t => t.eventId === selectedEventId && t.type === 'prive');
+              const groups = {};
+              priveTickets.forEach(t => {
+                const gid = t.priveGroupId || t.id;
+                if (!groups[gid]) groups[gid] = [];
+                groups[gid].push(t);
+              });
+              const groupList = Object.values(groups);
+              if (groupList.length === 0) return (
+                <div className="bg-zinc-900/50 p-10 rounded-[2rem] border border-white/5 text-center italic text-zinc-500">
+                  Nessuna prenotazione privé.
+                </div>
+              );
+              return (
+                <div className="space-y-3">
+                  {groupList.map((group, i) => {
+                    const first = group[0];
+                    const entrati = group.filter(t => t.used).length;
+                    return (
+                      <div key={i} className="bg-zinc-900 border border-[#D4AF37]/20 rounded-2xl overflow-hidden">
+                        <div className="p-4 border-b border-white/5">
+                          <div className="flex justify-between items-start gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[#D4AF37] text-[10px] font-black tracking-widest uppercase mb-1">{first.priveTypeName || 'PRIVÉ'}</p>
+                              <p className="text-white font-black text-sm truncate">{first.customerName || '—'}</p>
+                              {first.customerPhone && <p className="text-zinc-500 text-[10px] mt-0.5">{first.customerPhone}</p>}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="text-white font-black text-sm">{group.length} ospiti</p>
+                              {first.priceTotal != null && <p className="text-[#D4AF37] text-[10px] font-black mt-0.5">€{Number(first.priceTotal).toFixed(2)}</p>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="px-4 py-3 flex flex-wrap items-center gap-2">
+                          {group.sort((a, b) => (a.guestIndex || 0) - (b.guestIndex || 0)).map((t, gi) => (
+                            <span key={t.id || gi} className={`text-[10px] font-black px-3 py-1.5 rounded-full ${t.used ? 'bg-green-600 text-white' : 'bg-zinc-800 text-zinc-400'}`}>
+                              Ospite {t.guestIndex || gi + 1} {t.used ? '✓' : '—'}
+                            </span>
+                          ))}
+                          <span className="ml-auto text-[10px] text-zinc-500 font-black">{entrati}/{group.length} entrati</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
 
         {/* SEZIONE PR INGLOBATI — solo MASTER */}
         {isMaster && mergedPrs.length > 0 && (
