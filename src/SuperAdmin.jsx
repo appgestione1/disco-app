@@ -58,7 +58,8 @@ const SuperAdmin = () => {
   const [popupConfig, setPopupConfig] = useState({ enabled: false, mediaType: 'image', imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
   const [popupVideoFile, setPopupVideoFile] = useState(null);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(null);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(null); // null=idle, 0-100=uploading, 'done'=completato
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState(null);
   const [extraImageFile, setExtraImageFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
 
@@ -282,15 +283,18 @@ const SuperAdmin = () => {
     reader.readAsDataURL(file);
   });
 
-  const uploadVideoToStorage = (file) => new Promise((resolve, reject) => {
+  const startVideoUpload = (file) => {
+    setPopupVideoFile(file);
+    setUploadedVideoUrl(null);
+    setVideoUploadProgress(0);
     const storageRef = ref(storage, `popup_videos/${Date.now()}_${file.name}`);
     const task = uploadBytesResumable(storageRef, file);
     task.on('state_changed',
       snap => setVideoUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-      reject,
-      () => getDownloadURL(task.snapshot.ref).then(resolve).catch(reject)
+      err => { alert('Errore upload video: ' + err.message); setVideoUploadProgress(null); setPopupVideoFile(null); },
+      () => getDownloadURL(task.snapshot.ref).then(url => { setUploadedVideoUrl(url); setVideoUploadProgress('done'); })
     );
-  });
+  };
 
   const handleSavePopup = async () => {
     setPopupSaving(true);
@@ -304,16 +308,16 @@ const SuperAdmin = () => {
         updated.extraImageUrl = await resizeImageToBase64(extraImageFile, 600);
         setExtraImageFile(null);
       }
-      if (popupVideoFile) {
-        setVideoUploadProgress(0);
-        updated.videoUrl = await uploadVideoToStorage(popupVideoFile);
+      if (uploadedVideoUrl) {
+        updated.videoUrl = uploadedVideoUrl;
+        setUploadedVideoUrl(null);
         setPopupVideoFile(null);
         setVideoUploadProgress(null);
       }
       await setDoc(doc(db, 'settings', 'popup'), updated);
       setPopupConfig(updated);
       alert('Popup salvato!');
-    } catch (e) { alert('Errore salvataggio popup.'); setVideoUploadProgress(null); } finally { setPopupSaving(false); }
+    } catch (e) { alert('Errore salvataggio popup.'); } finally { setPopupSaving(false); }
   };
 
   const handleSaveSettings = async () => {
@@ -1086,8 +1090,8 @@ const SuperAdmin = () => {
                     <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
                       <input type="file" accept="video/*" className="hidden" onChange={e => {
                         if (e.target.files[0]) {
-                          setPopupVideoFile(e.target.files[0]);
                           setPopupConfig(p => ({ ...p, videoUrl: '' }));
+                          startVideoUpload(e.target.files[0]);
                         }
                       }} />
                       <span className="text-purple-400 font-black text-sm uppercase">
@@ -1097,16 +1101,19 @@ const SuperAdmin = () => {
                     {popupVideoFile && (
                       <div className="mt-2 flex items-center justify-between px-1">
                         <span className="text-[10px] text-zinc-400 normal-case">{(popupVideoFile.size / 1024 / 1024).toFixed(1)} MB</span>
-                        <button onClick={() => setPopupVideoFile(null)} className="text-zinc-500 active:text-red-400"><X size={14} /></button>
+                        <button onClick={() => { setPopupVideoFile(null); setUploadedVideoUrl(null); setVideoUploadProgress(null); }} className="text-zinc-500 active:text-red-400"><X size={14} /></button>
                       </div>
                     )}
-                    {videoUploadProgress !== null && (
+                    {videoUploadProgress !== null && videoUploadProgress !== 'done' && (
                       <div className="mt-2">
                         <div className="w-full bg-zinc-800 rounded-full h-2">
                           <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${videoUploadProgress}%` }} />
                         </div>
-                        <p className="text-[10px] text-purple-400 mt-1 text-center">{videoUploadProgress}% caricato…</p>
+                        <p className="text-[10px] text-purple-400 mt-1 text-center">Caricamento {videoUploadProgress}%…</p>
                       </div>
+                    )}
+                    {videoUploadProgress === 'done' && (
+                      <p className="text-[10px] text-green-400 font-black mt-2 text-center">✓ Video caricato — premi SALVA per confermare</p>
                     )}
                   </div>
 
