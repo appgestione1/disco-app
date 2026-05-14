@@ -153,7 +153,6 @@ const AdminPanel = ({ session, onLogout }) => {
   const [replacePrData, setReplacePrData] = useState(null);
   const [replaceName, setReplaceName] = useState('');
   const [replacePhone, setReplacePhone] = useState('');
-  const [replaceTargetId, setReplaceTargetId] = useState('');
   const [replaceSupervisorId, setReplaceSupervisorId] = useState('');
   const [payPrData, setPayPrData] = useState(null);
   const [payAmount, setPayAmount] = useState('');
@@ -481,7 +480,7 @@ const AdminPanel = ({ session, onLogout }) => {
 
   const openReplaceModal = (pr) => {
     if (pr.id === masterId) return alert("Il Profilo MASTER non può essere sostituito!");
-    setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceTargetId(''); setReplaceSupervisorId(pr.supervisorId || '');
+    setReplacePrData(pr); setReplaceName(pr.name); setReplacePhone(pr.phone || ''); setReplaceSupervisorId(pr.supervisorId || '');
   };
 
   const eseguiSostituzioneNuovo = async (pr) => {
@@ -499,16 +498,6 @@ const AdminPanel = ({ session, onLogout }) => {
       await updateDoc(doc(db, "prs_registry", pr.id), { supervisorId: replaceSupervisorId });
       await fetchData(); setReplacePrData(null);
     } catch { alert("Errore aggiornamento supervisore."); } finally { setLoading(false); }
-  };
-
-  const eseguiSostituzioneIngloba = async (pr) => {
-    if (!replaceTargetId) return alert("Seleziona un PR Esistente!");
-    if (replaceTargetId === pr.id) return alert("Impossibile inglobare in sé stesso!");
-    setLoading(true);
-    try {
-      await updateDoc(doc(db, "prs_registry", pr.id), { mergedInto: replaceTargetId });
-      await fetchData(); setReplacePrData(null);
-    } catch (error) { alert("Errore inglobamento."); } finally { setLoading(false); }
   };
 
   const eseguiPagamento = async () => {
@@ -1677,17 +1666,12 @@ const AdminPanel = ({ session, onLogout }) => {
                 <button onClick={() => eseguiAggiornaSupervisore(replacePrData)} disabled={loading} className="w-full bg-[#FFEE00] text-black font-black py-3 text-sm uppercase active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#000] disabled:opacity-50">SALVA SUPERVISORE</button>
               </div>
 
-              {/* ingloba */}
+              {/* reset password */}
               <div className="p-4">
-                <p className="text-[9px] font-black uppercase text-red-500 tracking-widest mb-1">Zona Pericolosa</p>
-                <p className="text-[10px] text-zinc-500 mb-3">Ingloba questo PR in un altro. I suoi dati passano al PR selezionato.</p>
-                <select className="w-full p-3 border-2 border-red-600 font-black uppercase outline-none bg-white mb-3 text-sm" value={replaceTargetId} onChange={e => setReplaceTargetId(e.target.value)}>
-                  <option value="">— Seleziona PR destinazione —</option>
-                  {activePrs.filter(p => p.id !== replacePrData.id && p.id !== masterId).map(p => (
-                    <option key={p.id} value={p.id}>{p.name} ({p.id})</option>
-                  ))}
-                </select>
-                <button onClick={() => eseguiSostituzioneIngloba(replacePrData)} disabled={loading} className="w-full bg-red-600 text-white font-black py-3 text-sm uppercase active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#000] disabled:opacity-50">ESEGUI FUSIONE</button>
+                <p className="text-[9px] font-black uppercase text-zinc-500 tracking-widest mb-3">Accesso</p>
+                <button onClick={() => { handleResetPrPassword(replacePrData.id); setReplacePrData(null); }} disabled={loading} className="w-full bg-black text-white font-black py-3 text-sm uppercase flex items-center justify-center gap-2 active:translate-y-0.5 transition-all shadow-[3px_3px_0px_#FFEE00] disabled:opacity-50">
+                  <KeyRound size={14}/> RESET PWD
+                </button>
               </div>
 
             </div>
