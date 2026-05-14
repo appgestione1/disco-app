@@ -175,7 +175,6 @@ const AdminPanel = ({ session, onLogout }) => {
   const [showBulkSetup, setShowBulkSetup] = useState(false);
   const [expandedPrIds, setExpandedPrIds] = useState(new Set());
   const [showArchivedPrs, setShowArchivedPrs] = useState(false);
-  const [archivedTargets, setArchivedTargets] = useState({});
   const togglePrExpanded = (id) => setExpandedPrIds(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   const [bulkEventConfig, setBulkEventConfig] = useState([]);
 
@@ -452,24 +451,21 @@ const AdminPanel = ({ session, onLogout }) => {
     } catch (error) { alert("Errore eliminazione."); } finally { setLoading(false); }
   };
 
-  const handleReasignArchived = async (pr) => {
-    const newTarget = archivedTargets[pr.id];
-    if (!newTarget) return alert('Seleziona un PR di destinazione.');
-    if (!window.confirm(`Spostare "${pr.name}" → ${newTarget === masterId ? 'MASTER' : activePrs.find(p => p.id === newTarget)?.name || newTarget}?`)) return;
+  const handleDeleteArchived = async (pr) => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'prs_registry', pr.id), { mergedInto: newTarget });
+      await deleteDoc(doc(db, 'prs_registry', pr.id));
+      await deleteDoc(doc(db, 'prs', pr.id));
       await fetchData();
-    } catch { alert('Errore spostamento.'); } finally { setLoading(false); }
+    } catch { alert('Errore eliminazione.'); } finally { setLoading(false); }
   };
 
-  const handleDeleteArchived = async (pr) => {
-    if (!window.confirm(`Inglobare definitivamente "${pr.name}" nel MASTER?\nL'ID verrà conservato nel sistema.`)) return;
+  const handleRestoreArchived = async (pr) => {
     setLoading(true);
     try {
-      await updateDoc(doc(db, 'prs_registry', pr.id), { mergedInto: masterId });
+      await updateDoc(doc(db, 'prs_registry', pr.id), { mergedInto: null, redirectTo: null });
       await fetchData();
-    } catch { alert('Errore.'); } finally { setLoading(false); }
+    } catch { alert('Errore ripristino.'); } finally { setLoading(false); }
   };
 
   const handleDeleteAlias = async (aliasId) => {
@@ -1241,55 +1237,28 @@ const AdminPanel = ({ session, onLogout }) => {
                   </button>
                   {showArchivedPrs && (
                     <div className="border-4 border-t-0 border-zinc-400 divide-y divide-zinc-200 bg-white">
-                      {archivedPrs.map(p => {
-                        const dest = prs.find(x => x.id === p.mergedInto);
-                        const destLabel = p.mergedInto === masterId
-                          ? '★ MASTER'
-                          : dest ? `${dest.name} (${dest.id})` : p.mergedInto;
-                        return (
-                          <div key={p.id} className="px-4 py-3 flex flex-col gap-2">
-                            {/* info riga */}
-                            <div className="flex items-center gap-3">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-black uppercase text-zinc-500 line-through truncate">{p.name}</p>
-                                <p className="text-[10px] text-zinc-400">{p.id}{p.phone ? ` · ${p.phone}` : ''}</p>
-                              </div>
-                              <div className="text-right shrink-0">
-                                <p className="text-[9px] text-zinc-400 uppercase tracking-widest">inglobato in</p>
-                                <p className="text-[11px] font-black text-zinc-700 uppercase">{destLabel}</p>
-                              </div>
-                            </div>
-                            {/* azioni */}
-                            <div className="flex gap-2">
-                              <select
-                                className="flex-1 min-w-0 p-2 border-2 border-zinc-400 text-[11px] font-black uppercase bg-white outline-none"
-                                value={archivedTargets[p.id] || ''}
-                                onChange={e => setArchivedTargets(prev => ({ ...prev, [p.id]: e.target.value }))}
-                              >
-                                <option value="">— Sposta in —</option>
-                                <option value={masterId}>★ MASTER</option>
-                                {activePrs.filter(x => x.id !== masterId).map(x => (
-                                  <option key={x.id} value={x.id}>{x.name} ({x.id})</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => handleReasignArchived(p)}
-                                disabled={loading || !archivedTargets[p.id]}
-                                className="px-3 py-2 bg-black text-[#FFEE00] text-[10px] font-black uppercase border-2 border-black disabled:opacity-30 active:scale-95 shrink-0"
-                              >
-                                SPOSTA
-                              </button>
-                              <button
-                                onClick={() => handleDeleteArchived(p)}
-                                disabled={loading}
-                                className="px-3 py-2 border-2 border-red-600 text-red-600 text-[10px] font-black uppercase active:scale-95 shrink-0"
-                              >
-                                <Trash2 size={13}/>
-                              </button>
-                            </div>
+                      {archivedPrs.map(p => (
+                        <div key={p.id} className="px-4 py-3 flex items-center gap-3">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black uppercase text-zinc-400 line-through truncate">{p.name}</p>
+                            <p className="text-[10px] text-zinc-400">{p.id}{p.phone ? ` · ${p.phone}` : ''}</p>
                           </div>
-                        );
-                      })}
+                          <button
+                            onClick={() => handleRestoreArchived(p)}
+                            disabled={loading}
+                            className="px-3 py-2 border-2 border-black text-black text-[10px] font-black uppercase active:scale-95 shrink-0"
+                          >
+                            RIPRISTINA
+                          </button>
+                          <button
+                            onClick={() => handleDeleteArchived(p)}
+                            disabled={loading}
+                            className="px-3 py-2 border-2 border-red-600 text-red-600 active:scale-95 shrink-0"
+                          >
+                            <Trash2 size={13}/>
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
