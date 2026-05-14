@@ -143,21 +143,24 @@ const PRDashboard = () => {
 
   // Stati per gestire l'apertura delle varie sezioni
   const [activeSection, setActiveSection] = useState(null);
-  const [prFullData, setPrFullData] = useState(null);
+  const [prFullData, setPrFullData] = useState({});
   const [allTickets, setAllTickets] = useState([]);
 
   useEffect(() => {
     const fetchPrAndEvents = async () => {
       try {
         const prSnap = await getDoc(doc(db, "prs_registry", prId));
-        let validEventIds = [];
+        let prGroupId = null;
+        let isMasterFlag = false;
 
         if (prSnap.exists()) {
           const prData = prSnap.data();
           setPrName(prData.name || prId);
           setPrFullData(prData);
-          validEventIds = (prData.eventIds || []).filter(id => id !== "");
-          if (prData.isMaster || prId.startsWith("MASTER")) {
+          prGroupId = prData.groupId || null;
+          isMasterFlag = !!(prData.isMaster || prId.startsWith("MASTER"));
+
+          if (isMasterFlag) {
             setIsMaster(true);
             const allSnap = await getDocs(collection(db, "prs_registry"));
             const candidates = allSnap.docs
@@ -183,20 +186,46 @@ const PRDashboard = () => {
           setPrName(prId);
         }
 
-        const evSnap = await getDocs(collection(db, "events"));
-        const allEvents = evSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-        const filtered = allEvents.filter(ev => validEventIds.includes(ev.id));
-        setAssignedEvents(filtered);
-
-        if (filtered.length > 0) {
-          setSelectedEventId(filtered[0].id);
+        // Carica tutti gli eventi del gruppo — fonte primaria garantita
+        const eventsList = [];
+        if (prGroupId) {
+          const groupEvSnap = await getDocs(query(
+            collection(db, "events"),
+            where("groupId", "==", prGroupId)
+          ));
+          groupEvSnap.docs.forEach(d => eventsList.push({ id: d.id, ...d.data() }));
         }
 
-        const ticketSnap = await getDocs(query(
-          collection(db, "tickets"),
-          where("prId", "==", prId)
-        ));
-        setAllTickets(ticketSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        // Aggiunge serate storiche da eventTitles (serate concluse non più in Firestore)
+        const savedTitles = prSnap.exists() ? (prSnap.data().eventTitles || {}) : {};
+        Object.keys(savedTitles).forEach(evId => {
+          if (!eventsList.find(e => e.id === evId)) {
+            eventsList.push({ id: evId, title: savedTitles[evId], concluded: true });
+          }
+        });
+
+        setAssignedEvents(eventsList);
+        if (eventsList.length > 0) setSelectedEventId(eventsList[0].id);
+
+        // Ticket: MASTER vede tutti i ticket del gruppo, PR solo i propri
+        if (isMasterFlag && eventsList.length > 0) {
+          const evIds = eventsList.filter(e => !e.concluded).map(e => e.id);
+          const allGroupTickets = [];
+          for (let i = 0; i < evIds.length; i += 30) {
+            const chunk = evIds.slice(i, i + 30);
+            if (chunk.length > 0) {
+              const snap = await getDocs(query(collection(db, "tickets"), where("eventId", "in", chunk)));
+              allGroupTickets.push(...snap.docs.map(d => ({ id: d.id, ...d.data() })));
+            }
+          }
+          setAllTickets(allGroupTickets);
+        } else {
+          const ticketSnap = await getDocs(query(
+            collection(db, "tickets"),
+            where("prId", "==", prId)
+          ));
+          setAllTickets(ticketSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        }
       } catch (e) {
         console.error("Errore fetch:", e);
       } finally {
@@ -347,31 +376,92 @@ const PRDashboard = () => {
         </button>
 
         {/* AREA CONTEGGI */}
-        {activeSection === 'conteggi' && prFullData && (
+        {activeSection === 'conteggi' && (
           <div className="animate-in slide-in-from-top-10 duration-500 space-y-4 pb-4 pt-2">
             <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
               {assignedEvents.length === 0 ? (
                 <p className="text-zinc-500 text-xs italic text-center p-8">Nessuna serata assegnata.</p>
               ) : assignedEvents.map(ev => {
+                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
+                if (isMaster) {
+                  const orfani = evTickets.filter(t => t.prId === prId);
+                  const byPr = {};
+                  evTickets.filter(t => t.prId !== prId && t.used).forEach(t => {
+                    byPr[t.prId] = (byPr[t.prId] || 0) + 1;
+                  });
+                  const prEntries = Object.entries(byPr).sort((a, b) => b[1] - a[1]);
+                  return (
+                    <div key={ev.id} className="p-4 border-b border-white/5 last:border-0">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="min-w-0">
+                          <p className="text-white text-xs font-black truncate">{ev.title}</p>
+                          {ev.concluded && <p className="text-zinc-600 text-[9px] font-black tracking-widest mt-0.5">CONCLUSA</p>}
+                        </div>
+                        <p className="text-white font-black text-sm flex-shrink-0">{evTickets.filter(t=>t.used).length} tot</p>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1">
+                        <span className="text-[10px] font-black text-zinc-400">
+                          Orfani: <span className="text-[#D4AF37]">{orfani.filter(t=>t.used).length}</span>
+                        </span>
+                        {prEntries.map(([pid, cnt]) => (
+                          <span key={pid} className="text-[10px] font-black text-zinc-400">
+                            {pid}: <span className="text-white">{cnt}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+                // PR normale: lista vs privé + calcolo €
+                const evTicketsReset = evTickets.filter(t => afterReset(t, prFullData.lastReset));
                 const slotIdx = (prFullData.eventIds || []).indexOf(ev.id);
                 const fullRate = slotIdx !== -1 ? (Number(prFullData.eventPays?.[slotIdx]) || 0) : 0;
                 const bonus = Number(prFullData.supervisorPay) || 0;
                 const netRate = Math.max(0, fullRate - bonus);
-                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true && afterReset(t, prFullData.lastReset));
-                const netto = evTickets.length * netRate;
+                const listaTickets = evTicketsReset.filter(t => t.type !== 'prive');
+                const priveTickets = evTicketsReset.filter(t => t.type === 'prive');
+                const netto = evTicketsReset.length * netRate;
                 return (
-                  <div key={ev.id} className="flex items-center justify-between p-4 border-b border-white/5 last:border-0">
-                    <div className="min-w-0">
-                      <p className="text-white text-xs font-black truncate">{ev.title}</p>
-                      <p className="text-zinc-500 text-[10px] mt-0.5">{evTickets.length} ingressi × €{netRate.toFixed(2)}</p>
+                  <div key={ev.id} className="p-4 border-b border-white/5 last:border-0">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <div className="min-w-0">
+                        <p className="text-white text-xs font-black truncate">{ev.title}</p>
+                        {ev.concluded && <p className="text-zinc-600 text-[9px] font-black tracking-widest mt-0.5">CONCLUSA</p>}
+                      </div>
+                      <p className="text-[#D4AF37] font-black text-sm flex-shrink-0">€{netto.toFixed(2)}</p>
                     </div>
-                    <p className="text-[#D4AF37] font-black text-sm ml-4 flex-shrink-0">€{netto.toFixed(2)}</p>
+                    <div className="flex gap-3">
+                      <span className="text-[10px] font-black text-zinc-400">Lista: <span className="text-white">{listaTickets.length}</span></span>
+                      <span className="text-[10px] font-black text-zinc-400">Privé: <span className="text-white">{priveTickets.length}</span></span>
+                      <span className="text-[10px] font-black text-zinc-600">× €{netRate.toFixed(2)}</span>
+                    </div>
                   </div>
                 );
               })}
             </div>
 
-            {(() => {
+            {isMaster ? (() => {
+              // MASTER: riepilogo totale orfani e totale gruppo
+              const totaleGruppo = allTickets.filter(t => t.used).length;
+              const orfaniTot = allTickets.filter(t => t.used && t.prId === prId).length;
+              const tramitePrTot = totaleGruppo - orfaniTot;
+              return (
+                <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
+                  <div className="flex justify-between items-center p-4 border-b border-white/5">
+                    <p className="text-zinc-400 text-xs font-black tracking-widest">TOTALE GRUPPO</p>
+                    <p className="text-white font-black">{totaleGruppo} ingressi</p>
+                  </div>
+                  <div className="flex justify-between items-center p-4 border-b border-white/5">
+                    <p className="text-zinc-400 text-xs font-black tracking-widest">TRAMITE PR</p>
+                    <p className="text-white font-black">{tramitePrTot}</p>
+                  </div>
+                  <div className="flex justify-between items-center p-4 bg-[#D4AF37]/10">
+                    <p className="text-[#D4AF37] text-sm font-black tracking-widest">ORFANI</p>
+                    <p className="text-[#D4AF37] text-xl font-black">{orfaniTot}</p>
+                  </div>
+                </div>
+              );
+            })() : (() => {
               const bonus = Number(prFullData.supervisorPay) || 0;
               let totale = 0;
               assignedEvents.forEach(ev => {
