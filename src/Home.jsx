@@ -539,6 +539,24 @@ const Home = () => {
       if (!data.imageUrl && !data.videoUrl) return;
       const last = localStorage.getItem('popup_last_shown');
       if (last && Date.now() - Number(last) < 5 * 60 * 1000) return;
+
+      // Video salvato in Firestore a chunk → riassembla e crea blob URL
+      if (data.videoUrl === 'firestore://popup_video') {
+        const metaSnap = await getDoc(doc(db, 'settings', 'popup_video_meta'));
+        if (metaSnap.exists()) {
+          const { chunks, type } = metaSnap.data();
+          const parts = await Promise.all(
+            Array.from({ length: chunks }, (_, i) => getDoc(doc(db, 'settings', `popup_video_chunk_${i}`)))
+          );
+          const base64 = parts.map(p => p.data()?.data || '').join('');
+          const byteStr = atob(base64.split(',')[1] || base64);
+          const arr = new Uint8Array(byteStr.length);
+          for (let i = 0; i < byteStr.length; i++) arr[i] = byteStr.charCodeAt(i);
+          const blobUrl = URL.createObjectURL(new Blob([arr], { type }));
+          data.videoUrl = blobUrl;
+        }
+      }
+
       setPopupData(data);
       setPopupCountdown(data.mediaType === 'video' ? (Number(data.videoDuration) || 5) : 5);
       setShowPopup(true);

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { db } from './firebase';
 import {
-  collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
+  collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc, writeBatch
 } from 'firebase/firestore';
 import { BarChart2 } from 'lucide-react';
 import {
@@ -287,33 +287,29 @@ const SuperAdmin = () => {
     setUploadedVideoUrl(null);
     setVideoUploadProgress(0);
     try {
-      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const fileName = `popup_videos/${Date.now()}_${safeName}`;
-      const bucket = 'discoapp-f2388.firebasestorage.app';
-      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(fileName)}`;
-
-      // Upload con fetch + XMLHttpRequest per progresso reale
-      const url = await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', uploadUrl);
-        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
-        xhr.upload.onprogress = e => {
-          if (e.lengthComputable) setVideoUploadProgress(Math.round(e.loaded / e.total * 100));
-        };
-        xhr.onload = () => {
-          if (xhr.status >= 200 && xhr.status < 300) {
-            const data = JSON.parse(xhr.responseText);
-            const dlUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media&token=${data.downloadTokens}`;
-            resolve(dlUrl);
-          } else {
-            reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
-          }
-        };
-        xhr.onerror = () => reject(new Error('Errore di rete — controlla la connessione'));
-        xhr.send(file);
+      // Legge il file come base64 data URL
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
       });
+      setVideoUploadProgress(20);
 
-      setUploadedVideoUrl(url);
+      // Divide in chunk da 800KB (limite sicuro Firestore)
+      const CHUNK = 800 * 1024;
+      const chunks = [];
+      for (let i = 0; i < base64.length; i += CHUNK) chunks.push(base64.slice(i, i + CHUNK));
+
+      // Salva ogni chunk in Firestore
+      const batch = writeBatch(db);
+      chunks.forEach((data, i) => batch.set(doc(db, 'settings', `popup_video_chunk_${i}`), { data }));
+      // Salva metadati (tipo + numero chunk)
+      batch.set(doc(db, 'settings', 'popup_video_meta'), { chunks: chunks.length, type: file.type || 'video/mp4' });
+      setVideoUploadProgress(60);
+      await batch.commit();
+
+      setUploadedVideoUrl('firestore://popup_video');
       setVideoUploadProgress('done');
     } catch (e) {
       alert('Errore upload: ' + e.message);
