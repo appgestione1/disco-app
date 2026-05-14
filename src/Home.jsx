@@ -455,6 +455,7 @@ const Home = () => {
   const [selectedEventMonth, setSelectedEventMonth] = useState(null);
   const [concertiFilter, setConcertiFilter] = useState('TUTTI'); // 'TUTTI' | 'OGGI' | 'DATA'
   const [selectedConcertiDate, setSelectedConcertiDate] = useState(new Date());
+  const [extendSicilia, setExtendSicilia] = useState(false);
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -1141,9 +1142,10 @@ const Home = () => {
                 const todayStr = new Date().toISOString().split('T')[0];
                 const months = [...new Set(deduped.filter(e => e.date).map(e => e.date.slice(0,7)))].sort();
 
-                let filtered = deduped;
-                if (concertiFilter === 'OGGI') filtered = deduped.filter(e => e.date === todayStr);
-                else if (concertiFilter === 'DATA') filtered = deduped.filter(e => e.date === selectedConcertiDate.toISOString().split('T')[0]);
+                const areaFiltered = extendSicilia ? deduped : deduped.filter(e => !e.area || e.area === 'catania');
+                let filtered = areaFiltered;
+                if (concertiFilter === 'OGGI') filtered = areaFiltered.filter(e => e.date === todayStr);
+                else if (concertiFilter === 'DATA') filtered = areaFiltered.filter(e => e.date === selectedConcertiDate.toISOString().split('T')[0]);
 
                 return (
                   <>
@@ -1158,6 +1160,12 @@ const Home = () => {
                             </button>
                           ))}
                         </div>
+                        {/* toggle area geografica */}
+                        <button
+                          onClick={() => setExtendSicilia(v => !v)}
+                          className={`w-full py-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 border ${extendSicilia ? 'bg-[#D4AF37]/10 border-[#D4AF37] text-[#D4AF37]' : 'bg-zinc-900 border-white/5 text-zinc-500'}`}>
+                          {extendSicilia ? '📍 Tutta la Sicilia' : '📍 Catania e provincia — estendi alla Sicilia'}
+                        </button>
 
                         {/* Selettore giornaliero identico a discoteche */}
                         {concertiFilter === 'DATA' && (

@@ -24,18 +24,33 @@ const HEADERS = {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-// ── Parole chiave Sicilia per filtrare per location ───────────────────────────
+// ── Parole chiave geografiche ─────────────────────────────────────────────────
+const CATANIA_KEYWORDS = [
+  'catania', 'acireale', 'adrano', 'belpasso', 'biancavilla', 'bronte',
+  'caltagirone', 'fiumefreddo', 'giarre', 'gravina di catania', 'grammichele',
+  'linguaglossa', 'mascali', 'mascalucia', 'militello', 'misterbianco',
+  'nicolosi', 'paternò', 'paterno', 'piedimonte etneo', 'randazzo',
+  'riposto', 'san giovanni la punta', 'trecastagni', 'tremestieri',
+  'valverde', 'viagrande', 'zafferana',
+];
+
 const SICILIA_KEYWORDS = [
-  'catania', 'palermo', 'messina', 'siracusa', 'ragusa', 'agrigento',
-  'trapani', 'caltanissetta', 'enna', 'acireale', 'caltagirone',
-  'paternò', 'misterbianco', 'adrano', 'giarre', 'riposto', 'taormina',
-  'modica', 'marsala', 'bagheria', 'sicili', // "sicilia" + "siciliano"
+  'palermo', 'messina', 'siracusa', 'ragusa', 'agrigento',
+  'trapani', 'caltanissetta', 'enna', 'taormina',
+  'modica', 'marsala', 'bagheria', 'sicili',
+  ...CATANIA_KEYWORDS,
 ];
 
 function isSicilia(text) {
   if (!text) return false;
   const t = text.toLowerCase();
   return SICILIA_KEYWORDS.some(k => t.includes(k));
+}
+
+function getArea(text) {
+  if (!text) return 'sicilia';
+  const t = text.toLowerCase();
+  return CATANIA_KEYWORDS.some(k => t.includes(k)) ? 'catania' : 'sicilia';
 }
 
 // ── Normalizzazione categoria → CONCERTI o TEATRO ────────────────────────────
@@ -157,6 +172,7 @@ function parseAwinXml(xml, sourceName) {
       price: price || null,
       source: sourceName.toUpperCase(),
       category: inferCategory(title, category),
+      area: getArea(locationText),
     });
   });
 
@@ -204,6 +220,7 @@ function parseEventbrite(html, category) {
     const dateRaw = pTexts.find(t => /\d/.test(t)) || null;
     const venue   = pTexts.find(t => t !== dateRaw) || null;
 
+    const locationText = [venue, dateRaw].join(' ');
     events.push({
       id: `eb_${numId}`,
       title,
@@ -216,6 +233,65 @@ function parseEventbrite(html, category) {
       price: null,
       source: 'EVENTBRITE',
       category,
+      area: getArea(locationText),
+    });
+  });
+
+  return events;
+}
+
+// ── Scraper puntoeacapo.uno ───────────────────────────────────────────────────
+async function scrapePuntoeacapo() {
+  const url = 'https://puntoeacapo.uno/spettacoli/';
+  const res = await fetch(url, { headers: HEADERS });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const html = await res.text();
+  const $ = cheerio.load(html);
+  const events = [];
+  const seen = new Set();
+
+  $('a[href*="/spettacolo/"]').each((_, el) => {
+    const $a = $(el);
+    const href = $a.attr('href') || '';
+    if (seen.has(href)) return;
+    seen.add(href);
+
+    const title = $a.find('h3').first().text().trim();
+    if (!title) return;
+
+    const imageUrl = $a.find('img').first().attr('src') || null;
+
+    // Testo data/luogo: ultimo <p> che non sia "Acquista"
+    let dateLocRaw = '';
+    $a.find('p').each((_, p) => {
+      const t = $(p).text().trim();
+      if (t && t.toLowerCase() !== 'acquista') dateLocRaw = t;
+    });
+
+    // Formato: "16 Mag 2026 / Palermo, Catania" oppure "16 Mag – 23 Ago 2026 / Catania"
+    const parts = dateLocRaw.split('/');
+    const datePart = parts[0]?.trim() || '';
+    const locPart  = parts[1]?.trim() || '';
+
+    if (!isSicilia(locPart) && !isSicilia(title)) return;
+
+    const slug = href.replace(/.*\/spettacolo\//, '').replace(/\/$/, '');
+    const id = `pac_${slug}`;
+
+    events.push({
+      id,
+      title,
+      description: '',
+      imageUrl,
+      externalUrl: href,
+      date: parseDate(datePart),
+      time: null,
+      venue: locPart || null,
+      city: locPart || null,
+      price: null,
+      source: 'PUNTOEACAPO',
+      category: inferCategory(title, ''),
+      area: getArea(locPart || title),
     });
   });
 
@@ -225,12 +301,12 @@ function parseEventbrite(html, category) {
 // ── Salvataggio Firestore ─────────────────────────────────────────────────────
 async function saveToFirestore(category, events) {
   if (!events.length) { console.log(`  ⚠ ${category}: nessun evento, skip`); return; }
-  await db.collection('external_events_cache').doc(`${category}_v4`).set({
+  await db.collection('external_events_cache').doc(`${category}_v6`).set({
     events,
     fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
   });
-  console.log(`  ✓ ${category}_v4: ${events.length} eventi salvati`);
-  events.slice(0, 3).forEach(e => console.log(`    - ${e.title} | ${e.date || '?'} | ${e.venue || '?'}`));
+  console.log(`  ✓ ${category}_v6: ${events.length} eventi salvati`);
+  events.slice(0, 3).forEach(e => console.log(`    - ${e.title} | ${e.date || '?'} | ${e.venue || '?'} | ${e.area}`));
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -259,7 +335,18 @@ async function main() {
     console.log('AWIN: nessuna chiave configurata — uso Eventbrite come fallback');
   }
 
-  // ── 2. Eventbrite fallback (se AWIN non ha dato risultati) ───────────────
+  // ── 2. Puntoeacapo.uno (sempre) ──────────────────────────────────────────
+  process.stdout.write('Puntoeacapo.uno: fetch... ');
+  try {
+    const pacEvents = await scrapePuntoeacapo();
+    console.log(`${pacEvents.length} eventi in Sicilia`);
+    pacEvents.forEach(e => (e.category === 'TEATRO' ? allTeatro : allConcerti).push(e));
+  } catch (e) {
+    console.log(`✗ ${e.message}`);
+  }
+  await delay(1500);
+
+  // ── 3. Eventbrite fallback (se AWIN non ha dato risultati) ───────────────
   const needConcerti = allConcerti.length === 0;
   const needTeatro   = allTeatro.length === 0;
 
