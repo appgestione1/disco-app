@@ -832,7 +832,6 @@ const AdminPanel = ({ session, onLogout }) => {
                   <div className="p-4 border-b border-zinc-800">
                     <p className="text-[10px] text-zinc-400 uppercase tracking-widest leading-relaxed">
                       Attiva le serate, imposta la tariffa e decidi quali PR assegnare.
-                      Il setup sovrascrive gli slot di ogni PR selezionato. Max 6 serate.
                     </p>
                   </div>
 
@@ -1186,11 +1185,11 @@ const AdminPanel = ({ session, onLogout }) => {
                           <>
                             <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
                               className="flex-1 bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
-                              VEDI E PAGA
+                              CONTEGGI
                             </button>
                             <button onClick={() => openReplaceModal(pr)}
                               className="flex-1 text-blue-600 text-[10px] font-black border-2 border-blue-600 p-3 uppercase flex items-center justify-center">
-                              SOSTITUISCI
+                              MODIFICA
                             </button>
                           </>
                         )}
