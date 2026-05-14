@@ -250,147 +250,51 @@ async function scrapePuntoeacapo() {
   const events = [];
   const seen = new Set();
 
-  // Struttura attuale: <a class="event-card"> con <p class="event-title"> e <span class="meta-line">
-  $('a.event-card[href*="/spettacolo/"]').each((_, el) => {
+  $('a[href*="/spettacolo/"]').each((_, el) => {
     const $a = $(el);
     const href = $a.attr('href') || '';
     if (seen.has(href)) return;
     seen.add(href);
 
-    // Titolo in <p class="event-title"> (rimuoviamo lo span .eq animato)
-    const $titleEl = $a.find('p.event-title').first().clone();
-    $titleEl.find('.eq').remove();
-    const title = $titleEl.text().replace(/\s+/g, ' ').trim();
+    const title = $a.find('h3').first().text().trim();
     if (!title) return;
 
-    const imageUrl = $a.find('img.event-img').first().attr('src') || null;
+    const imageUrl = $a.find('img').first().attr('src') || null;
 
-    // Data e luogo da <span class="meta-line">: "16 Mag 2026 / Palermo"
-    // o range: "21 Mag 2026 – 24 Nov 2026 / Catania / Palermo"
-    const metaLine = $a.find('span.meta-line').first().text().trim();
-    const slashIdx = metaLine.indexOf('/');
-    const datePart = slashIdx >= 0 ? metaLine.slice(0, slashIdx).trim() : metaLine;
-    const locPart  = slashIdx >= 0 ? metaLine.slice(slashIdx + 1).replace(/\//g, ', ').trim() : '';
+    // Testo data/luogo: ultimo <p> che non sia "Acquista"
+    let dateLocRaw = '';
+    $a.find('p').each((_, p) => {
+      const t = $(p).text().trim();
+      if (t && t.toLowerCase() !== 'acquista') dateLocRaw = t;
+    });
 
-    // Per date range "21 Mag 2026 – 24 Nov 2026" prendo la prima data
-    const firstDate = datePart.split(/[–-]/)[0].trim();
+    // Formato: "16 Mag 2026 / Palermo, Catania" oppure "16 Mag – 23 Ago 2026 / Catania"
+    const parts = dateLocRaw.split('/');
+    const datePart = parts[0]?.trim() || '';
+    const locPart  = parts[1]?.trim() || '';
+
+    if (!isSicilia(locPart) && !isSicilia(title)) return;
 
     const slug = href.replace(/.*\/spettacolo\//, '').replace(/\/$/, '');
+    const id = `pac_${slug}`;
 
     events.push({
-      id: `pac_${slug}`,
+      id,
       title,
       description: '',
       imageUrl,
       externalUrl: href,
-      date: parseDate(firstDate),
+      date: parseDate(datePart),
       time: null,
-      venue: locPart || 'Sicilia',
+      venue: locPart || null,
       city: locPart || null,
       price: null,
       source: 'PUNTOEACAPO',
       category: inferCategory(title, ''),
-      area: getArea(locPart || ''),
+      area: getArea(locPart || title),
     });
   });
 
-  return events;
-}
-
-// ── Scraper balarm.it ─────────────────────────────────────────────────────────
-const BALARM_LISTING_PAGES = [
-  'https://www.balarm.it/tutti-gli-eventi-a-catania-e-provincia-del-weekend',
-  'https://www.balarm.it/tutti-gli-eventi-in-sicilia-di-oggi',
-  'https://www.balarm.it/tutti-gli-eventi-a-messina-e-provincia-di-oggi',
-  'https://www.balarm.it/tutti-gli-eventi-a-siracusa-e-provincia-di-oggi',
-];
-
-async function getBalarmEventUrls() {
-  const seen = new Set();
-  for (const pageUrl of BALARM_LISTING_PAGES) {
-    try {
-      const res = await fetch(pageUrl, { headers: HEADERS });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const html = await res.text();
-      const $ = cheerio.load(html);
-      $('a[href^="/eventi/"]').each((_, el) => {
-        const href = $(el).attr('href');
-        if (href && href !== '/eventi/') seen.add('https://www.balarm.it' + href);
-      });
-      await delay(800);
-    } catch (e) {
-      console.log(`  ⚠ balarm listing ${pageUrl}: ${e.message}`);
-    }
-  }
-  return [...seen];
-}
-
-async function fetchBalarmEvent(url) {
-  const res2 = await fetch(url, { headers: HEADERS });
-  if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
-  const html = await res2.text();
-  const $ = cheerio.load(html);
-
-  // JSON-LD schema.org Event
-  let jsonLd = null;
-  $('script[type="application/ld+json"]').each((_, el) => {
-    try {
-      const data = JSON.parse($(el).html().replace(/&amp;#x([0-9A-Fa-f]+);/g, (_, h) => String.fromCharCode(parseInt(h, 16))));
-      const graph = data['@graph'] || [data];
-      const ev = graph.find(n => n['@type'] === 'Event');
-      if (ev) jsonLd = ev;
-    } catch (_) {}
-  });
-
-  const title = $('meta[property="og:title"]').attr('content') || jsonLd?.name || '';
-  const description = ($('meta[property="og:description"]').attr('content') || '').slice(0, 300);
-  const imageUrl = $('meta[property="og:image"]').attr('content') || (jsonLd?.image?.[0]) || null;
-
-  const startDate = jsonLd?.startDate ? jsonLd.startDate.slice(0, 10) : null;
-  const venueName = jsonLd?.location?.name || null;
-  const city = jsonLd?.location?.address?.addressLocality || null;
-  const locationText = [venueName, city].filter(Boolean).join(' ');
-
-  // Slug come ID
-  const slug = url.replace(/.*\/eventi\//, '').replace(/\/$/, '');
-
-  return {
-    id: `balarm_${slug}`,
-    title: title.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#x27;/g, "'"),
-    description,
-    imageUrl,
-    externalUrl: url,
-    date: startDate,
-    time: null,
-    venue: venueName || city || 'Sicilia',
-    city: city || null,
-    price: null,
-    source: 'BALARM',
-    category: inferCategory(title, description),
-    area: getArea(locationText),
-  };
-}
-
-async function scrapeBalarm() {
-  const today = new Date().toISOString().slice(0, 10);
-  process.stdout.write('Balarm.it: raccolta URL... ');
-  const urls = await getBalarmEventUrls();
-  console.log(`${urls.length} URL trovati`);
-
-  const events = [];
-  let done = 0;
-  for (const url of urls.slice(0, 60)) {
-    try {
-      const ev = await fetchBalarmEvent(url);
-      // Scarta eventi senza titolo o già passati
-      if (!ev.title || (ev.date && ev.date < today)) { done++; continue; }
-      events.push(ev);
-    } catch (_) {}
-    done++;
-    if (done % 10 === 0) process.stdout.write(`  ${done}/${Math.min(urls.length, 60)}...\n`);
-    await delay(700);
-  }
-  console.log(`  → ${events.length} eventi validi`);
   return events;
 }
 
@@ -442,16 +346,7 @@ async function main() {
   }
   await delay(1500);
 
-  // ── 3. Balarm.it (sempre) ────────────────────────────────────────────────
-  try {
-    const balarmEvents = await scrapeBalarm();
-    balarmEvents.forEach(e => (e.category === 'TEATRO' ? allTeatro : allConcerti).push(e));
-  } catch (e) {
-    console.log(`✗ Balarm: ${e.message}`);
-  }
-  await delay(1000);
-
-  // ── 4. Eventbrite fallback (solo se entrambe le categorie sono vuote) ────
+  // ── 3. Eventbrite fallback (se AWIN non ha dato risultati) ───────────────
   const needConcerti = allConcerti.length === 0;
   const needTeatro   = allTeatro.length === 0;
 
