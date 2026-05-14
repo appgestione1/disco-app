@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
@@ -56,6 +57,8 @@ const SuperAdmin = () => {
   // Popup pubblicità
   const [popupConfig, setPopupConfig] = useState({ enabled: false, mediaType: 'image', imageUrl: '', videoUrl: '', slogan: '', address: '', expiry: '', extraImageUrl: '', extraImagePosition: 'bottom', videoDuration: 5, showSaveButton: false });
   const [popupFile, setPopupFile] = useState(null);
+  const [popupVideoFile, setPopupVideoFile] = useState(null);
+  const [videoUploadProgress, setVideoUploadProgress] = useState(null);
   const [extraImageFile, setExtraImageFile] = useState(null);
   const [popupSaving, setPopupSaving] = useState(false);
 
@@ -279,6 +282,16 @@ const SuperAdmin = () => {
     reader.readAsDataURL(file);
   });
 
+  const uploadVideoToStorage = (file) => new Promise((resolve, reject) => {
+    const storageRef = ref(storage, `popup_videos/${Date.now()}_${file.name}`);
+    const task = uploadBytesResumable(storageRef, file);
+    task.on('state_changed',
+      snap => setVideoUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
+      reject,
+      () => getDownloadURL(task.snapshot.ref).then(resolve).catch(reject)
+    );
+  });
+
   const handleSavePopup = async () => {
     setPopupSaving(true);
     try {
@@ -291,10 +304,16 @@ const SuperAdmin = () => {
         updated.extraImageUrl = await resizeImageToBase64(extraImageFile, 600);
         setExtraImageFile(null);
       }
+      if (popupVideoFile) {
+        setVideoUploadProgress(0);
+        updated.videoUrl = await uploadVideoToStorage(popupVideoFile);
+        setPopupVideoFile(null);
+        setVideoUploadProgress(null);
+      }
       await setDoc(doc(db, 'settings', 'popup'), updated);
       setPopupConfig(updated);
       alert('Popup salvato!');
-    } catch (e) { alert('Errore salvataggio popup.'); } finally { setPopupSaving(false); }
+    } catch (e) { alert('Errore salvataggio popup.'); setVideoUploadProgress(null); } finally { setPopupSaving(false); }
   };
 
   const handleSaveSettings = async () => {
@@ -1061,12 +1080,53 @@ const SuperAdmin = () => {
               {/* VIDEO */}
               {popupConfig.mediaType === 'video' && (
                 <div className="space-y-4">
+                  {/* Upload da dispositivo */}
                   <div>
-                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 URL Video Spot</p>
-                    <input type="url" placeholder="https://... (.mp4 o link diretto)"
-                      className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
-                      value={popupConfig.videoUrl || ''} onChange={e => setPopupConfig(p => ({ ...p, videoUrl: e.target.value }))} />
+                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🎬 Carica video dal dispositivo</p>
+                    <label className="block w-full border-2 border-dashed border-zinc-700 bg-black rounded-2xl p-4 text-center cursor-pointer active:bg-zinc-900 transition-all">
+                      <input type="file" accept="video/*" className="hidden" onChange={e => {
+                        if (e.target.files[0]) {
+                          setPopupVideoFile(e.target.files[0]);
+                          setPopupConfig(p => ({ ...p, videoUrl: '' }));
+                        }
+                      }} />
+                      <span className="text-purple-400 font-black text-sm uppercase">
+                        {popupVideoFile ? popupVideoFile.name : '⬆ Scegli video (mp4, mov…)'}
+                      </span>
+                    </label>
+                    {popupVideoFile && (
+                      <div className="mt-2 flex items-center justify-between px-1">
+                        <span className="text-[10px] text-zinc-400 normal-case">{(popupVideoFile.size / 1024 / 1024).toFixed(1)} MB</span>
+                        <button onClick={() => setPopupVideoFile(null)} className="text-zinc-500 active:text-red-400"><X size={14} /></button>
+                      </div>
+                    )}
+                    {videoUploadProgress !== null && (
+                      <div className="mt-2">
+                        <div className="w-full bg-zinc-800 rounded-full h-2">
+                          <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${videoUploadProgress}%` }} />
+                        </div>
+                        <p className="text-[10px] text-purple-400 mt-1 text-center">{videoUploadProgress}% caricato…</p>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Separatore */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-px bg-zinc-800" />
+                    <span className="text-[10px] text-zinc-600 font-black uppercase">oppure incolla URL</span>
+                    <div className="flex-1 h-px bg-zinc-800" />
+                  </div>
+
+                  {/* URL esterno (YouTube, Facebook, .mp4) */}
+                  <div>
+                    <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">🔗 URL video (YouTube / Facebook / .mp4)</p>
+                    <input type="url" placeholder="https://..."
+                      className="w-full p-4 bg-black border border-zinc-700 rounded-2xl text-white font-black outline-none focus:border-purple-500 text-sm normal-case"
+                      value={popupConfig.videoUrl || ''}
+                      onChange={e => { setPopupConfig(p => ({ ...p, videoUrl: e.target.value })); setPopupVideoFile(null); }} />
+                  </div>
+
+                  {/* Durata */}
                   <div>
                     <p className="text-[9px] text-zinc-500 font-black uppercase tracking-widest mb-2">⏱ Durata popup (secondi)</p>
                     <input type="number" min="1" max="120" placeholder="5"
