@@ -1169,39 +1169,35 @@ const AdminPanel = ({ session, onLogout }) => {
                         </div>
                       )}
 
-                      {/* azioni 2×2 */}
-                      <div className="p-3 border-t-2 border-black grid grid-cols-2 gap-2">
-                        <button onClick={() => handleResetPrPassword(pr.id)}
-                          className="bg-black text-white text-[10px] font-black p-3 border-2 border-black flex items-center justify-center gap-1 uppercase shadow-[2px_2px_0px_#555] active:scale-95">
-                          <KeyRound size={11}/> RESET PWD
-                        </button>
+                      {/* azioni */}
+                      <div className="p-3 border-t-2 border-black flex gap-2">
                         {isMaster ? (
-                          <button onClick={() => setProfitsModalOpen(true)}
-                            className="bg-green-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1">
-                            <Calculator size={11}/> CONTEGGI
-                          </button>
+                          <>
+                            <button onClick={() => setProfitsModalOpen(true)}
+                              className="flex-1 bg-green-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center gap-1">
+                              <Calculator size={11}/> CONTEGGI
+                            </button>
+                            <button onClick={() => setMasterModalOpen(true)}
+                              className="flex-1 bg-purple-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
+                              MOD. ALIAS
+                            </button>
+                          </>
                         ) : (
-                          <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
-                            className="bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
-                            VEDI E PAGA
-                          </button>
-                        )}
-                        {isMaster ? (
-                          <button onClick={() => setMasterModalOpen(true)}
-                            className="bg-purple-600 text-white text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
-                            MOD. ALIAS
-                          </button>
-                        ) : (
-                          <button onClick={() => openReplaceModal(pr)}
-                            className="text-blue-600 text-[10px] font-black border-2 border-blue-600 p-3 uppercase flex items-center justify-center">
-                            SOSTITUISCI
-                          </button>
+                          <>
+                            <button onClick={() => { setPayPrData(pr); setPayAmount(''); }}
+                              className="flex-1 bg-[#FFEE00] text-black text-[10px] font-black border-2 border-black p-3 uppercase shadow-[2px_2px_0px_#000] flex items-center justify-center">
+                              VEDI E PAGA
+                            </button>
+                            <button onClick={() => openReplaceModal(pr)}
+                              className="flex-1 text-blue-600 text-[10px] font-black border-2 border-blue-600 p-3 uppercase flex items-center justify-center">
+                              SOSTITUISCI
+                            </button>
+                          </>
                         )}
                         <button onClick={() => handleDeletePr(pr)}
-                          className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'text-red-600 hover:bg-red-50'} border-2 border-red-600 p-3 flex items-center justify-center`}>
+                          className={`${isMaster ? 'opacity-30 cursor-not-allowed' : 'text-red-600'} border-2 border-red-600 p-3 flex items-center justify-center shrink-0`}>
                           <Trash2 size={14}/>
                         </button>
-                        {isMaster && <div />}
                       </div>
 
                     </>)}
