@@ -1,9 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { db, storage } from './firebase';
+import { db } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
@@ -283,20 +282,44 @@ const SuperAdmin = () => {
     reader.readAsDataURL(file);
   });
 
-  const startVideoUpload = (file) => {
+  const startVideoUpload = async (file) => {
     setPopupVideoFile(file);
     setUploadedVideoUrl(null);
     setVideoUploadProgress(0);
-    const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-    const storageRef = ref(storage, `popup_videos/${Date.now()}_${safeName}`);
-    const task = uploadBytesResumable(storageRef, file);
-    task.on('state_changed',
-      snap => setVideoUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-      err => { alert('Errore upload: ' + (err.message || err.code)); setVideoUploadProgress(null); setPopupVideoFile(null); },
-      () => getDownloadURL(task.snapshot.ref)
-              .then(url => { setUploadedVideoUrl(url); setVideoUploadProgress('done'); })
-              .catch(err => { alert('Errore URL: ' + err.message); setVideoUploadProgress(null); })
-    );
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const fileName = `popup_videos/${Date.now()}_${safeName}`;
+      const bucket = 'discoapp-f2388.firebasestorage.app';
+      const uploadUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(fileName)}`;
+
+      // Upload con fetch + XMLHttpRequest per progresso reale
+      const url = await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', uploadUrl);
+        xhr.setRequestHeader('Content-Type', file.type || 'video/mp4');
+        xhr.upload.onprogress = e => {
+          if (e.lengthComputable) setVideoUploadProgress(Math.round(e.loaded / e.total * 100));
+        };
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            const data = JSON.parse(xhr.responseText);
+            const dlUrl = `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encodeURIComponent(fileName)}?alt=media&token=${data.downloadTokens}`;
+            resolve(dlUrl);
+          } else {
+            reject(new Error(`HTTP ${xhr.status}: ${xhr.responseText}`));
+          }
+        };
+        xhr.onerror = () => reject(new Error('Errore di rete — controlla la connessione'));
+        xhr.send(file);
+      });
+
+      setUploadedVideoUrl(url);
+      setVideoUploadProgress('done');
+    } catch (e) {
+      alert('Errore upload: ' + e.message);
+      setVideoUploadProgress(null);
+      setPopupVideoFile(null);
+    }
   };
 
   const handleSavePopup = async () => {
