@@ -152,6 +152,7 @@ const PRDashboard = () => {
         const prSnap = await getDoc(doc(db, "prs_registry", prId));
         let prGroupId = null;
         let isMasterFlag = false;
+        let allPrGroupEventTitles = {};
 
         if (prSnap.exists()) {
           const prData = prSnap.data();
@@ -163,9 +164,10 @@ const PRDashboard = () => {
           if (isMasterFlag) {
             setIsMaster(true);
             const allSnap = await getDocs(collection(db, "prs_registry"));
-            const candidates = allSnap.docs
-              .map(d => ({ id: d.id, ...d.data() }))
-              .filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
+            const allPrDocs = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+            // PR inglobati (sezione MASTER)
+            const candidates = allPrDocs.filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
             const visible = [];
             for (const p of candidates) {
               if (!p.masterClearedAt) {
@@ -181,6 +183,16 @@ const PRDashboard = () => {
               }
             }
             setMergedPrs(visible);
+
+            // Raccoglie eventTitles da tutti i PR del gruppo per storico serate
+            allPrGroupEventTitles = {};
+            allPrDocs.forEach(p => {
+              if (p.eventTitles) {
+                Object.entries(p.eventTitles).forEach(([evId, title]) => {
+                  if (!allPrGroupEventTitles[evId]) allPrGroupEventTitles[evId] = title;
+                });
+              }
+            });
           }
         } else {
           setPrName(prId);
@@ -191,10 +203,16 @@ const PRDashboard = () => {
         const allFirestoreEvents = allEvSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (isMasterFlag) {
-          // MASTER: vede tutti gli eventi del gruppo (o tutti se groupId non disponibile)
+          // MASTER: eventi attivi del gruppo
           allFirestoreEvents
             .filter(ev => prGroupId ? ev.groupId === prGroupId : true)
             .forEach(ev => eventsList.push(ev));
+          // + serate storiche raccolte dagli eventTitles di tutti i PR
+          Object.entries(allPrGroupEventTitles).forEach(([evId, title]) => {
+            if (!eventsList.find(e => e.id === evId)) {
+              eventsList.push({ id: evId, title, concluded: true });
+            }
+          });
         } else {
           // PR normale: solo le serate assegnate
           const validEventIds = prSnap.exists()
