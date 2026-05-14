@@ -3,7 +3,7 @@ import { db, storage } from './firebase';
 import {
   collection, getDocs, doc, updateDoc, getDoc, setDoc, deleteDoc
 } from 'firebase/firestore';
-import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { BarChart2 } from 'lucide-react';
 import {
   ShieldCheck, Power, LayoutGrid, Crown, Calendar, ChevronDown,
@@ -283,17 +283,24 @@ const SuperAdmin = () => {
     reader.readAsDataURL(file);
   });
 
-  const startVideoUpload = (file) => {
+  const startVideoUpload = async (file) => {
     setPopupVideoFile(file);
     setUploadedVideoUrl(null);
-    setVideoUploadProgress(0);
-    const storageRef = ref(storage, `popup_videos/${Date.now()}_${file.name}`);
-    const task = uploadBytesResumable(storageRef, file);
-    task.on('state_changed',
-      snap => setVideoUploadProgress(Math.round(snap.bytesTransferred / snap.totalBytes * 100)),
-      err => { alert('Errore upload video: ' + err.message); setVideoUploadProgress(null); setPopupVideoFile(null); },
-      () => getDownloadURL(task.snapshot.ref).then(url => { setUploadedVideoUrl(url); setVideoUploadProgress('done'); })
-    );
+    setVideoUploadProgress(1);
+    try {
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const storageRef = ref(storage, `popup_videos/${Date.now()}_${safeName}`);
+      setVideoUploadProgress(30);
+      const snapshot = await uploadBytes(storageRef, file);
+      setVideoUploadProgress(90);
+      const url = await getDownloadURL(snapshot.ref);
+      setUploadedVideoUrl(url);
+      setVideoUploadProgress('done');
+    } catch (e) {
+      alert('Errore upload: ' + (e.message || e.code || JSON.stringify(e)));
+      setVideoUploadProgress(null);
+      setPopupVideoFile(null);
+    }
   };
 
   const handleSavePopup = async () => {
@@ -1106,10 +1113,10 @@ const SuperAdmin = () => {
                     )}
                     {videoUploadProgress !== null && videoUploadProgress !== 'done' && (
                       <div className="mt-2">
-                        <div className="w-full bg-zinc-800 rounded-full h-2">
-                          <div className="bg-purple-500 h-2 rounded-full transition-all" style={{ width: `${videoUploadProgress}%` }} />
+                        <div className="w-full bg-zinc-800 rounded-full h-2 overflow-hidden">
+                          <div className="bg-purple-500 h-2 rounded-full animate-pulse" style={{ width: `${videoUploadProgress}%` }} />
                         </div>
-                        <p className="text-[10px] text-purple-400 mt-1 text-center">Caricamento {videoUploadProgress}%…</p>
+                        <p className="text-[10px] text-purple-400 mt-1 text-center">Caricamento in corso…</p>
                       </div>
                     )}
                     {videoUploadProgress === 'done' && (
