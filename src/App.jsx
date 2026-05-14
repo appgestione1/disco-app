@@ -186,23 +186,32 @@ const PRDashboard = () => {
           setPrName(prId);
         }
 
-        // Carica tutti gli eventi del gruppo — fonte primaria garantita
         const eventsList = [];
-        if (prGroupId) {
-          const groupEvSnap = await getDocs(query(
-            collection(db, "events"),
-            where("groupId", "==", prGroupId)
-          ));
-          groupEvSnap.docs.forEach(d => eventsList.push({ id: d.id, ...d.data() }));
-        }
+        const allEvSnap = await getDocs(collection(db, "events"));
+        const allFirestoreEvents = allEvSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-        // Aggiunge serate storiche da eventTitles (serate concluse non più in Firestore)
-        const savedTitles = prSnap.exists() ? (prSnap.data().eventTitles || {}) : {};
-        Object.keys(savedTitles).forEach(evId => {
-          if (!eventsList.find(e => e.id === evId)) {
-            eventsList.push({ id: evId, title: savedTitles[evId], concluded: true });
-          }
-        });
+        if (isMasterFlag) {
+          // MASTER: vede tutti gli eventi del suo gruppo
+          allFirestoreEvents
+            .filter(ev => ev.groupId === prGroupId)
+            .forEach(ev => eventsList.push(ev));
+        } else {
+          // PR normale: solo le serate assegnate
+          const validEventIds = prSnap.exists()
+            ? (prSnap.data().eventIds || []).filter(id => id !== "")
+            : [];
+          allFirestoreEvents
+            .filter(ev => validEventIds.includes(ev.id))
+            .forEach(ev => eventsList.push(ev));
+
+          // Aggiunge serate storiche da eventTitles (serate concluse)
+          const savedTitles = prSnap.exists() ? (prSnap.data().eventTitles || {}) : {};
+          Object.keys(savedTitles).forEach(evId => {
+            if (!eventsList.find(e => e.id === evId)) {
+              eventsList.push({ id: evId, title: savedTitles[evId], concluded: true });
+            }
+          });
+        }
 
         setAssignedEvents(eventsList);
         if (eventsList.length > 0) setSelectedEventId(eventsList[0].id);
