@@ -1320,18 +1320,26 @@ const Home = () => {
                   {/* Media + overlay immagine extra */}
                   <div className="relative">
                     {popupData.mediaType === 'video' && popupData.videoUrl ? (() => {
-                      const m = popupData.videoUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&?/\s]+)/);
-                      const ytId = m ? m[1] : null;
-                      return ytId ? (
+                      const url = popupData.videoUrl;
+                      const ytM = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([^&?/\s]+)/);
+                      const isFb = /facebook\.com|fb\.watch|fb\.com/.test(url);
+                      if (ytM) return (
                         <iframe
-                          src={`https://www.youtube.com/embed/${ytId}?autoplay=1&rel=0&playsinline=1`}
+                          src={`https://www.youtube.com/embed/${ytM[1]}?autoplay=1&rel=0&playsinline=1`}
                           className="w-full aspect-video"
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                           allowFullScreen
                         />
-                      ) : (
-                        <video src={popupData.videoUrl} className="w-full object-contain" autoPlay playsInline loop />
                       );
+                      if (isFb) return (
+                        <iframe
+                          src={`https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(url)}&width=500&show_text=false&autoplay=1`}
+                          className="w-full aspect-video"
+                          allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                          allowFullScreen
+                        />
+                      );
+                      return <video src={url} className="w-full object-contain" autoPlay playsInline loop />;
                     })() : popupData.imageUrl ? (
                       <img src={popupData.imageUrl} alt="Promo" className="w-full object-contain" />
                     ) : null}
