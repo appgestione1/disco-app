@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 13/05/2026 — commit `6b9cbc8`**
+> **Ultimo aggiornamento: 14/05/2026 — commit `05a2c4b`**
 
 ---
 
@@ -236,6 +236,9 @@ Tutti i dati filtrati per `groupId`.
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
 - [ ] Ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
+- [x] Upload video da dispositivo nel popup (chunk sequenziali Firestore, file grandi supportati)
+- [x] Embed video Facebook nel popup (iframe plugins/video.php, solo video pubblici)
+- [x] Scraper puntoeacapo.uno teatro (selettori aggiornati alla nuova struttura HTML)
 - [x] Sistema popup pubblicitario apertura app
 - [x] Setup Rapido Serate — real-time, flag serata/evento
 - [x] Card PR collassabili, griglia azioni 2×2, INVIA LINK APP WhatsApp
