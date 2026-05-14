@@ -191,9 +191,9 @@ const PRDashboard = () => {
         const allFirestoreEvents = allEvSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (isMasterFlag) {
-          // MASTER: vede tutti gli eventi del suo gruppo
+          // MASTER: vede tutti gli eventi del gruppo (o tutti se groupId non disponibile)
           allFirestoreEvents
-            .filter(ev => ev.groupId === prGroupId)
+            .filter(ev => prGroupId ? ev.groupId === prGroupId : true)
             .forEach(ev => eventsList.push(ev));
         } else {
           // PR normale: solo le serate assegnate
