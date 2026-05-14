@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 14/05/2026 — commit `05a2c4b`**
+> **Ultimo aggiornamento: 14/05/2026 — commit `38a7016`**
 
 ---
 
@@ -230,12 +230,32 @@ Tutti i dati filtrati per `groupId`.
 
 ---
 
+## PRDashboard (`/pr/:prId`) — logica eventi e ticket
+
+**Caricamento eventi:**
+- PR normale: eventi da `groupId` filtrati per `eventIds` assegnati + storico da `eventTitles`
+- MASTER: tutti gli eventi attivi del gruppo + serate concluse raccolte dagli `eventTitles` di TUTTI i PR del gruppo
+- MASTER legacy (prId = `"MASTER"` senza suffisso): `prGroupId` null → carica tutti gli eventi senza filtro groupId
+
+**Caricamento ticket:**
+- PR normale: `where("prId", "==", prId)`
+- MASTER: `where("eventId", "in", [...evIds])` per tutti gli eventi attivi, a chunk di 30
+
+**Sezioni implementate:**
+- INGRESSI: livecount via onSnapshot per serata selezionata
+- CONTEGGI: per serata → Lista/Privé × tariffa + riepilogo lordo/acconti/residuo (PR) | orfani/PR breakdown (MASTER)
+- ELENCO LISTA: nominativi con telefono e orario, filtro per serata
+- PRIVÉ: prenotazioni raggruppate per gruppo ospiti con stati ticket
+
+---
+
 ## TODO aperti
 
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
 - [ ] Ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
 - [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
+- [ ] PRDashboard — verificare funzionamento su Vercel produzione (MASTER storico serate)
 - [x] Upload video da dispositivo nel popup (chunk sequenziali Firestore, file grandi supportati)
 - [x] Embed video Facebook nel popup (iframe plugins/video.php, solo video pubblici)
 - [x] Scraper puntoeacapo.uno teatro (selettori aggiornati alla nuova struttura HTML)
