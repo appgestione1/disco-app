@@ -325,7 +325,9 @@ const PRDashboard = () => {
   };
 
   const masterGroupIds = isMaster
-    ? [...new Set(assignedEvents.map(ev => ev.groupId || '_none'))]
+    ? Object.keys(groupNames).length > 0
+      ? Object.keys(groupNames)
+      : [...new Set(assignedEvents.map(ev => ev.groupId || '_none').filter(g => g !== '_none'))]
     : [];
 
   const filteredEvents = isMaster && selectedGroupId !== "all"
