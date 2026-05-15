@@ -145,6 +145,7 @@ const PRDashboard = () => {
   const [activeSection, setActiveSection] = useState(null);
   const [prFullData, setPrFullData] = useState({});
   const [allTickets, setAllTickets] = useState([]);
+  const [groupNames, setGroupNames] = useState({});
 
   useEffect(() => {
     const fetchPrAndEvents = async () => {
@@ -184,15 +185,20 @@ const PRDashboard = () => {
             }
             setMergedPrs(visible);
 
-            // Raccoglie eventTitles da tutti i PR del gruppo per storico serate
+            // Raccoglie eventTitles da tutti i PR (con groupId) per storico serate
             allPrGroupEventTitles = {};
             allPrDocs.forEach(p => {
               if (p.eventTitles) {
                 Object.entries(p.eventTitles).forEach(([evId, title]) => {
-                  if (!allPrGroupEventTitles[evId]) allPrGroupEventTitles[evId] = title;
+                  if (!allPrGroupEventTitles[evId]) allPrGroupEventTitles[evId] = { title, groupId: p.groupId || null };
                 });
               }
             });
+            // Carica nomi gruppi
+            const groupsSnap = await getDocs(collection(db, "groups"));
+            const gNames = {};
+            groupsSnap.docs.forEach(d => { gNames[d.id] = d.data().name || d.id; });
+            setGroupNames(gNames);
           }
         } else {
           setPrName(prId);
@@ -203,14 +209,12 @@ const PRDashboard = () => {
         const allFirestoreEvents = allEvSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (isMasterFlag) {
-          // MASTER: eventi attivi del gruppo
-          allFirestoreEvents
-            .filter(ev => prGroupId ? ev.groupId === prGroupId : true)
-            .forEach(ev => eventsList.push(ev));
-          // + serate storiche raccolte dagli eventTitles di tutti i PR
-          Object.entries(allPrGroupEventTitles).forEach(([evId, title]) => {
+          // MASTER: TUTTI gli eventi da tutti i gruppi
+          allFirestoreEvents.forEach(ev => eventsList.push(ev));
+          // + serate storiche da eventTitles di tutti i PR (con groupId)
+          Object.entries(allPrGroupEventTitles).forEach(([evId, { title, groupId }]) => {
             if (!eventsList.find(e => e.id === evId)) {
-              eventsList.push({ id: evId, title, concluded: true });
+              eventsList.push({ id: evId, title, concluded: true, groupId });
             }
           });
         } else {
@@ -408,37 +412,55 @@ const PRDashboard = () => {
             <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
               {assignedEvents.length === 0 ? (
                 <p className="text-zinc-500 text-xs italic text-center p-8">Nessuna serata assegnata.</p>
-              ) : assignedEvents.map(ev => {
-                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
-                if (isMaster) {
-                  const orfani = evTickets.filter(t => t.prId === prId);
-                  const byPr = {};
-                  evTickets.filter(t => t.prId !== prId && t.used).forEach(t => {
-                    byPr[t.prId] = (byPr[t.prId] || 0) + 1;
-                  });
-                  const prEntries = Object.entries(byPr).sort((a, b) => b[1] - a[1]);
-                  return (
-                    <div key={ev.id} className="p-4 border-b border-white/5 last:border-0">
-                      <div className="flex items-start justify-between gap-3 mb-2">
-                        <div className="min-w-0">
-                          <p className="text-white text-xs font-black truncate">{ev.title}</p>
-                          {ev.concluded && <p className="text-zinc-600 text-[9px] font-black tracking-widest mt-0.5">CONCLUSA</p>}
-                        </div>
-                        <p className="text-white font-black text-sm flex-shrink-0">{evTickets.filter(t=>t.used).length} tot</p>
-                      </div>
-                      <div className="flex flex-wrap gap-x-4 gap-y-1">
-                        <span className="text-[10px] font-black text-zinc-400">
-                          Orfani: <span className="text-[#D4AF37]">{orfani.filter(t=>t.used).length}</span>
-                        </span>
-                        {prEntries.map(([pid, cnt]) => (
-                          <span key={pid} className="text-[10px] font-black text-zinc-400">
-                            {pid}: <span className="text-white">{cnt}</span>
-                          </span>
-                        ))}
-                      </div>
+              ) : isMaster ? (() => {
+                // MASTER: raggruppa eventi per gruppo
+                const byGroup = {};
+                assignedEvents.forEach(ev => {
+                  const gid = ev.groupId || '_none';
+                  if (!byGroup[gid]) byGroup[gid] = [];
+                  byGroup[gid].push(ev);
+                });
+                return Object.entries(byGroup).map(([gid, events]) => (
+                  <div key={gid}>
+                    <div className="px-4 py-2 bg-zinc-800 border-b border-white/10">
+                      <p className="text-[#D4AF37] text-[10px] font-black tracking-widest uppercase">
+                        {groupNames[gid] || (gid === '_none' ? 'GRUPPO SCONOSCIUTO' : gid)}
+                      </p>
                     </div>
-                  );
-                }
+                    {events.map(ev => {
+                      const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
+                      const orfani = evTickets.filter(t => t.prId === prId);
+                      const byPr = {};
+                      evTickets.filter(t => t.prId !== prId && t.used).forEach(t => {
+                        byPr[t.prId] = (byPr[t.prId] || 0) + 1;
+                      });
+                      const prEntries = Object.entries(byPr).sort((a, b) => b[1] - a[1]);
+                      return (
+                        <div key={ev.id} className="p-4 border-b border-white/5 last:border-0">
+                          <div className="flex items-start justify-between gap-3 mb-2">
+                            <div className="min-w-0">
+                              <p className="text-white text-xs font-black truncate">{ev.title}</p>
+                              {ev.concluded && <p className="text-zinc-600 text-[9px] font-black tracking-widest mt-0.5">CONCLUSA</p>}
+                            </div>
+                            <p className="text-white font-black text-sm flex-shrink-0">{evTickets.filter(t=>t.used).length} tot</p>
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1">
+                            <span className="text-[10px] font-black text-zinc-400">
+                              Orfani: <span className="text-[#D4AF37]">{orfani.filter(t=>t.used).length}</span>
+                            </span>
+                            {prEntries.map(([pid, cnt]) => (
+                              <span key={pid} className="text-[10px] font-black text-zinc-400">
+                                {pid}: <span className="text-white">{cnt}</span>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ));
+              })() : assignedEvents.map(ev => {
+                const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
                 // PR normale: lista vs privé + calcolo €
                 const evTicketsReset = evTickets.filter(t => afterReset(t, prFullData.lastReset));
                 const slotIdx = (prFullData.eventIds || []).indexOf(ev.id);
