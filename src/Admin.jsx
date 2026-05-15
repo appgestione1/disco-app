@@ -182,12 +182,11 @@ const AdminPanel = ({ session, onLogout }) => {
   const [showEventForm, setShowEventForm] = useState(false);
 
   const categories = [
-    { id: 'DISCOTECA',    label: 'DISCOTECA' },
-    { id: 'CONCERTI',     label: 'CONCERTI' },
-    { id: 'TEATRO',       label: 'TEATRO' },
-    { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE' },
-    { id: 'PUB',          label: 'LOUNGE / PUB' },
-    { id: 'TUTTI',        label: 'ALTRO' },
+    { id: 'DISCOTECA', label: 'DISCOTECA' },
+    { id: 'PUB',       label: 'LOUNGE / PUB' },
+    { id: 'CONCERTI',  label: 'CONCERTI' },
+    { id: 'TEATRO',    label: 'TEATRO' },
+    { id: 'TUTTI',     label: 'ALTRO' },
   ];
 
   useEffect(() => { fetchData(); }, []);
