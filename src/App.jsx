@@ -194,11 +194,13 @@ const PRDashboard = () => {
                 });
               }
             });
-            // Carica nomi gruppi
-            const groupsSnap = await getDocs(collection(db, "groups"));
-            const gNames = {};
-            groupsSnap.docs.forEach(d => { gNames[d.id] = d.data().name || d.id; });
-            setGroupNames(gNames);
+            // Carica nomi gruppi (fallibile senza bloccare il fetch principale)
+            try {
+              const groupsSnap = await getDocs(collection(db, "groups"));
+              const gNames = {};
+              groupsSnap.docs.forEach(d => { gNames[d.id] = d.data().name || d.id; });
+              setGroupNames(gNames);
+            } catch (_) { /* nomi gruppi non disponibili, mostra groupId grezzo */ }
           }
         } else {
           setPrName(prId);
