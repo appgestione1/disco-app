@@ -256,26 +256,21 @@ async function scrapePuntoeacapo() {
     if (seen.has(href)) return;
     seen.add(href);
 
-    const title = $a.find('h3').first().text().trim();
+    // Nuova struttura: titolo in p.event-title, data/luogo in .meta-line
+    const title = $a.find('p.event-title').clone().find('span').remove().end().text().trim();
     if (!title) return;
 
-    const imageUrl = $a.find('img').first().attr('src') || null;
+    const imageUrl = $a.find('img.event-img').attr('src') || $a.find('img').first().attr('src') || null;
 
-    // Testo data/luogo: ultimo <p> che non sia "Acquista"
-    let dateLocRaw = '';
-    $a.find('p').each((_, p) => {
-      const t = $(p).text().trim();
-      if (t && t.toLowerCase() !== 'acquista') dateLocRaw = t;
-    });
-
-    // Formato: "16 Mag 2026 / Palermo, Catania" oppure "16 Mag – 23 Ago 2026 / Catania"
-    const parts = dateLocRaw.split('/');
+    // ".meta-line" contiene es. "16 Mag 2026 / Palermo" o "21 Mag – 24 Nov 2026 / Catania / Palermo"
+    const metaLine = $a.find('.meta-line').first().text().trim();
+    const parts    = metaLine.split('/');
     const datePart = parts[0]?.trim() || '';
-    const locPart  = parts[1]?.trim() || '';
+    const locPart  = parts.slice(1).map(s => s.trim()).filter(Boolean).join(', ');
 
     if (!isSicilia(locPart) && !isSicilia(title)) return;
 
-    const slug = href.replace(/.*\/spettacolo\//, '').replace(/\/$/, '');
+    const slug = href.replace(/.*\/spettacolo\//, '').replace(/\/$/, '') || title.toLowerCase().replace(/\s+/g, '-');
     const id = `pac_${slug}`;
 
     events.push({
