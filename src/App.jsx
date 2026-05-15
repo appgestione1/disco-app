@@ -373,10 +373,11 @@ const PRDashboard = () => {
             >
               <option value="all">TUTTI I GRUPPI</option>
               {masterGroupIds.filter(gid => gid !== '_none').map(gid => (
-                <option key={gid} value={gid}>
-                  {groupNames[gid] || gid}
-                </option>
+                <option key={gid} value={gid}>{groupNames[gid] || gid}</option>
               ))}
+              {assignedEvents.some(ev => !ev.groupId) && (
+                <option value="_none">SENZA GRUPPO</option>
+              )}
             </select>
           </div>
         </div>
@@ -469,13 +470,11 @@ const PRDashboard = () => {
                 });
                 return Object.entries(byGroup).map(([gid, events]) => (
                   <div key={gid}>
-                    {gid !== '_none' && (
-                      <div className="px-4 py-2 bg-zinc-800 border-b border-white/10">
-                        <p className="text-[#D4AF37] text-[10px] font-black tracking-widest uppercase">
-                          {groupNames[gid] || gid}
-                        </p>
-                      </div>
-                    )}
+                    <div className="px-4 py-2 bg-zinc-800 border-b border-white/10">
+                      <p className="text-[#D4AF37] text-[10px] font-black tracking-widest uppercase">
+                        {gid === '_none' ? 'SENZA GRUPPO' : (groupNames[gid] || gid)}
+                      </p>
+                    </div>
                     {events.map(ev => {
                       const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
                       const orfani = evTickets.filter(t => t.prId === prId);
