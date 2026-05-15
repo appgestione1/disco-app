@@ -221,7 +221,7 @@ import { collection, getDocs, doc, setDoc, getDoc, updateDoc } from 'firebase/fi
 import { QRCodeCanvas } from 'qrcode.react';
 import html2canvas from 'html2canvas';
 import {
-  ChevronLeft, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
+  ChevronLeft, ChevronDown, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
   Music, Theater, Film, Mic2, Sun, Utensils, LayoutGrid, Download, Send, Phone,
   Users, Edit3, X, PlusCircle, Share2, Church, Power
 } from 'lucide-react';
@@ -1154,57 +1154,39 @@ const Home = () => {
                   : provEvents.filter(e => e.city === sagreCity);
                 return (
                   <>
-                    {/* ── Selettore MESE ── */}
-                    <div className="mb-5">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Mese</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {availMonths.map(ym => {
-                          const [y, mo] = ym.split('-');
-                          const active = selMonth === ym;
-                          return (
-                            <button key={ym} onClick={() => { setSagreMonth(ym); setSagreProvince('TUTTI'); setSagreCity('TUTTI'); }}
-                              className={`py-3.5 rounded-2xl font-black uppercase tracking-wide transition-all active:scale-95 text-center ${active ? 'bg-[#D4AF37] text-black shadow-lg shadow-[#D4AF37]/20' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
-                              <span className="block text-[11px]">{IT_MONTHS_LABEL[parseInt(mo) - 1]}</span>
-                              <span className={`block text-[9px] mt-0.5 ${active ? 'opacity-60' : 'opacity-40'}`}>{y}</span>
-                            </button>
-                          );
-                        })}
+                    {/* ── Filtri SAGRE ── */}
+                    <div className="flex gap-2 mb-4">
+                      <div className="relative flex-1">
+                        <select value={selMonth}
+                          onChange={e => { setSagreMonth(e.target.value); setSagreProvince('TUTTI'); setSagreCity('TUTTI'); }}
+                          className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-2xl pl-4 pr-8 py-3 text-xs font-black uppercase text-white cursor-pointer focus:outline-none focus:border-[#D4AF37]/60">
+                          {availMonths.map(ym => {
+                            const [y, mo] = ym.split('-');
+                            return <option key={ym} value={ym}>{IT_MONTHS_LABEL[parseInt(mo) - 1]} {y}</option>;
+                          })}
+                        </select>
+                        <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
                       </div>
-                    </div>
-                    {/* ── Selettore PROVINCIA ── */}
-                    <div className="mb-5">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Provincia</p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {availProvs.map(p => {
-                          const active = sagreProvince === p;
-                          return (
-                            <button key={p} onClick={() => { setSagreProvince(p); setSagreCity('TUTTI'); }}
-                              className={`py-3.5 rounded-2xl font-black transition-all active:scale-95 text-center ${active ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
-                              {p === 'TUTTI' ? (
-                                <span className="block text-[9px] uppercase tracking-wide leading-tight px-1">Tutta<br/>la Sicilia</span>
-                              ) : (
-                                <>
-                                  <span className="block text-[17px] font-black leading-none">{p}</span>
-                                  <span className={`block text-[8px] uppercase tracking-wide mt-0.5 ${active ? 'opacity-60' : 'opacity-40'}`}>{PROV_NAMES[p]}</span>
-                                </>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {/* ── Selettore CITTÀ ── */}
-                    {sagreProvince !== 'TUTTI' && availCities.length > 2 && (
-                      <div className="mb-5">
-                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Città — {PROV_NAMES[sagreProvince]}</p>
-                        <div className="flex flex-wrap gap-2">
-                          {availCities.map(c => (
-                            <button key={c} onClick={() => setSagreCity(c)}
-                              className={`px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wide transition-all active:scale-95 ${sagreCity === c ? 'bg-zinc-200 text-black' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
-                              {c === 'TUTTI' ? 'Tutte' : c}
-                            </button>
+                      <div className="relative flex-1">
+                        <select value={sagreProvince}
+                          onChange={e => { setSagreProvince(e.target.value); setSagreCity('TUTTI'); }}
+                          className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-2xl pl-4 pr-8 py-3 text-xs font-black uppercase text-white cursor-pointer focus:outline-none focus:border-white/40">
+                          {availProvs.map(p => (
+                            <option key={p} value={p}>{p === 'TUTTI' ? 'Tutta la Sicilia' : `${p} — ${PROV_NAMES[p] || p}`}</option>
                           ))}
-                        </div>
+                        </select>
+                        <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                      </div>
+                    </div>
+                    {sagreProvince !== 'TUTTI' && availCities.length > 2 && (
+                      <div className="relative mb-4">
+                        <select value={sagreCity} onChange={e => setSagreCity(e.target.value)}
+                          className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-2xl pl-4 pr-8 py-3 text-xs font-black uppercase text-white cursor-pointer focus:outline-none focus:border-white/40">
+                          {availCities.map(c => (
+                            <option key={c} value={c}>{c === 'TUTTI' ? `Tutte le città` : c}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
                       </div>
                     )}
                     {filtered.length === 0 ? (
