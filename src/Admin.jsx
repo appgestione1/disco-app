@@ -1280,7 +1280,7 @@ const AdminPanel = ({ session, onLogout }) => {
              <div className="bg-black text-white mb-10 shadow-[8px_8px_0px_#FFEE00]">
                <button type="button" onClick={() => setShowEventForm(v => !v)}
                  className="w-full p-6 flex items-center justify-between text-[#FFEE00] uppercase italic font-black text-xl">
-                 <span className="flex items-center gap-2"><Plus size={20}/> Pubblica Nuova Serata</span>
+                 <span className="flex items-center gap-2"><Plus size={20}/> Pubblica Nuovo Evento</span>
                  <span className={`transition-transform duration-300 ${showEventForm ? 'rotate-180' : ''}`}>▼</span>
                </button>
              {showEventForm && (
