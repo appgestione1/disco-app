@@ -78,6 +78,11 @@ const SICILY_PROVINCE = {
   'aci catena':'CT','aci sant antonio':'CT',acitrezza:'CT','santa venerina':'CT',milo:'CT',
   'castiglione di sicilia':'CT','licodia eubea':'CT',palagonia:'CT',ramacca:'CT',
   vizzini:'CT',scordia:'CT',lentini:'CT',carlentini:'CT',francofonte:'CT',mineo:'CT',
+  calatabiano:'CT','camporotondo etneo':'CT','castel di iudica':'CT',
+  'motta sant anastasia':'CT',pedara:'CT',raddusa:'CT',ragalna:'CT',
+  'sant agata li battiati':'CT','sant alfio':'CT','san cono':'CT',
+  'san gregorio di catania':'CT','santa maria di licodia':'CT',
+  'capomulini':'CT','mangano':'CT',
   // EN
   enna:'EN','piazza armerina':'EN',nicosia:'EN',leonforte:'EN',agira:'EN',troina:'EN',
   barrafranca:'EN',aidone:'EN',calascibetta:'EN',centuripe:'EN','gagliano castelferrato':'EN',
@@ -131,11 +136,22 @@ const PROVINCE_NAMES = {
   ME:'Messina', PA:'Palermo', RG:'Ragusa', SR:'Siracusa', TP:'Trapani',
 };
 
+function normCity(s) {
+  return s.toLowerCase()
+    .replace(/[àáâã]/g,'a').replace(/[èéêë]/g,'e')
+    .replace(/[ìíîï]/g,'i').replace(/[òóôõ]/g,'o').replace(/[ùúûü]/g,'u')
+    .replace(/'/g,' ').replace(/\s+/g,' ').trim();
+}
+
 function getProvince(city) {
   if (!city) return null;
-  const c = city.toLowerCase().replace(/[àáâ]/g,'a').replace(/[èéê]/g,'e')
-    .replace(/[ìíî]/g,'i').replace(/[òóô]/g,'o').replace(/[ùúû]/g,'u').trim();
-  return SICILY_PROVINCE[c] || null;
+  const c = normCity(city);
+  if (SICILY_PROVINCE[c]) return SICILY_PROVINCE[c];
+  // partial match: check if any key is contained in c or c is contained in key
+  for (const [key, prov] of Object.entries(SICILY_PROVINCE)) {
+    if (key.length > 4 && (c.includes(key) || key.includes(c))) return prov;
+  }
+  return null;
 }
 
 // ── Normalizzazione categoria → CONCERTI o TEATRO ────────────────────────────
