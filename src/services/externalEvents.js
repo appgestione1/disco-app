@@ -39,13 +39,14 @@ const EVENTS_TTL = 26 * 60 * 60 * 1000; // 26 ore — Concerti/Teatro (scraper g
 const TMDB_KEY = import.meta.env.VITE_TMDB_API_KEY;
 const TM_KEY = import.meta.env.VITE_TICKETMASTER_API_KEY;
 
-async function getCached(type, ttl = CACHE_TTL) {
+async function getCached(type, ttl = CACHE_TTL, allowStale = false) {
   try {
     const snap = await getDoc(doc(db, 'external_events_cache', type + '_v6'));
     if (!snap.exists()) return null;
     const d = snap.data();
-    if (Date.now() - d.fetchedAt.toMillis() > ttl) return null;
-    return d.events;
+    const expired = Date.now() - d.fetchedAt.toMillis() > ttl;
+    if (expired && !allowStale) return null;
+    return d.events?.length ? d.events : null;
   } catch { return null; }
 }
 
@@ -218,7 +219,7 @@ export async function fetchCinema() {
 export async function fetchConcerti() {
   const cached = await getCached('CONCERTI', EVENTS_TTL);
   if (cached) return cached;
-  if (!TM_KEY) return [];
+  if (!TM_KEY) return await getCached('CONCERTI', EVENTS_TTL, true) || [];
 
   try {
     const res = await fetch(
@@ -248,7 +249,7 @@ export async function fetchConcerti() {
 export async function fetchTeatro() {
   const cached = await getCached('TEATRO', EVENTS_TTL);
   if (cached) return cached;
-  if (!TM_KEY) return [];
+  if (!TM_KEY) return await getCached('TEATRO', EVENTS_TTL, true) || [];
 
   try {
     const res = await fetch(

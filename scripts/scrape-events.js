@@ -298,9 +298,22 @@ async function scrapePuntoeacapo() {
   return events;
 }
 
-// ── Salvataggio Firestore ─────────────────────────────────────────────────────
+// ── Salvataggio Firestore (non sovrascrive con 0 se la cache esistente ha dati) ──
 async function saveToFirestore(category, events) {
-  if (!events.length) { console.log(`  ⚠ ${category}: nessun evento, skip`); return; }
+  if (!events.length) {
+    console.log(`  ⚠ ${category}: nessun evento trovato, cache esistente preservata`);
+    // Aggiorna solo il timestamp per evitare scadenza cache lato frontend
+    try {
+      const existing = await db.collection('external_events_cache').doc(`${category}_v6`).get();
+      if (existing.exists && (existing.data().events || []).length > 0) {
+        await db.collection('external_events_cache').doc(`${category}_v6`).update({
+          fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        console.log(`  ↺ ${category}_v6: timestamp aggiornato, ${existing.data().events.length} eventi preservati`);
+      }
+    } catch (e) { console.log(`  ✗ update timestamp: ${e.message}`); }
+    return;
+  }
   await db.collection('external_events_cache').doc(`${category}_v6`).set({
     events,
     fetchedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -346,31 +359,27 @@ async function main() {
   }
   await delay(1500);
 
-  // ── 3. Eventbrite fallback (se AWIN non ha dato risultati) ───────────────
-  const needConcerti = allConcerti.length === 0;
-  const needTeatro   = allTeatro.length === 0;
+  // ── 3. Eventbrite — additivo (aggiunge a AWIN+pac, non li sostituisce) ──────
+  console.log('\nEventbrite (additivo)...');
+  const ebUrls = [
+    { url: 'https://www.eventbrite.it/d/italy--catania/music--events/', cat: 'CONCERTI' },
+    { url: 'https://www.eventbrite.it/d/italy--catania/performing-arts--events/', cat: 'TEATRO' },
+  ];
+  const existingIds = new Set([...allConcerti, ...allTeatro].map(e => e.id));
 
-  if (needConcerti || needTeatro) {
-    console.log('\nEventbrite fallback...');
-    const ebUrls = [
-      needConcerti && { url: 'https://www.eventbrite.it/d/italy--catania/music--events/', cat: 'CONCERTI' },
-      needTeatro   && { url: 'https://www.eventbrite.it/d/italy--catania/performing-arts--events/', cat: 'TEATRO' },
-    ].filter(Boolean);
-
-    for (const { url, cat } of ebUrls) {
-      process.stdout.write(`  [Eventbrite ${cat}] fetch... `);
-      try {
-        const res = await fetch(url, { headers: HEADERS });
-        const html = await res.text();
-        const events = parseEventbrite(html, cat);
-        console.log(`${events.length} eventi`);
-        if (cat === 'CONCERTI') allConcerti.push(...events);
-        else allTeatro.push(...events);
-      } catch (e) {
-        console.log(`✗ ${e.message}`);
-      }
-      await delay(2000);
+  for (const { url, cat } of ebUrls) {
+    process.stdout.write(`  [Eventbrite ${cat}] fetch... `);
+    try {
+      const res = await fetch(url, { headers: HEADERS });
+      const html = await res.text();
+      const events = parseEventbrite(html, cat).filter(e => !existingIds.has(e.id));
+      console.log(`${events.length} nuovi eventi`);
+      if (cat === 'CONCERTI') allConcerti.push(...events);
+      else allTeatro.push(...events);
+    } catch (e) {
+      console.log(`✗ ${e.message}`);
     }
+    await delay(2000);
   }
 
   // ── 3. Salvataggio ────────────────────────────────────────────────────────
