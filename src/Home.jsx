@@ -457,6 +457,7 @@ const Home = () => {
   const [selectedConcertiDate, setSelectedConcertiDate] = useState(new Date());
   const [extendSicilia, setExtendSicilia] = useState(true);
   const [sagreMonth, setSagreMonth] = useState(null); // 'YYYY-MM' o null = mese corrente
+  const [sagreProvince, setSagreProvince] = useState('TUTTI');
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -1145,7 +1146,6 @@ const Home = () => {
                 // Province disponibili per il mese selezionato
                 const monthEvents = externalEvents.filter(e => e.date && e.date.slice(0,7) === selMonth);
                 const availProvs = ['TUTTI', ...[...new Set(monthEvents.map(e => e.province).filter(Boolean))].sort()];
-                const [sagreProvince, setSagreProvince] = React.useState('TUTTI');
                 const filtered = sagreProvince === 'TUTTI' ? monthEvents : monthEvents.filter(e => e.province === sagreProvince);
                 return (
                   <>
