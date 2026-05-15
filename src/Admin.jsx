@@ -202,7 +202,10 @@ const AdminPanel = ({ session, onLogout }) => {
             const isAssigned = slotIdx !== -1;
             return { prId, selected: isAssigned, pay: isAssigned ? String(pr?.eventPays?.[slotIdx] || '') : (existing.pay || '') };
           });
-          return { ...existing, prConfigs };
+          // Se prConfigs era vuoto (prs non ancora caricati al primo giro), ricalcola selected
+          const wasUninitialized = (existing.prConfigs || []).length === 0;
+          const selected = wasUninitialized ? prConfigs.some(pc => pc.selected) : existing.selected;
+          return { ...existing, selected, prConfigs };
         }
         // Prima inizializzazione: legge lo stato reale da Firestore (eventIds di ogni PR)
         const prConfigs = activePrIds.map(prId => {
