@@ -229,21 +229,13 @@ const PRDashboard = () => {
             }
           });
         } else {
-          // PR normale: solo le serate assegnate
+          // PR normale: solo le serate attualmente assegnate (eventIds), no storico
           const validEventIds = prSnap.exists()
             ? (prSnap.data().eventIds || []).filter(id => id !== "")
             : [];
           allFirestoreEvents
             .filter(ev => validEventIds.includes(ev.id))
             .forEach(ev => eventsList.push(ev));
-
-          // Aggiunge serate storiche da eventTitles (serate concluse)
-          const savedTitles = prSnap.exists() ? (prSnap.data().eventTitles || {}) : {};
-          Object.keys(savedTitles).forEach(evId => {
-            if (!eventsList.find(e => e.id === evId)) {
-              eventsList.push({ id: evId, title: savedTitles[evId], concluded: true });
-            }
-          });
         }
 
         setAssignedEvents(eventsList);

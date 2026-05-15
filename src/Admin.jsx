@@ -195,14 +195,29 @@ const AdminPanel = ({ session, onLogout }) => {
         const existing = prevMap[ev.id];
         if (existing) {
           const existingPrMap = Object.fromEntries((existing.prConfigs || []).map(pc => [pc.prId, pc]));
-          const prConfigs = activePrIds.map(prId =>
-            existingPrMap[prId] || { prId, selected: true, pay: existing.pay || '' }
-          );
+          const prConfigs = activePrIds.map(prId => {
+            if (existingPrMap[prId]) return existingPrMap[prId];
+            const pr = prs.find(p => p.id === prId);
+            const slotIdx = (pr?.eventIds || []).indexOf(ev.id);
+            const isAssigned = slotIdx !== -1;
+            return { prId, selected: isAssigned, pay: isAssigned ? String(pr?.eventPays?.[slotIdx] || '') : (existing.pay || '') };
+          });
           return { ...existing, prConfigs };
         }
+        // Prima inizializzazione: legge lo stato reale da Firestore (eventIds di ogni PR)
+        const prConfigs = activePrIds.map(prId => {
+          const pr = prs.find(p => p.id === prId);
+          const slotIdx = (pr?.eventIds || []).indexOf(ev.id);
+          const isAssigned = slotIdx !== -1;
+          return { prId, selected: isAssigned, pay: isAssigned ? String(pr?.eventPays?.[slotIdx] || '') : '' };
+        });
+        const eventSelected = prConfigs.some(pc => pc.selected);
         return {
-          eventId: ev.id, selected: false, expanded: false, pay: '',
-          prConfigs: activePrIds.map(prId => ({ prId, selected: true, pay: '' }))
+          eventId: ev.id,
+          selected: eventSelected,
+          expanded: false,
+          pay: prConfigs.find(pc => pc.selected)?.pay || '',
+          prConfigs
         };
       });
     });
@@ -970,7 +985,7 @@ const AdminPanel = ({ session, onLogout }) => {
                                             <span className="text-[10px] font-black uppercase truncate">{pr.name}</span>
                                             <span className="text-[8px] opacity-50 font-bold shrink-0">{pr.id}</span>
                                           </button>
-                                          {isChecked && indent && (
+                                          {config.selected && isChecked && indent && (
                                             <div className="flex items-center border-2 border-zinc-500 bg-zinc-900 h-[30px] w-[72px] shrink-0" title="Bonus supervisore per ingresso">
                                               <span className="px-1 text-[8px] font-black text-zinc-500 border-r border-zinc-600 h-full flex items-center shrink-0">SUP</span>
                                               <input
@@ -988,7 +1003,7 @@ const AdminPanel = ({ session, onLogout }) => {
                                               />
                                             </div>
                                           )}
-                                          {isChecked && (
+                                          {config.selected && isChecked && (
                                             <div className="flex items-center border-2 border-[#FFEE00] bg-zinc-800 h-[30px] w-[80px] shrink-0">
                                               <span className="px-1 text-[9px] font-black text-zinc-400 border-r border-zinc-600 h-full flex items-center shrink-0">€</span>
                                               {isPayReadOnly
