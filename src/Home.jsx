@@ -1154,36 +1154,57 @@ const Home = () => {
                   : provEvents.filter(e => e.city === sagreCity);
                 return (
                   <>
-                    {/* Selettore mese */}
-                    <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
-                      {availMonths.map(ym => {
-                        const [y, mo] = ym.split('-');
-                        return (
-                          <button key={ym} onClick={() => { setSagreMonth(ym); setSagreProvince('TUTTI'); setSagreCity('TUTTI'); }}
-                            className={`flex-shrink-0 px-4 py-2.5 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 whitespace-nowrap ${selMonth === ym ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
-                            {IT_MONTHS_LABEL[parseInt(mo) - 1]} {y}
-                          </button>
-                        );
-                      })}
+                    {/* ── Selettore MESE ── */}
+                    <div className="mb-5">
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Mese</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {availMonths.map(ym => {
+                          const [y, mo] = ym.split('-');
+                          const active = selMonth === ym;
+                          return (
+                            <button key={ym} onClick={() => { setSagreMonth(ym); setSagreProvince('TUTTI'); setSagreCity('TUTTI'); }}
+                              className={`py-3.5 rounded-2xl font-black uppercase tracking-wide transition-all active:scale-95 text-center ${active ? 'bg-[#D4AF37] text-black shadow-lg shadow-[#D4AF37]/20' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
+                              <span className="block text-[11px]">{IT_MONTHS_LABEL[parseInt(mo) - 1]}</span>
+                              <span className={`block text-[9px] mt-0.5 ${active ? 'opacity-60' : 'opacity-40'}`}>{y}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    {/* Selettore provincia */}
-                    <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
-                      {availProvs.map(p => (
-                        <button key={p} onClick={() => { setSagreProvince(p); setSagreCity('TUTTI'); }}
-                          className={`flex-shrink-0 px-3 py-2 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 whitespace-nowrap ${sagreProvince === p ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
-                          {p === 'TUTTI' ? 'Tutta la Sicilia' : `${PROV_NAMES[p] || p} (${p})`}
-                        </button>
-                      ))}
+                    {/* ── Selettore PROVINCIA ── */}
+                    <div className="mb-5">
+                      <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Provincia</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {availProvs.map(p => {
+                          const active = sagreProvince === p;
+                          return (
+                            <button key={p} onClick={() => { setSagreProvince(p); setSagreCity('TUTTI'); }}
+                              className={`py-3.5 rounded-2xl font-black transition-all active:scale-95 text-center ${active ? 'bg-white text-black shadow-lg shadow-white/10' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
+                              {p === 'TUTTI' ? (
+                                <span className="block text-[9px] uppercase tracking-wide leading-tight px-1">Tutta<br/>la Sicilia</span>
+                              ) : (
+                                <>
+                                  <span className="block text-[17px] font-black leading-none">{p}</span>
+                                  <span className={`block text-[8px] uppercase tracking-wide mt-0.5 ${active ? 'opacity-60' : 'opacity-40'}`}>{PROV_NAMES[p]}</span>
+                                </>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
-                    {/* Selettore città — solo se provincia selezionata e più di 1 città */}
+                    {/* ── Selettore CITTÀ ── */}
                     {sagreProvince !== 'TUTTI' && availCities.length > 2 && (
-                      <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
-                        {availCities.map(c => (
-                          <button key={c} onClick={() => setSagreCity(c)}
-                            className={`flex-shrink-0 px-3 py-2 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 whitespace-nowrap ${sagreCity === c ? 'bg-zinc-300 text-black' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
-                            {c === 'TUTTI' ? 'Tutte le città' : c}
-                          </button>
-                        ))}
+                      <div className="mb-5">
+                        <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-2 ml-1">Città — {PROV_NAMES[sagreProvince]}</p>
+                        <div className="flex flex-wrap gap-2">
+                          {availCities.map(c => (
+                            <button key={c} onClick={() => setSagreCity(c)}
+                              className={`px-4 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wide transition-all active:scale-95 ${sagreCity === c ? 'bg-zinc-200 text-black' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
+                              {c === 'TUTTI' ? 'Tutte' : c}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
                     {filtered.length === 0 ? (
