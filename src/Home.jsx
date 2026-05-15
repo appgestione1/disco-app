@@ -1136,23 +1136,36 @@ const Home = () => {
                 const todayStr = new Date().toISOString().split('T')[0];
                 const curYM = todayStr.slice(0, 7);
                 const IT_MONTHS_LABEL = ['Gennaio','Febbraio','Marzo','Aprile','Maggio','Giugno','Luglio','Agosto','Settembre','Ottobre','Novembre','Dicembre'];
-                // Mesi disponibili con eventi presenti e non passati
+                const PROV_NAMES = {AG:'Agrigento',CL:'Caltanissetta',CT:'Catania',EN:'Enna',ME:'Messina',PA:'Palermo',RG:'Ragusa',SR:'Siracusa',TP:'Trapani'};
+                // Mesi disponibili (non passati)
                 const availMonths = [...new Set(
                   externalEvents.filter(e => e.date && e.date.slice(0,7) >= curYM).map(e => e.date.slice(0,7))
                 )].sort();
                 const selMonth = sagreMonth && availMonths.includes(sagreMonth) ? sagreMonth : (availMonths[0] || curYM);
-                const filtered = externalEvents.filter(e => e.date && e.date.slice(0,7) === selMonth);
+                // Province disponibili per il mese selezionato
+                const monthEvents = externalEvents.filter(e => e.date && e.date.slice(0,7) === selMonth);
+                const availProvs = ['TUTTI', ...[...new Set(monthEvents.map(e => e.province).filter(Boolean))].sort()];
+                const [sagreProvince, setSagreProvince] = React.useState('TUTTI');
+                const filtered = sagreProvince === 'TUTTI' ? monthEvents : monthEvents.filter(e => e.province === sagreProvince);
                 return (
                   <>
+                    {/* Selettore provincia */}
+                    <div className="flex gap-2 mb-3 overflow-x-auto no-scrollbar pb-1">
+                      {availProvs.map(p => (
+                        <button key={p} onClick={() => setSagreProvince(p)}
+                          className={`flex-shrink-0 px-3 py-2 rounded-xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 whitespace-nowrap ${sagreProvince === p ? 'bg-white text-black' : 'bg-zinc-900 text-zinc-400 border border-white/5'}`}>
+                          {p === 'TUTTI' ? 'Tutta la Sicilia' : `${PROV_NAMES[p] || p} (${p})`}
+                        </button>
+                      ))}
+                    </div>
                     {/* Selettore mese */}
                     <div className="flex gap-2 mb-5 overflow-x-auto no-scrollbar pb-1">
                       {availMonths.map(ym => {
-                        const [y, m] = ym.split('-');
-                        const label = IT_MONTHS_LABEL[parseInt(m) - 1];
+                        const [y, mo] = ym.split('-');
                         return (
-                          <button key={ym} onClick={() => setSagreMonth(ym)}
+                          <button key={ym} onClick={() => { setSagreMonth(ym); setSagreProvince('TUTTI'); }}
                             className={`flex-shrink-0 px-4 py-2.5 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 whitespace-nowrap ${selMonth === ym ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
-                            {label} {y}
+                            {IT_MONTHS_LABEL[parseInt(mo) - 1]} {y}
                           </button>
                         );
                       })}
@@ -1160,22 +1173,22 @@ const Home = () => {
                     {filtered.length === 0 ? (
                       <div className="text-center py-24 opacity-30"><Church size={48} className="mx-auto mb-4" /><p className="text-[10px] font-black uppercase tracking-widest italic">Nessuna sagra disponibile</p></div>
                     ) : (
-                      <div className="flex flex-col gap-5">
+                      <div className="grid grid-cols-2 gap-3">
                         {filtered.map(ev => (
                           <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
-                            className="group rounded-[2rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-[0.98] transition-all">
+                            className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
                             {ev.imageUrl
                               ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[3/4] object-cover object-center" />
-                              : <div className="w-full aspect-[3/4] bg-zinc-800 flex items-center justify-center"><Church size={48} className="text-zinc-600" /></div>
+                              : <div className="w-full aspect-[3/4] bg-zinc-800 flex items-center justify-center"><Church size={32} className="text-zinc-600" /></div>
                             }
-                            <div className="p-5">
-                              <p className="text-base font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                            <div className="p-3">
+                              <p className="text-xs font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
                               {ev.date && (
-                                <p className="text-[#D4AF37] text-sm font-black mt-2">
-                                  {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'long' })}
+                                <p className="text-[#D4AF37] text-[11px] font-black mt-1">
+                                  {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
                                 </p>
                               )}
-                              {ev.city && <p className="text-zinc-400 text-xs font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city}</p>}
+                              {ev.city && <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-0.5 line-clamp-1">{ev.city}{ev.province ? ` (${ev.province})` : ''}</p>}
                             </div>
                           </a>
                         ))}

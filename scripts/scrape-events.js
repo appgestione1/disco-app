@@ -53,6 +53,91 @@ function getArea(text) {
   return CATANIA_KEYWORDS.some(k => t.includes(k)) ? 'catania' : 'sicilia';
 }
 
+// ── Mappatura città → provincia siciliana ─────────────────────────────────────
+const SICILY_PROVINCE = {
+  // AG
+  agrigento:'AG',sciacca:'AG',licata:'AG','canicattì':'AG',canicatti:'AG','porto empedocle':'AG',
+  ribera:'AG',favara:'AG',racalmuto:'AG',naro:'AG','palma di montechiaro':'AG','campobello di licata':'AG',
+  realmonte:'AG',menfi:'AG','santa margherita di belice':'AG','sambuca di sicilia':'AG',
+  'joppolo giancaxio':'AG',montallegro:'AG',cianciana:'AG',cammarata:'AG','san giovanni gemini':'AG',
+  'alessandria della rocca':'AG',bivona:'AG',burgio:'AG',caltabellotta:'AG','cattolica eraclea':'AG',
+  grotte:'AG',montevago:'AG',raffadali:'AG',ravanusa:'AG',siculiana:'AG',aragona:'AG',
+  // CL
+  caltanissetta:'CL',gela:'CL',niscemi:'CL',mussomeli:'CL',riesi:'CL','san cataldo':'CL',
+  serradifalco:'CL',delia:'CL',campofranco:'CL',sutera:'CL',villalba:'CL',milena:'CL',
+  marianopoli:'CL',montedoro:'CL','vallelunga pratameno':'CL',sommatino:'CL',resuttano:'CL',
+  'acquaviva platani':'CL',bompensiere:'CL',butera:'CL',
+  // CT
+  catania:'CT',acireale:'CT',adrano:'CT',belpasso:'CT',biancavilla:'CT',bronte:'CT',
+  caltagirone:'CT','fiumefreddo di sicilia':'CT',fiumefreddo:'CT',giarre:'CT',
+  'gravina di catania':'CT',grammichele:'CT',linguaglossa:'CT',mascali:'CT',mascalucia:'CT',
+  'militello in val di catania':'CT',militello:'CT',misterbianco:'CT',nicolosi:'CT',
+  'paternò':'CT',paterno:'CT','piedimonte etneo':'CT',randazzo:'CT',riposto:'CT',
+  'san giovanni la punta':'CT',trecastagni:'CT','tremestieri etneo':'CT',tremestieri:'CT',
+  valverde:'CT',viagrande:'CT','zafferana etnea':'CT',zafferana:'CT','aci castello':'CT',
+  'aci catena':'CT','aci sant antonio':'CT',acitrezza:'CT','santa venerina':'CT',milo:'CT',
+  'castiglione di sicilia':'CT','licodia eubea':'CT',palagonia:'CT',ramacca:'CT',
+  vizzini:'CT',scordia:'CT',lentini:'CT',carlentini:'CT',francofonte:'CT',mineo:'CT',
+  // EN
+  enna:'EN','piazza armerina':'EN',nicosia:'EN',leonforte:'EN',agira:'EN',troina:'EN',
+  barrafranca:'EN',aidone:'EN',calascibetta:'EN',centuripe:'EN','gagliano castelferrato':'EN',
+  regalbuto:'EN',sperlinga:'EN','valguarnera caropepe':'EN',villarosa:'EN',assoro:'EN',
+  // ME
+  messina:'ME',milazzo:'ME','barcellona pozzo di gotto':'ME',taormina:'ME',patti:'ME',
+  'capo d orlando':'ME',mistretta:'ME','sant agata di militello':'ME','alcara li fusi':'ME',
+  'montalbano elicona':'ME','novara di sicilia':'ME',tortorici:'ME',brolo:'ME',falcone:'ME',
+  furnari:'ME','gioiosa marea':'ME',letojanni:'ME',lipari:'ME',oliveri:'ME','pace del mela':'ME',
+  roccalumera:'ME',rometta:'ME','san marco d alunzio':'ME','san piero patti':'ME',
+  'santa lucia del mela':'ME','terme vigliatore':'ME',tindari:'ME',ucria:'ME',venetico:'ME',
+  'villafranca tirrena':'ME','casalvecchio siculo':'ME',condrò:'ME',condro:'ME',floresta:'ME',
+  'giardini naxos':'ME',gratteri:'ME','gualtieri sicaminò':'ME',itala:'ME',
+  'santa domenica vittoria':'ME','santo stefano di camastra':'ME',savoca:'ME',sinagra:'ME',
+  tripi:'ME',tusa:'ME',
+  // PA
+  palermo:'PA',bagheria:'PA',monreale:'PA',carini:'PA',misilmeri:'PA',casteldaccia:'PA',
+  'termini imerese':'PA',cefalù:'PA',cefalu:'PA',partinico:'PA','piana degli albanesi':'PA',
+  'santa cristina gela':'PA','petralia soprana':'PA','petralia sottana':'PA',
+  'polizzi generosa':'PA',caccamo:'PA',castelbuono:'PA','campofelice di roccella':'PA',
+  'altavilla milicia':'PA',altofonte:'PA','belmonte mezzagno':'PA',bisacquino:'PA',
+  bompietro:'PA',borgetto:'PA',caltavuturo:'PA',campofiorito:'PA','chiusa sclafani':'PA',
+  cinisi:'PA',collesano:'PA','contessa entellina':'PA',corleone:'PA',ficarazzi:'PA',
+  gangi:'PA','geraci siculo':'PA',giuliana:'PA',godrano:'PA',isnello:'PA',
+  'isola delle femmine':'PA',lascari:'PA','lercara friddi':'PA',marineo:'PA',
+  mezzojuso:'PA',montelepre:'PA','palazzo adriano':'PA',pollina:'PA',prizzi:'PA',
+  roccamena:'PA',roccapalumba:'PA','san cipirello':'PA','san giuseppe jato':'PA',
+  'santa flavia':'PA',scillato:'PA','sclafani bagni':'PA',terrasini:'PA',trabia:'PA',
+  trappeto:'PA',ustica:'PA',valledolmo:'PA','ventimiglia di sicilia':'PA',vicari:'PA',
+  villabate:'PA',villafrati:'PA',capaci:'PA',blufi:'PA',alia:'PA',alimena:'PA',aliminusa:'PA',
+  bolognetta:'PA',
+  // RG
+  ragusa:'RG',modica:'RG',vittoria:'RG',comiso:'RG',ispica:'RG',scicli:'RG',pozzallo:'RG',
+  'chiaramonte gulfi':'RG',acate:'RG','monterosso almo':'RG',giarratana:'RG',
+  'santa croce camerina':'RG',
+  // SR
+  siracusa:'SR',noto:'SR',avola:'SR',pachino:'SR',floridia:'SR',solarino:'SR',sortino:'SR',
+  melilli:'SR','priolo gargallo':'SR',augusta:'SR','palazzolo acreide':'SR',
+  'canicattini bagni':'SR',cassaro:'SR',buscemi:'SR',buccheri:'SR',ferla:'SR',rosolini:'SR',
+  'inverdurata pachino':'SR',
+  // TP
+  trapani:'TP',marsala:'TP','mazara del vallo':'TP',alcamo:'TP',castelvetrano:'TP',
+  'campobello di mazara':'TP',salemi:'TP',partanna:'TP','santa ninfa':'TP',
+  'calatafimi segesta':'TP',calatafimi:'TP','castellammare del golfo':'TP',custonaci:'TP',
+  erice:'TP',favignana:'TP',gibellina:'TP',pantelleria:'TP',petrosino:'TP',poggioreale:'TP',
+  salaparuta:'TP','san vito lo capo':'TP',valderice:'TP',vita:'TP',dattilo:'TP',paceco:'TP',
+};
+
+const PROVINCE_NAMES = {
+  AG:'Agrigento', CL:'Caltanissetta', CT:'Catania', EN:'Enna',
+  ME:'Messina', PA:'Palermo', RG:'Ragusa', SR:'Siracusa', TP:'Trapani',
+};
+
+function getProvince(city) {
+  if (!city) return null;
+  const c = city.toLowerCase().replace(/[àáâ]/g,'a').replace(/[èéê]/g,'e')
+    .replace(/[ìíî]/g,'i').replace(/[òóô]/g,'o').replace(/[ùúû]/g,'u').trim();
+  return SICILY_PROVINCE[c] || null;
+}
+
 // ── Normalizzazione categoria → CONCERTI o TEATRO ────────────────────────────
 const TEATRO_KEYWORDS = ['teatro', 'theatre', 'spettacolo', 'musical', 'opera', 'danza', 'balletto', 'commedia', 'recital'];
 const CONCERTI_KEYWORDS = ['concer', 'music', 'live', 'festival', 'tour', 'band', 'rock', 'pop', 'jazz', 'electronic', 'dj'];
@@ -348,6 +433,7 @@ async function scrapeVivaSiciliaMonth(monthIdx, year) {
     const city = afterDate.split(/\s{2,}/)[0]?.trim() || title.match(/[–\-]\s*(.+)$/)?.[1]?.trim() || null;
 
     const slug = eventUrl.slice(VS_BASE.length + 1).replace(/\/$/, '');
+    const province = getProvince(city);
     events.push({
       id: `vs_${slug.replace(/[^a-z0-9]/gi, '_')}`,
       title,
@@ -358,6 +444,7 @@ async function scrapeVivaSiciliaMonth(monthIdx, year) {
       time: null,
       venue: city || null,
       city: city || null,
+      province: province || null,
       price: null,
       source: 'VIVASICILIA',
       category: 'SAGRE',
