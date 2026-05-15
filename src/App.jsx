@@ -164,43 +164,51 @@ const PRDashboard = () => {
 
           if (isMasterFlag) {
             setIsMaster(true);
-            const allSnap = await getDocs(collection(db, "prs_registry"));
-            const allPrDocs = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
-
-            // PR inglobati (sezione MASTER)
-            const candidates = allPrDocs.filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
-            const visible = [];
-            for (const p of candidates) {
-              if (!p.masterClearedAt) {
-                visible.push(p);
-              } else {
-                const snap = await getDocs(query(
-                  collection(db, "tickets"),
-                  where("prId", "==", p.id),
-                  where("used", "==", true),
-                  where("timestamp", ">", p.masterClearedAt)
-                ));
-                if (snap.size > 0) visible.push(p);
-              }
-            }
-            setMergedPrs(visible);
-
-            // Raccoglie eventTitles da tutti i PR (con groupId) per storico serate
-            allPrGroupEventTitles = {};
-            allPrDocs.forEach(p => {
-              if (p.eventTitles) {
-                Object.entries(p.eventTitles).forEach(([evId, title]) => {
-                  if (!allPrGroupEventTitles[evId]) allPrGroupEventTitles[evId] = { title, groupId: p.groupId || null };
-                });
-              }
-            });
-            // Carica nomi gruppi (fallibile senza bloccare il fetch principale)
             try {
-              const groupsSnap = await getDocs(collection(db, "groups"));
-              const gNames = {};
-              groupsSnap.docs.forEach(d => { gNames[d.id] = d.data().name || d.id; });
-              setGroupNames(gNames);
-            } catch (_) { /* nomi gruppi non disponibili, mostra groupId grezzo */ }
+              const allSnap = await getDocs(collection(db, "prs_registry"));
+              const allPrDocs = allSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+              // PR inglobati — query semplice (no indice composito), filtro timestamp in JS
+              const candidates = allPrDocs.filter(p => p.mergedInto && String(p.mergedInto).startsWith("MASTER") && p.id !== prId);
+              const visible = [];
+              for (const p of candidates) {
+                if (!p.masterClearedAt) {
+                  visible.push(p);
+                } else {
+                  try {
+                    const snap = await getDocs(query(collection(db, "tickets"), where("prId", "==", p.id)));
+                    const clearedAt = p.masterClearedAt?.toDate ? p.masterClearedAt.toDate() : null;
+                    const hasNew = snap.docs.some(d => {
+                      const t = d.data();
+                      if (!t.used) return false;
+                      const ts = t.timestamp?.toDate ? t.timestamp.toDate() : null;
+                      return clearedAt ? (ts && ts > clearedAt) : true;
+                    });
+                    if (hasNew) visible.push(p);
+                  } catch (_) { visible.push(p); }
+                }
+              }
+              setMergedPrs(visible);
+
+              // Raccoglie eventTitles da tutti i PR (con groupId) per storico serate
+              allPrDocs.forEach(p => {
+                if (p.eventTitles) {
+                  Object.entries(p.eventTitles).forEach(([evId, title]) => {
+                    if (!allPrGroupEventTitles[evId]) allPrGroupEventTitles[evId] = { title, groupId: p.groupId || null };
+                  });
+                }
+              });
+
+              // Carica nomi gruppi
+              try {
+                const groupsSnap = await getDocs(collection(db, "groups"));
+                const gNames = {};
+                groupsSnap.docs.forEach(d => { gNames[d.id] = d.data().name || d.id; });
+                setGroupNames(gNames);
+              } catch (_) {}
+            } catch (masterErr) {
+              console.error("MASTER init parziale:", masterErr);
+            }
           }
         } else {
           setPrName(prId);
