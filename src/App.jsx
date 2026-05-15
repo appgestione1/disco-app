@@ -362,20 +362,21 @@ const PRDashboard = () => {
 
       {/* SELETTORE GRUPPO — solo MASTER con più gruppi */}
       {isMaster && masterGroupIds.length > 1 && (
-        <div className="px-6 pt-4 pb-2 flex gap-2 overflow-x-auto max-w-md mx-auto">
-          <button
-            onClick={() => handleGroupChange("all")}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-black tracking-widest border transition-all ${
-              selectedGroupId === "all" ? "bg-[#D4AF37] text-black border-[#D4AF37]" : "bg-zinc-900 text-zinc-400 border-white/10"
-            }`}
-          >TUTTI</button>
-          {masterGroupIds.map(gid => (
-            <button key={gid} onClick={() => handleGroupChange(gid)}
-              className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-black tracking-widest border transition-all ${
-                selectedGroupId === gid ? "bg-[#D4AF37] text-black border-[#D4AF37]" : "bg-zinc-900 text-zinc-400 border-white/10"
-              }`}
-            >{groupNames[gid] || (gid === '_none' ? 'SENZA GRUPPO' : gid)}</button>
-          ))}
+        <div className="px-6 pt-4 pb-2 max-w-md mx-auto">
+          <div className="relative">
+            <select
+              className="w-full p-4 bg-zinc-900 border border-white/10 rounded-2xl text-white font-black outline-none appearance-none focus:border-[#D4AF37]"
+              value={selectedGroupId}
+              onChange={e => handleGroupChange(e.target.value)}
+            >
+              <option value="all">TUTTI I GRUPPI</option>
+              {masterGroupIds.map(gid => (
+                <option key={gid} value={gid}>
+                  {groupNames[gid] || (gid === '_none' ? 'SENZA GRUPPO' : gid)}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
