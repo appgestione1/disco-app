@@ -146,6 +146,7 @@ const PRDashboard = () => {
   const [prFullData, setPrFullData] = useState({});
   const [allTickets, setAllTickets] = useState([]);
   const [groupNames, setGroupNames] = useState({});
+  const [selectedGroupId, setSelectedGroupId] = useState("all");
 
   useEffect(() => {
     const fetchPrAndEvents = async () => {
@@ -323,6 +324,20 @@ const PRDashboard = () => {
     return !tDate || tDate > lastReset;
   };
 
+  const masterGroupIds = isMaster
+    ? [...new Set(assignedEvents.map(ev => ev.groupId || '_none'))]
+    : [];
+
+  const filteredEvents = isMaster && selectedGroupId !== "all"
+    ? assignedEvents.filter(ev => (ev.groupId || '_none') === selectedGroupId)
+    : assignedEvents;
+
+  const handleGroupChange = (gid) => {
+    setSelectedGroupId(gid);
+    const evs = gid === "all" ? assignedEvents : assignedEvents.filter(ev => (ev.groupId || '_none') === gid);
+    if (evs.length > 0) setSelectedEventId(evs[0].id);
+  };
+
   if (loading) return (
     <div className="min-h-screen bg-black flex items-center justify-center font-black text-[#D4AF37] uppercase tracking-widest">
       Sincronizzazione Dashboard...
@@ -345,8 +360,27 @@ const PRDashboard = () => {
         <div className="w-6"></div>
       </div>
 
+      {/* SELETTORE GRUPPO — solo MASTER con più gruppi */}
+      {isMaster && masterGroupIds.length > 1 && (
+        <div className="px-6 pt-4 pb-2 flex gap-2 overflow-x-auto max-w-md mx-auto">
+          <button
+            onClick={() => handleGroupChange("all")}
+            className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-black tracking-widest border transition-all ${
+              selectedGroupId === "all" ? "bg-[#D4AF37] text-black border-[#D4AF37]" : "bg-zinc-900 text-zinc-400 border-white/10"
+            }`}
+          >TUTTI</button>
+          {masterGroupIds.map(gid => (
+            <button key={gid} onClick={() => handleGroupChange(gid)}
+              className={`flex-shrink-0 px-4 py-2 rounded-full text-[10px] font-black tracking-widest border transition-all ${
+                selectedGroupId === gid ? "bg-[#D4AF37] text-black border-[#D4AF37]" : "bg-zinc-900 text-zinc-400 border-white/10"
+              }`}
+            >{groupNames[gid] || (gid === '_none' ? 'SENZA GRUPPO' : gid)}</button>
+          ))}
+        </div>
+      )}
+
       <div className="p-6 max-w-md mx-auto space-y-4">
-        
+
         {/* PULSANTE INGRESSI (Uniformato agli altri) */}
         <button 
           onClick={() => toggleSection('ingressi')}
@@ -366,18 +400,18 @@ const PRDashboard = () => {
         {/* AREA INGRESSI (CONTENUTO) */}
         {activeSection === 'ingressi' && (
           <div className="animate-in slide-in-from-top-10 duration-500 space-y-6 pb-4 pt-2">
-            {assignedEvents.length > 0 ? (
+            {filteredEvents.length > 0 ? (
               <>
                 <div className="space-y-2 text-left">
                   <label className="text-[10px] text-zinc-500 tracking-widest ml-2">SELEZIONA SERATA</label>
                   <div className="relative">
                     <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-[#D4AF37]" size={18} />
-                    <select 
+                    <select
                       className="w-full p-5 pl-12 bg-zinc-900 border border-white/10 rounded-2xl text-white font-black outline-none appearance-none focus:border-[#D4AF37]"
                       value={selectedEventId}
                       onChange={(e) => setSelectedEventId(e.target.value)}
                     >
-                      {assignedEvents.map(ev => (
+                      {filteredEvents.map(ev => (
                         <option key={ev.id} value={ev.id}>{ev.title}</option>
                       ))}
                     </select>
@@ -420,12 +454,12 @@ const PRDashboard = () => {
         {activeSection === 'conteggi' && (
           <div className="animate-in slide-in-from-top-10 duration-500 space-y-4 pb-4 pt-2">
             <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
-              {assignedEvents.length === 0 ? (
+              {filteredEvents.length === 0 ? (
                 <p className="text-zinc-500 text-xs italic text-center p-8">Nessuna serata assegnata.</p>
               ) : isMaster ? (() => {
                 // MASTER: raggruppa eventi per gruppo
                 const byGroup = {};
-                assignedEvents.forEach(ev => {
+                filteredEvents.forEach(ev => {
                   const gid = ev.groupId || '_none';
                   if (!byGroup[gid]) byGroup[gid] = [];
                   byGroup[gid].push(ev);
@@ -469,7 +503,7 @@ const PRDashboard = () => {
                     })}
                   </div>
                 ));
-              })() : assignedEvents.map(ev => {
+              })() : filteredEvents.map(ev => {
                 const evTickets = allTickets.filter(t => t.eventId === ev.id && t.used === true);
                 // PR normale: lista vs privé + calcolo €
                 const evTicketsReset = evTickets.filter(t => afterReset(t, prFullData.lastReset));
@@ -500,9 +534,10 @@ const PRDashboard = () => {
             </div>
 
             {isMaster ? (() => {
-              // MASTER: riepilogo totale orfani e totale gruppo
-              const totaleGruppo = allTickets.filter(t => t.used).length;
-              const orfaniTot = allTickets.filter(t => t.used && t.prId === prId).length;
+              // MASTER: riepilogo filtrato per gli eventi visibili
+              const filteredEvIds = new Set(filteredEvents.map(e => e.id));
+              const totaleGruppo = allTickets.filter(t => t.used && filteredEvIds.has(t.eventId)).length;
+              const orfaniTot = allTickets.filter(t => t.used && t.prId === prId && filteredEvIds.has(t.eventId)).length;
               const tramitePrTot = totaleGruppo - orfaniTot;
               return (
                 <div className="bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden">
@@ -523,7 +558,7 @@ const PRDashboard = () => {
             })() : (() => {
               const bonus = Number(prFullData.supervisorPay) || 0;
               let totale = 0;
-              assignedEvents.forEach(ev => {
+              filteredEvents.forEach(ev => {
                 const slotIdx = (prFullData.eventIds || []).indexOf(ev.id);
                 const fullRate = slotIdx !== -1 ? (Number(prFullData.eventPays?.[slotIdx]) || 0) : 0;
                 const netRate = Math.max(0, fullRate - bonus);
@@ -571,7 +606,7 @@ const PRDashboard = () => {
         {/* AREA ELENCO LISTA */}
         {activeSection === 'elenco' && (
           <div className="animate-in slide-in-from-top-10 duration-500 space-y-3 pb-4 pt-2">
-            {assignedEvents.length > 1 && (
+            {filteredEvents.length > 1 && (
               <div className="space-y-1">
                 <label className="text-[10px] text-zinc-500 tracking-widest ml-2">FILTRA PER SERATA</label>
                 <select
@@ -579,7 +614,7 @@ const PRDashboard = () => {
                   value={selectedEventId}
                   onChange={e => setSelectedEventId(e.target.value)}
                 >
-                  {assignedEvents.map(ev => (
+                  {filteredEvents.map(ev => (
                     <option key={ev.id} value={ev.id}>{ev.title}</option>
                   ))}
                 </select>
@@ -640,7 +675,7 @@ const PRDashboard = () => {
         {/* AREA PRIVE' */}
         {activeSection === 'prive' && (
           <div className="animate-in slide-in-from-top-10 duration-500 space-y-3 pb-4 pt-2">
-            {assignedEvents.length > 1 && (
+            {filteredEvents.length > 1 && (
               <div className="space-y-1">
                 <label className="text-[10px] text-zinc-500 tracking-widest ml-2">FILTRA PER SERATA</label>
                 <select
@@ -648,7 +683,7 @@ const PRDashboard = () => {
                   value={selectedEventId}
                   onChange={e => setSelectedEventId(e.target.value)}
                 >
-                  {assignedEvents.map(ev => (
+                  {filteredEvents.map(ev => (
                     <option key={ev.id} value={ev.id}>{ev.title}</option>
                   ))}
                 </select>
