@@ -1024,9 +1024,24 @@ const Home = () => {
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 
   const handleExit = () => {
-    try { window.open('', '_self', '').close(); } catch (e) {}
-    try { window.close(); } catch (e) {}
-    setTimeout(() => { window.location.href = 'about:blank'; }, 200);
+    // Chiude tutti gli overlay e resetta lo stato
+    setSelectedEvent(null);
+    setSelectedFilm(null);
+    setShowAdminLogin(false);
+    setShowSuperAdminLogin(false);
+    setShowPrAccess(false);
+    setShowPrPasswordModal(false);
+    setShowPopup(false);
+    setBookingMode(null);
+    setTicketId(null);
+    setStep(1);
+    setActiveCategory(null);
+    // Tenta chiusura finestra PWA
+    setTimeout(() => {
+      try { window.close(); } catch (e) {}
+      try { window.open('', '_self', '').close(); } catch (e) {}
+      setTimeout(() => { try { window.location.replace('about:blank'); } catch (e) {} }, 150);
+    }, 80);
   };
 
   // ── HOME / LISTA EVENTI ──
