@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { db } from './firebase';
-import { fetchCinema, fetchConcerti, fetchTeatro, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
+import { fetchCinema, fetchConcerti, fetchTeatro, fetchSagre, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
 import { trackShare, trackCategoryView, trackFilmView, trackPageView } from './analytics';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
-const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI'];
+const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE'];
 
 // ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
 const PRIORITY_CINEMA_IDS = ['cinestar', 'thespaceetnapolis', 'ucicentrosicilia', 'cinemaplanet'];
@@ -455,7 +455,7 @@ const Home = () => {
   const [selectedEventMonth, setSelectedEventMonth] = useState(null);
   const [concertiFilter, setConcertiFilter] = useState('TUTTI'); // 'TUTTI' | 'OGGI' | 'DATA'
   const [selectedConcertiDate, setSelectedConcertiDate] = useState(new Date());
-  const [extendSicilia, setExtendSicilia] = useState(false);
+  const [extendSicilia, setExtendSicilia] = useState(true);
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -478,7 +478,7 @@ const Home = () => {
     { id: 'CONCERTI', label: 'CONCERTI', icon: Mic2 },
     { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE', icon: Sun },
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
-    { id: 'SACRE', label: 'SACRE', icon: Church },
+    { id: 'SAGRE', label: 'SAGRE', icon: Church },
   ];
 
   useEffect(() => { fetchEvents(); fetchPrInfo(); fetchPopup(); trackPageView('home'); }, [prRef]);
@@ -502,7 +502,7 @@ const Home = () => {
         setLoadingExternal(false);
       });
     } else {
-      const fetcher = { TEATRO: fetchTeatro, CONCERTI: fetchConcerti }[activeCategory];
+      const fetcher = { TEATRO: fetchTeatro, CONCERTI: fetchConcerti, SAGRE: fetchSagre }[activeCategory];
       fetcher().then(data => { setExternalEvents(data); setLoadingExternal(false); });
     }
   }, [activeCategory]);
@@ -1213,25 +1213,25 @@ const Home = () => {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-5">
                       {filtered.map(ev => (
                         <a key={ev.id} href={ev.externalUrl} target="_blank" rel="noopener noreferrer"
-                          className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all">
+                          className="group rounded-[2rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-[0.98] transition-all">
                           {ev.imageUrl
-                            ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-video object-cover object-center" />
-                            : <div className="w-full aspect-video bg-zinc-800 flex items-center justify-center">
-                                {activeCategory === 'CONCERTI' ? <Mic2 size={32} className="text-zinc-600" /> : <Theater size={32} className="text-zinc-600" />}
+                            ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[3/4] object-cover object-center" />
+                            : <div className="w-full aspect-[3/4] bg-zinc-800 flex items-center justify-center">
+                                {activeCategory === 'CONCERTI' ? <Mic2 size={48} className="text-zinc-600" /> : <Theater size={48} className="text-zinc-600" />}
                               </div>
                           }
-                          <div className="p-3">
-                            <p className="text-xs font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
+                          <div className="p-5">
+                            <p className="text-base font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
                             {ev.date && (
-                              <p className="text-[#D4AF37] text-[11px] font-black mt-1">
+                              <p className="text-[#D4AF37] text-sm font-black mt-2">
                                 {new Date(ev.date + 'T12:00:00').toLocaleDateString('it-IT', { day: '2-digit', month: 'short' })}
                                 {ev.time ? ` · ${ev.time.slice(0,5)}` : ''}
                               </p>
                             )}
-                            {(ev.city || ev.venue) && <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city || ev.venue}</p>}
+                            {(ev.city || ev.venue) && <p className="text-zinc-400 text-xs font-black uppercase tracking-widest mt-1 line-clamp-1">{ev.city || ev.venue}</p>}
                           </div>
                         </a>
                       ))}

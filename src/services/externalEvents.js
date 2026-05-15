@@ -246,6 +246,12 @@ export async function fetchConcerti() {
   } catch { return []; }
 }
 
+export async function fetchSagre() {
+  const cached = await getCached('SAGRE', EVENTS_TTL);
+  if (cached) return cached;
+  return await getCached('SAGRE', EVENTS_TTL, true) || [];
+}
+
 export async function fetchTeatro() {
   const cached = await getCached('TEATRO', EVENTS_TTL);
   if (cached) return cached;

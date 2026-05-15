@@ -68,6 +68,8 @@ function inferCategory(title, cat) {
 const MONTHS_IT = { gen:0,feb:1,mar:2,apr:3,mag:4,giu:5,lug:6,ago:7,set:8,ott:9,nov:10,dic:11 };
 const MONTHS_EN = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
 
+const MONTHS_IT_FULL = { gennaio:0, febbraio:1, marzo:2, aprile:3, maggio:4, giugno:5, luglio:6, agosto:7, settembre:8, ottobre:9, novembre:10, dicembre:11 };
+
 function parseDate(str) {
   if (!str) return null;
   // ISO: 2026-05-15
@@ -76,6 +78,12 @@ function parseDate(str) {
   // DD/MM/YYYY
   const dmy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
   if (dmy) return `${dmy[3]}-${dmy[2].padStart(2,'0')}-${dmy[1].padStart(2,'0')}`;
+  // "16 Maggio 2026" — nome mese completo con anno
+  const itFull = str.match(/(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})/i);
+  if (itFull) {
+    const month = MONTHS_IT_FULL[itFull[2].toLowerCase()];
+    if (month !== undefined) return `${itFull[3]}-${String(month + 1).padStart(2, '0')}-${String(parseInt(itFull[1])).padStart(2, '0')}`;
+  }
   // "7 mag" / "May 7"
   const m = str.match(/(\d{1,2})\s+([a-zà-ú]{3,})/i) || str.match(/([a-zà-ú]{3,})\s+(\d{1,2})/i);
   if (m) {
@@ -293,6 +301,122 @@ async function scrapePuntoeacapo() {
   return events;
 }
 
+// ── Scraper VivaSicilia.com (sagre ed eventi) ─────────────────────────────────
+async function scrapeVivaSicilia() {
+  const BASE = 'https://www.vivasicilia.com';
+  const LISTING = `${BASE}/sagre-in-sicilia/`;
+  const listRes = await fetch(LISTING, { headers: HEADERS });
+  if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
+  const listHtml = await listRes.text();
+  const $ = cheerio.load(listHtml);
+
+  const seen = new Set();
+  const candidates = [];
+
+  // Le card evento hanno sempre un <img> come figlio diretto o in un <a> immagine separato
+  // Cerco coppie img+link nelle strutture card tipiche di WordPress
+  $('a[href]').each((_, el) => {
+    const $a = $(el);
+    const href = $a.attr('href') || '';
+    const url = href.startsWith('/') ? `${BASE}${href}` : href;
+    if (!url.startsWith(BASE)) return;
+    const path = url.slice(BASE.length);
+    // Deve essere un percorso semplice di primo livello (slug diretto, nessuna sottocartella)
+    if (!/^\/[a-z0-9][a-z0-9\-]+(\/)?$/.test(path)) return;
+    if (seen.has(url)) return;
+
+    // Solo link con immagine diretta figlia = card evento (i link nav non hanno img)
+    const $img = $a.find('img').first();
+    if (!$img.length) return;
+
+    const imageUrl = $img.attr('src') || $img.attr('data-src') || null;
+    const title = $img.attr('alt') || $a.attr('title') || $a.text().replace(/\s+/g, ' ').trim() || '';
+    if (title.length < 5) return;
+
+    seen.add(url);
+    candidates.push({ url, imageUrl, title });
+  });
+
+  console.log(`  VivaSicilia listing: ${candidates.length} eventi trovati`);
+
+  const events = [];
+  for (const c of candidates.slice(0, 30)) {
+    try {
+      await delay(700);
+      const pageRes = await fetch(c.url, { headers: HEADERS });
+      if (!pageRes.ok) continue;
+      const pageHtml = await pageRes.text();
+      const $p = cheerio.load(pageHtml);
+
+      let startDate = null;
+      let venue = null;
+
+      // 1. abbr[title] con data ISO (plugin The Events Calendar)
+      $p('abbr[title]').each((_, el) => {
+        const t = $p(el).attr('title') || '';
+        if (!startDate && /^\d{4}-\d{2}-\d{2}/.test(t)) startDate = t.slice(0, 10);
+      });
+
+      // 2. time[datetime]
+      if (!startDate) {
+        const dt = $p('time[datetime]').first().attr('datetime') || '';
+        if (dt) startDate = parseDate(dt);
+      }
+
+      // 3. li/dd/td — VivaSicilia non usa il ":" come separatore tra label e valore
+      $p('li, dd, td').each((_, el) => {
+        const text = $p(el).text().trim();
+        if (!startDate && /^start date/i.test(text))
+          startDate = parseDate(text.replace(/^start date:?\s*/i, ''));
+        if (!startDate && /^data inizio|^inizio/i.test(text))
+          startDate = parseDate(text.replace(/^[a-z\s]+:?\s*/i, ''));
+        if (!venue && /^venue/i.test(text))
+          venue = text.replace(/^venue:?\s*/i, '').trim().split('\n')[0].trim();
+        if (!venue && /^luogo|^location|^dove/i.test(text))
+          venue = text.replace(/^[a-z]+:?\s*/i, '').trim().split('\n')[0].trim();
+      });
+
+      // 4. data italiana nel testo della pagina
+      if (!startDate) {
+        const bodyText = $p('main, article, .entry-content, body').first().text();
+        const m = bodyText.match(/(\d{1,2})\s+(gennaio|febbraio|marzo|aprile|maggio|giugno|luglio|agosto|settembre|ottobre|novembre|dicembre)\s+(\d{4})/i);
+        if (m) {
+          const month = MONTHS_IT_FULL[m[2].toLowerCase()];
+          if (month !== undefined) startDate = `${m[3]}-${String(month + 1).padStart(2, '0')}-${String(parseInt(m[1])).padStart(2, '0')}`;
+        }
+      }
+
+      // 5. og:image come immagine migliore
+      const ogImage = $p('meta[property="og:image"]').attr('content') || null;
+      const imageUrl = ogImage || c.imageUrl;
+
+      // Città: dal venue, o dalla parte dopo "–" nel titolo
+      const city = venue || (c.title.match(/[–\-]\s*(.+)$/)?.[1]?.trim()) || null;
+      const slug = c.url.slice(BASE.length + 1).replace(/\/$/, '');
+
+      events.push({
+        id: `vs_${slug.replace(/[^a-z0-9]/gi, '_')}`,
+        title: c.title,
+        description: '',
+        imageUrl,
+        externalUrl: c.url,
+        date: startDate,
+        time: null,
+        venue: venue || null,
+        city: city || null,
+        price: null,
+        source: 'VIVASICILIA',
+        category: 'SAGRE',
+        area: getArea(city || c.title),
+      });
+    } catch (e) {
+      console.log(`  ✗ ${c.url}: ${e.message}`);
+    }
+  }
+
+  return events;
+}
+
 // ── Salvataggio Firestore (non sovrascrive con 0 se la cache esistente ha dati) ──
 async function saveToFirestore(category, events) {
   if (!events.length) {
@@ -377,10 +501,22 @@ async function main() {
     await delay(2000);
   }
 
-  // ── 3. Salvataggio ────────────────────────────────────────────────────────
+  // ── 4. VivaSicilia (sagre ed eventi) ────────────────────────────────────
+  const allSagre = [];
+  process.stdout.write('\nVivaSicilia.com: fetch listing... ');
+  try {
+    const sagre = await scrapeVivaSicilia();
+    console.log(`${sagre.length} eventi`);
+    allSagre.push(...sagre);
+  } catch (e) {
+    console.log(`✗ ${e.message}`);
+  }
+
+  // ── 5. Salvataggio ────────────────────────────────────────────────────────
   console.log('\n=== Salvataggio Firestore ===');
   await saveToFirestore('CONCERTI', allConcerti);
   await saveToFirestore('TEATRO',   allTeatro);
+  await saveToFirestore('SAGRE',    allSagre);
 }
 
 main().then(() => process.exit(0)).catch(e => { console.error(e); process.exit(1); });
