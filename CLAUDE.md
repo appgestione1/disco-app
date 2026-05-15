@@ -2,14 +2,15 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 14/05/2026 — commit `38a7016`**
+> **Ultimo aggiornamento: 15/05/2026 — commit `4ec564c`**
 
 ---
 
 ## Cos'è
 
 Webapp gestionale per eventi/discoteca — portale eventi locale per Catania e provincia.
-Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboard PR, e mostrare cinema/concerti/teatro locali.
+Nome app (PWA): **EVENT**
+Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboard PR, e mostrare cinema/concerti/teatro/sagre locali.
 
 **Deploy:** Vercel — repo `appgestione1/disco-app`, branch `main`
 **Dev server:** `npm run dev -- --host` → `http://192.168.1.86:5173` dal cellulare/tablet
@@ -35,6 +36,52 @@ Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboar
 | `/admin-segreto-stefano` | `Admin.jsx` | Admin (login gruppo) |
 | `/super-control-room` | `SuperAdmin.jsx` | SuperAdmin (7 click lucchetto + password "superadmin") |
 | `/proponi-evento` | `SubmitEvent.jsx` | Pubblico |
+
+---
+
+## Categorie Home (`Home.jsx`)
+
+Ordine attuale nel grid:
+1. DISCOTECA
+2. TEATRO
+3. CINEMA
+4. CONCERTI
+5. ARENE ESTIVE
+6. LOUNGE/PUB
+7. SAGRE
+8. ALTRO (id: `TUTTI`)
+
+`EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE']` — dati da API/scraper, non da Firestore eventi.
+
+---
+
+## Sezione SAGRE (`Home.jsx`)
+
+- Dati da `external_events_cache/SAGRE_v6` (TTL 26h)
+- Scraper `scripts/scrape-events.js` → `scrapeVivaSicilia()` — 6 mesi da vivasicilia.com
+- GitHub Actions `scrape-events.yml`: `30 5 * * *` (7:30 IT)
+- Ogni evento ha: `id, title, imageUrl, externalUrl, date, city, province, source:'VIVASICILIA', category:'SAGRE'`
+- **Filtri UI**: `<select>` compatti — Mese + Provincia (in riga) + Città (sotto, solo se provincia selezionata)
+- **Layout**: 1 colonna, immagini `h-auto object-contain` (adattive all'aspect ratio reale)
+- **Province mapping** in `scrape-events.js`: `SICILY_PROVINCE` + `getProvince()` con partial-match fallback
+- **Stati Home**: `sagreMonth`, `sagreProvince`, `sagreCity`
+
+---
+
+## Sezione CONCERTI & TEATRO (`Home.jsx`)
+
+- 1 colonna, immagini `h-auto object-contain` (adattive)
+- Filtri: TUTTI / OGGI / DATA + toggle area geografica (Catania / Tutta Sicilia)
+- Cache `CONCERTI_v6` e `TEATRO_v6` (TTL 26h)
+
+---
+
+## Sezione ARENE ESTIVE (`Home.jsx`)
+
+- Dati da Firestore `events` con `category: 'ARENE ESTIVE'`
+- Selettore arena compatto (`<select>`) — appare solo in questa categoria
+- Arene hardcoded: Arena Adua, Arena Argentina, Arena Corsaro, Villa Bellini, Arena Moderno, Arena Giardino
+- Filtro per `ev.location.toLowerCase().includes(arenaId)` — l'admin imposta il campo Luogo nell'evento
 
 ---
 
@@ -107,7 +154,10 @@ Form **+ NUOVO COLLABORATORE** collassabile (chiuso di default):
 - `calculatePrFinancials` / `calculatePrFinancialsForEvent`: tariffa netta = `eventPay - supervisorPay`
 - Il supervisore riceve +`supervisorPay` × ingressi del sub-PR come bonus
 
-**Tab SERATE (`events`)** — form pubblica nuova serata + grid card eventi con toggle annulla/riattiva
+**Tab SERATE (`events`):**
+- Header "PUBBLICA NUOVO EVENTO" collassabile (chiuso di default, `showEventForm` state)
+- Tipologie selezionabili: DISCOTECA · LOUNGE/PUB · CONCERTI · TEATRO · ALTRO
+- Campi: Nome Evento, Tipologia, Data, Luogo/Location, Info & Listino prezzi, Foto locandina
 
 **Tab SPONSOR (`sponsors`)** — placeholder "sezione in aggiornamento" (popup gestito da SuperAdmin)
 
@@ -162,7 +212,7 @@ Tutti i dati filtrati per `groupId`.
 
 ## Sezione Cinema (`Home.jsx`)
 
-- TMDB `now_playing` → cache `external_events_cache/CINEMA_v4` (TTL 6h)
+- TMDB `now_playing` → cache `external_events_cache/CINEMA_v6` (TTL 6h)
 - Film locali → `showtimes/{today}` + enrichment TMDB search
 - FilmDetail: 7 chip date, ordinamento cinema, orari futuri, link acquisto diretto (The Space `/film/slug`, UCI), bottone attivo solo se orari disponibili
 - Scraper `scrape-showtimes.js`: mymovies.it, GitHub Actions `0 5 * * *` (7:00 IT)
@@ -190,16 +240,6 @@ Tutti i dati filtrati per `groupId`.
 
 ---
 
-## Sezioni Concerti & Teatro (`Home.jsx`)
-
-- Griglia 2 colonne, filtri TUTTI/OGGI/DATA
-- Cache `external_events_cache/CONCERTI_v4` e `TEATRO_v4` (TTL 26h)
-- Scraper `scrape-events.js`: AWIN (4 feed) → fallback Eventbrite → fallback Ticketmaster
-- GitHub Actions `scrape-events.yml`: `30 5 * * *` (7:30 IT)
-- Segreti AWIN su GitHub Actions: **da aggiungere quando arrivano i feed**
-
----
-
 ## Analytics (`src/analytics.js`)
 
 - Tracking su Firestore + GA4 (`G-9XS7FT5ZV1`, tag in `index.html`)
@@ -213,7 +253,7 @@ Tutti i dati filtrati per `groupId`.
 | Collection | Contenuto |
 |---|---|
 | `groups/{groupId}` | name, type, password, commissions |
-| `events` | Serate (campo `groupId`) |
+| `events` | Serate/eventi (campo `groupId`, `category`, `location`) |
 | `tickets` | QR generati — campi: prId, eventId, customerName, customerPhone, used, timestamp, type, guestCount |
 | `prs_registry` | PR con eventIds, eventPays, eventTitles, lastReset, acconto, supervisorId, supervisorPay, mergedInto, redirectTo, masterClearedAt |
 | `prs` | Contatori ingressi live |
@@ -221,12 +261,22 @@ Tutti i dati filtrati per `groupId`.
 | `settings/admin` | Password admin |
 | `settings/prCounter` | `{ lastId: number }` — contatore globale ID PR (non resettabile) |
 | `settings/eventSubmission` | Prezzo proposta evento |
-| `external_events_cache/CINEMA_v4` | Cache film (6h) |
-| `external_events_cache/CONCERTI_v4` | Cache concerti (26h) |
-| `external_events_cache/TEATRO_v4` | Cache teatro (26h) |
+| `external_events_cache/CINEMA_v6` | Cache film (6h) |
+| `external_events_cache/CONCERTI_v6` | Cache concerti (26h) |
+| `external_events_cache/TEATRO_v6` | Cache teatro (26h) |
+| `external_events_cache/SAGRE_v6` | Cache sagre vivasicilia (26h) |
 | `showtimes/{YYYY-MM-DD}` | Orari cinema per data |
 | `analytics/{date}` | Dati analytics giornalieri |
 | `settings/popup` | Config popup pubblicitario (imageUrl, videoUrl) |
+
+---
+
+## PWA / Icona / Nome
+
+- Nome app: **EVENT** (manifest.json + apple-mobile-web-app-title)
+- Icona: `public/icon.svg` — stella 4 punte (sparkle) con bagliore dorato su sfondo nero
+- Favicon: `public/favicon.svg` (identica a icon.svg)
+- `handleExit` in Home.jsx: resetta tutti gli overlay + tenta window.close() + fallback about:blank
 
 ---
 
@@ -254,22 +304,17 @@ Tutti i dati filtrati per `groupId`.
 - [ ] Chiave Ticketmaster (`VITE_TICKETMASTER_API_KEY`) su Vercel
 - [ ] Segreti AWIN su GitHub Actions quando arrivano i feed
 - [ ] Ottimizzazione grafica Admin mobile (tab DATI LIVE, SERATE)
-- [ ] `filmsWithShowtimesToday` in `Home.jsx` — verificare se logica completa
 - [ ] PRDashboard — verificare funzionamento su Vercel produzione (MASTER storico serate)
-- [x] Upload video da dispositivo nel popup (chunk sequenziali Firestore, file grandi supportati)
-- [x] Embed video Facebook nel popup (iframe plugins/video.php, solo video pubblici)
-- [x] Scraper puntoeacapo.uno teatro (selettori aggiornati alla nuova struttura HTML)
-- [x] Sistema popup pubblicitario apertura app
-- [x] Setup Rapido Serate — real-time, flag serata/evento
-- [x] Card PR collassabili, griglia azioni 2×2, INVIA LINK APP WhatsApp
-- [x] Modal SOSTITUISCI — 3 sezioni
-- [x] Collaboratori Archiviati (mergedInto)
-- [x] Security Vault (RESET PR + RESET SERATE)
-- [x] Commissioni Master 8 voci
-- [x] Redirect automatico link PR licenziati (redirectTo + fallback MASTER)
-- [x] PR INGLOBATI nella pagina MASTER (ingressi, SVUOTA LISTA, ricomparsa automatica)
-- [x] Contatore PR globale settings/prCounter (4 cifre, atomico, sopravvive a reset)
-- [x] Licenziamento PR: dialog semplificato + redirectTo automatico
+- [ ] Valutare dominio personalizzato (es. eventcatania.it) per nascondere URL Vercel
+- [x] Sezione SAGRE con scraper vivasicilia.com (6 mesi, province + città)
+- [x] SAGRE: filtri compatti <select> mese/provincia/città + layout 1 colonna adattivo
+- [x] TEATRO/CONCERTI: layout 1 colonna, immagini adattive h-auto
+- [x] ARENE ESTIVE: selettore arena compatto con 6 arene catanesi
+- [x] Categorie Home: ALTRO (ex TUTTI) spostato dopo SAGRE
+- [x] Admin SERATE: form "PUBBLICA NUOVO EVENTO" collassabile + tipologie DISCOTECA/LOUNGE-PUB/CONCERTI/TEATRO/ALTRO
+- [x] Icona PWA: stella 4 punte gold su nero (rimpiazza fulmine viola)
+- [x] Nome app: EVENT (era DiscoEntry)
+- [x] handleExit: chiude tutti gli overlay prima di tentare window.close()
 
 ---
 
@@ -277,7 +322,8 @@ Tutti i dati filtrati per `groupId`.
 
 ```bash
 cd C:/Users/stefa/disco-app
-npm run dev -- --host          # dev server (accessibile da cellulare/tablet)
+npm run dev -- --host              # dev server (accessibile da cellulare/tablet)
 node scripts/scrape-showtimes.js   # run manuale scraper cinema
-node scripts/scrape-events.js      # run manuale scraper concerti/teatro
+node scripts/scrape-events.js      # run manuale scraper concerti/teatro/sagre
+gh workflow run scrape-events.yml --repo appgestione1/disco-app  # trigger GitHub Actions
 ```
