@@ -1,6 +1,6 @@
 {
-  "name": "Disco Entry App",
-  "short_name": "DiscoEntry",
+  "name": "EVENT",
+  "short_name": "EVENT",
   "description": "Portale eventi notturni — Catania e provincia",
   "start_url": "/",
   "display": "standalone",
