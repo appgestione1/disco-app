@@ -179,11 +179,16 @@ const AdminPanel = ({ session, onLogout }) => {
 
   const [eventForm, setEventForm] = useState({ title: '', date: '', description: '', category: 'DISCOTECA', location: '' });
   const [selectedFile, setSelectedFile] = useState(null);
+  const [showEventForm, setShowEventForm] = useState(false);
 
-
-  const categories = session.groupType === 'LOUNGE/PUB'
-    ? [{ id: 'PUB', label: 'LOUNGE/PUB' }]
-    : [{ id: 'DISCOTECA', label: 'DISCOTECA' }];
+  const categories = [
+    { id: 'DISCOTECA',    label: 'DISCOTECA' },
+    { id: 'CONCERTI',     label: 'CONCERTI' },
+    { id: 'TEATRO',       label: 'TEATRO' },
+    { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE' },
+    { id: 'PUB',          label: 'LOUNGE / PUB' },
+    { id: 'TUTTI',        label: 'ALTRO' },
+  ];
 
   useEffect(() => { fetchData(); }, []);
 
@@ -1273,9 +1278,14 @@ const AdminPanel = ({ session, onLogout }) => {
         {/* TAB 3: GESTIONE SERATE */}
         {activeTab === 'events' && (
           <div className="animate-in fade-in duration-300">
-             <form onSubmit={handleAddEvent} className="bg-black text-white p-6 mb-10 shadow-[8px_8px_0px_#FFEE00]">
-               <h2 className="text-xl font-black mb-4 flex items-center gap-2 text-[#FFEE00] uppercase italic"><Plus/> Pubblica Nuova Serata</h2>
-               
+             <div className="bg-black text-white mb-10 shadow-[8px_8px_0px_#FFEE00]">
+               <button type="button" onClick={() => setShowEventForm(v => !v)}
+                 className="w-full p-6 flex items-center justify-between text-[#FFEE00] uppercase italic font-black text-xl">
+                 <span className="flex items-center gap-2"><Plus size={20}/> Pubblica Nuova Serata</span>
+                 <span className={`transition-transform duration-300 ${showEventForm ? 'rotate-180' : ''}`}>▼</span>
+               </button>
+             {showEventForm && (
+             <form onSubmit={handleAddEvent} className="px-6 pb-6">
                <div className="grid grid-cols-1 gap-4 uppercase">
                  <div className="border-4 border-dashed border-zinc-700 p-4 text-center relative hover:bg-zinc-900 transition-colors cursor-pointer min-h-[100px] flex items-center justify-center">
                    <input type="file" className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-50" accept="image/*" onChange={(e) => setSelectedFile(e.target.files[0])} />
@@ -1329,6 +1339,8 @@ const AdminPanel = ({ session, onLogout }) => {
                  <button type="submit" disabled={loading} className={`bg-[#FFEE00] text-black font-black py-4 mt-2 text-2xl uppercase italic shadow-[4px_4px_0px_#FFF] ${loading ? 'opacity-50' : 'hover:scale-[1.01] transition-transform'}`}>{loading ? 'PUBBLICAZIONE...' : 'CONFERMA E PUBBLICA'}</button>
                </div>
              </form>
+             )}
+             </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                {events.map(ev => (
