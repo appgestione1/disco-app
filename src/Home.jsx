@@ -475,7 +475,6 @@ const Home = () => {
   const popupRef = useRef(null);
 
   const categories = [
-    { id: 'TUTTI', label: 'TUTTI GLI EVENTI', icon: LayoutGrid },
     { id: 'DISCOTECA', label: 'DISCOTECA', icon: Music },
     { id: 'TEATRO', label: 'TEATRO', icon: Theater },
     { id: 'CINEMA', label: 'CINEMA', icon: Film },
@@ -483,6 +482,7 @@ const Home = () => {
     { id: 'ARENE ESTIVE', label: 'ARENE ESTIVE', icon: Sun },
     { id: 'PUB', label: 'LOUNGE/PUB', icon: Utensils },
     { id: 'SAGRE', label: 'SAGRE', icon: Church },
+    { id: 'TUTTI', label: 'ALTRO', icon: LayoutGrid },
   ];
 
   useEffect(() => { fetchEvents(); fetchPrInfo(); fetchPopup(); trackPageView('home'); }, [prRef]);
