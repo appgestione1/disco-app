@@ -459,6 +459,7 @@ const Home = () => {
   const [sagreMonth, setSagreMonth] = useState(null);
   const [sagreProvince, setSagreProvince] = useState('TUTTI');
   const [sagreCity, setSagreCity] = useState('TUTTI');
+  const [selectedArena, setSelectedArena] = useState('TUTTE');
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -1345,10 +1346,40 @@ const Home = () => {
                   <div className="h-[45px]" />
                 </div>
               </div>
+              {activeCategory === 'ARENE ESTIVE' && (() => {
+                const ARENE = [
+                  { id: 'adua',      label: 'Arena Adua',      sub: 'Via San Niccolò al Borgo' },
+                  { id: 'argentina', label: 'Arena Argentina',  sub: 'Via Vanasco' },
+                  { id: 'corsaro',   label: 'Arena Corsaro',    sub: 'Catania' },
+                  { id: 'bellini',   label: 'Villa Bellini',    sub: 'Piazzale delle Carrozze' },
+                  { id: 'moderno',   label: 'Arena Moderno',    sub: 'Mascalucia' },
+                  { id: 'giardino',  label: 'Arena Giardino',   sub: 'Giarre' },
+                ];
+                return (
+                  <div className="px-6 mb-4">
+                    <div className="relative">
+                      <select value={selectedArena} onChange={e => setSelectedArena(e.target.value)}
+                        className="w-full appearance-none bg-zinc-900 border border-white/10 rounded-2xl pl-4 pr-8 py-3 text-xs font-black uppercase text-white cursor-pointer focus:outline-none focus:border-[#D4AF37]/60">
+                        <option value="TUTTE">Tutte le Arene</option>
+                        {ARENE.map(a => (
+                          <option key={a.id} value={a.id}>{a.label} — {a.sub}</option>
+                        ))}
+                      </select>
+                      <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
-                {getFilteredEvents().length === 0 ? (
-                  <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
-                ) : getFilteredEvents().map(ev => (
+                {(() => {
+                  const ARENA_IDS = { adua:'adua', argentina:'argentina', corsaro:'corsaro', bellini:'bellini', moderno:'moderno', giardino:'giardino' };
+                  const base = getFilteredEvents();
+                  const arenaFiltered = (activeCategory === 'ARENE ESTIVE' && selectedArena !== 'TUTTE')
+                    ? base.filter(ev => (ev.location || '').toLowerCase().includes(selectedArena))
+                    : base;
+                  return arenaFiltered.length === 0 ? (
+                    <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Calendar size={48} /><p className="italic font-black uppercase text-[10px]">Nessun evento disponibile</p></div>
+                  ) : arenaFiltered.map(ev => (
                   <div key={ev.id} onClick={() => setSelectedEvent(ev)} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 cursor-pointer">
                     <div className="h-auto min-h-[300px] bg-black flex items-center justify-center p-2 relative overflow-hidden text-center">
                       <img src={ev.imageUrl} alt="Event" className="max-w-full max-h-full object-contain transition-transform duration-[3s] group-hover:scale-105 mx-auto" />
@@ -1372,7 +1403,8 @@ const Home = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ));
+                })()}
               </div>
             </>
           )}
