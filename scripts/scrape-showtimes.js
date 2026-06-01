@@ -330,7 +330,19 @@ async function scrapeAreneCustom(allDaysData) {
   try {
     process.stdout.write('  [argentina] cinestudio.eu... ');
     const url = `https://www.cinestudio.eu/programma-argentina-${year}/`;
-    const html = await fetchHtml(url, { Referer: 'https://www.cinestudio.eu/', 'Cache-Control': 'no-cache' });
+    const extraHeaders = {
+      Referer: 'https://www.google.it/',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+      'Accept-Encoding': 'gzip, deflate, br',
+      'Accept-Language': 'it-IT,it;q=0.9',
+      'Cache-Control': 'no-cache',
+      'Pragma': 'no-cache',
+      'Sec-Fetch-Dest': 'document',
+      'Sec-Fetch-Mode': 'navigate',
+      'Sec-Fetch-Site': 'cross-site',
+      'Upgrade-Insecure-Requests': '1',
+    };
+    const html = await fetchHtml(url, extraHeaders);
     const $ = cheerio.load(html);
     const text = $('.entry-content, .post-content, main, article').first().text() || $('body').text();
     const data = parseArenaArgentinaText(text, year);
@@ -341,7 +353,20 @@ async function scrapeAreneCustom(allDaysData) {
       count += films.length;
     }
     console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
-  } catch (e) { console.log(`✗ ${e.message}`); }
+  } catch (e) {
+    console.log(`✗ ${e.message} — mantengo dati Argentina esistenti in Firestore`);
+    // Su errore: recupera i dati argentina già in Firestore per non sovrascriverli
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const snap = await db.collection('showtimes').doc(today).get();
+      if (snap.exists && snap.data().cinemas?.argentina?.length) {
+        for (const [date, dayData] of Object.entries(allDaysData)) {
+          if (!dayData.argentina) dayData.argentina = snap.data().cinemas.argentina;
+        }
+        console.log(`  ↩ dati Argentina recuperati da Firestore (${snap.data().cinemas.argentina.length} film)`);
+      }
+    } catch (_) {}
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
