@@ -461,7 +461,6 @@ const Home = () => {
   const [sagreProvince, setSagreProvince] = useState('TUTTI');
   const [sagreCity, setSagreCity] = useState('TUTTI');
   const [selectedArena, setSelectedArena] = useState('TUTTE');
-  const [arenaDate, setArenaDate] = useState(new Date().toISOString().split('T')[0]);
   const [arenaFilms, setArenaFilms] = useState({});
   const [loadingArena, setLoadingArena] = useState(false);
   const [showPrAccess, setShowPrAccess] = useState(false);
@@ -518,7 +517,8 @@ const Home = () => {
   useEffect(() => {
     if (activeCategory !== 'ARENE ESTIVE') return;
     setLoadingArena(true);
-    getDoc(doc(db, 'showtimes', arenaDate)).then(snap => {
+    const today = new Date().toISOString().split('T')[0];
+    getDoc(doc(db, 'showtimes', today)).then(snap => {
       if (!snap.exists()) { setArenaFilms({}); setLoadingArena(false); return; }
       const cinemas = snap.data().cinemas || {};
       const data = {};
@@ -528,7 +528,7 @@ const Home = () => {
       setArenaFilms(data);
       setLoadingArena(false);
     }).catch(() => { setArenaFilms({}); setLoadingArena(false); });
-  }, [activeCategory, arenaDate]);
+  }, [activeCategory]);
 
   const fetchEvents = async () => {
     try {
@@ -1405,32 +1405,12 @@ const Home = () => {
                 );
               })()}
               {activeCategory === 'ARENE ESTIVE' ? (() => {
-                const todayStr = new Date().toISOString().split('T')[0];
-                const dateChips = Array.from({ length: 7 }, (_, i) => {
-                  const d = new Date(); d.setDate(d.getDate() + i);
-                  return d.toISOString().split('T')[0];
-                });
                 const ARENE_LABELS = { adua: 'Arena Adua', argentina: 'Arena Argentina', corsaro: 'Arena Corsaro', moderno: 'Arena Moderno' };
                 const visibleArenas = selectedArena === 'TUTTE'
                   ? ARENA_CINEMA_IDS.filter(id => arenaFilms[id]?.length)
                   : (arenaFilms[selectedArena]?.length ? [selectedArena] : []);
                 return (
                   <>
-                    {/* selettore giorno */}
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-1 px-6">
-                      {dateChips.map(d => {
-                        const date = new Date(d + 'T12:00:00');
-                        const isSel = d === arenaDate;
-                        const isToday = d === todayStr;
-                        return (
-                          <button key={d} onClick={() => setArenaDate(d)}
-                            className={`flex-shrink-0 flex flex-col items-center px-4 py-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 ${isSel ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
-                            <span>{isToday ? 'OGGI' : date.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase().replace('.', '')}</span>
-                            <span className="text-[10px] font-black">{date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
                     {/* film per arena */}
                     <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
                       {loadingArena ? (
