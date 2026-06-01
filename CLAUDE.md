@@ -235,8 +235,16 @@ Tutti i dati filtrati per `groupId`.
 | 20169 | thespaceetnapolis |
 | 20562 | cinestar |
 | 21433 | ucicentrosicilia |
+| 5379  | corsaro (Arena Corsaro) |
+| 5006  | moderno (Arena Moderno estate, Cinema Moderno Mascalucia inverno) |
 
 **Cinema NON su MYmovies** (salvati come `[]`): eplanetaalfieri, garibaldi, rex, musmeci, trinacria, metropol
+
+**Arene estive con scraper dedicato** (NON in MYMOVIES_CINEMA_MAP):
+- `adua` → `cinemamodernomascalucia.com/cinema-arena-adua/` — parser `parseArenaAduaText`
+- `argentina` → `cinestudio.eu/programma-argentina-{anno}/` — parser `parseArenaArgentinaHtml` (usa curl per bypassare Cloudflare)
+- Scraper locale: `FIREBASE_SERVICE_ACCOUNT=$(cat ~/Downloads/discoapp-f2388-*.json) TMDB_API_KEY=... node scripts/scrape-showtimes.js`
+- GitHub Actions: `adua` funziona; `argentina` fallisce con 403 (Cloudflare blocca IP cloud) → dati preservati da Firestore
 
 ---
 
