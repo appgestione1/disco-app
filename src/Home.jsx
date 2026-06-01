@@ -5,7 +5,7 @@ import { fetchCinema, fetchConcerti, fetchTeatro, fetchSagre, fetchShowtimes, fe
 import { trackShare, trackCategoryView, trackFilmView, trackPageView } from './analytics';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
 
-const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE', 'ARENE ESTIVE'];
+const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE'];
 const ARENA_CINEMA_IDS = ['adua', 'argentina', 'corsaro', 'moderno'];
 
 // ── FILM DETAIL (Cinema) ──────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ const buildTicketUrl = (cinema, filmTitle) => {
   return cinema.ticketSearchUrl;
 };
 
-const FilmDetail = ({ film, onClose, cinemaFilter = null }) => {
+const FilmDetail = ({ film, onClose }) => {
   const trailerKey = film.trailerKey || null;
   const [showTrailer, setShowTrailer] = useState(false);
   const [showtimes, setShowtimes] = useState({});
@@ -40,12 +40,10 @@ const FilmDetail = ({ film, onClose, cinemaFilter = null }) => {
     return d.toISOString().split('T')[0];
   });
 
-  const sortedCinemas = cinemaFilter
-    ? CATANIA_CINEMAS.filter(c => cinemaFilter.includes(c.id))
-    : [
-        ...PRIORITY_CINEMA_IDS.map(id => CATANIA_CINEMAS.find(c => c.id === id)).filter(Boolean),
-        ...CATANIA_CINEMAS.filter(c => !PRIORITY_CINEMA_IDS.includes(c.id)),
-      ];
+  const sortedCinemas = [
+    ...PRIORITY_CINEMA_IDS.map(id => CATANIA_CINEMAS.find(c => c.id === id)).filter(Boolean),
+    ...CATANIA_CINEMAS.filter(c => !PRIORITY_CINEMA_IDS.includes(c.id)),
+  ];
 
   useEffect(() => {
     setLoadingShowtimes(true);
@@ -114,7 +112,7 @@ const FilmDetail = ({ film, onClose, cinemaFilter = null }) => {
 
       <div className="flex items-center gap-3 mb-4">
         <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
-        <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#D4AF37]">{cinemaFilter ? 'Arene Estive' : 'Cinema a Catania e Provincia'}</p>
+        <p className="text-[9px] font-black uppercase tracking-[0.4em] text-[#D4AF37]">Cinema a Catania e Provincia</p>
         <div className="h-[1px] flex-1 bg-[#D4AF37]/20" />
       </div>
 
@@ -463,7 +461,9 @@ const Home = () => {
   const [sagreProvince, setSagreProvince] = useState('TUTTI');
   const [sagreCity, setSagreCity] = useState('TUTTI');
   const [selectedArena, setSelectedArena] = useState('TUTTE');
-  const [arenaContext, setArenaContext] = useState(null);
+  const [arenaDate, setArenaDate] = useState(new Date().toISOString().split('T')[0]);
+  const [arenaFilms, setArenaFilms] = useState({});
+  const [loadingArena, setLoadingArena] = useState(false);
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -503,7 +503,7 @@ const Home = () => {
     setLoadingExternal(true);
     setSelectedEventMonth(null);
     setConcertiFilter('TUTTI');
-    if (activeCategory === 'CINEMA' || activeCategory === 'ARENE ESTIVE') {
+    if (activeCategory === 'CINEMA') {
       fetchCinema().then(async tmdb => {
         const local = await fetchLocalCinemaFilms(tmdb);
         setExternalEvents([...tmdb, ...local]);
@@ -514,6 +514,21 @@ const Home = () => {
       fetcher().then(data => { setExternalEvents(data); setLoadingExternal(false); });
     }
   }, [activeCategory]);
+
+  useEffect(() => {
+    if (activeCategory !== 'ARENE ESTIVE') return;
+    setLoadingArena(true);
+    getDoc(doc(db, 'showtimes', arenaDate)).then(snap => {
+      if (!snap.exists()) { setArenaFilms({}); setLoadingArena(false); return; }
+      const cinemas = snap.data().cinemas || {};
+      const data = {};
+      for (const id of ARENA_CINEMA_IDS) {
+        if (cinemas[id]?.length) data[id] = cinemas[id];
+      }
+      setArenaFilms(data);
+      setLoadingArena(false);
+    }).catch(() => { setArenaFilms({}); setLoadingArena(false); });
+  }, [activeCategory, arenaDate]);
 
   const fetchEvents = async () => {
     try {
@@ -752,7 +767,7 @@ const Home = () => {
 
   // ── VISTA FILM CINEMA ──
   if (selectedFilm) {
-    return <FilmDetail film={selectedFilm} onClose={() => { setSelectedFilm(null); setArenaContext(null); }} cinemaFilter={arenaContext} />;
+    return <FilmDetail film={selectedFilm} onClose={() => setSelectedFilm(null)} />;
   }
 
   // ── VISTA EVENTO SELEZIONATO ──
@@ -1389,37 +1404,69 @@ const Home = () => {
                   </div>
                 );
               })()}
-              {activeCategory === 'ARENE ESTIVE' ? (
-                <div className="px-6">
-                  {loadingExternal ? (
-                    <div className="flex justify-center py-24"><div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" /></div>
-                  ) : externalEvents.length === 0 ? (
-                    <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Film size={48} /><p className="italic font-black uppercase text-[10px]">Nessun film disponibile</p></div>
-                  ) : (
-                    <div className="grid grid-cols-2 gap-4">
-                      {externalEvents.map(ev => (
-                        <div key={ev.id} onClick={() => {
-                          const filter = selectedArena === 'TUTTE' ? ARENA_CINEMA_IDS : [selectedArena];
-                          setArenaContext(filter);
-                          setSelectedFilm(ev);
-                          trackFilmView(ev.title);
-                        }}
-                          className="group rounded-[1.5rem] overflow-hidden bg-zinc-900 border border-white/5 active:scale-95 transition-all cursor-pointer">
-                          {ev.imageUrl
-                            ? <img src={ev.imageUrl} alt={ev.title} className="w-full aspect-[2/3] object-cover" />
-                            : <div className="w-full aspect-[2/3] bg-zinc-800 flex items-center justify-center"><Film size={32} className="text-zinc-600" /></div>
-                          }
-                          <div className="p-3">
-                            <p className="text-xs font-black uppercase leading-tight text-white line-clamp-2">{ev.title}</p>
-                            {ev.rating && <p className="text-[#D4AF37] text-[11px] font-black mt-1">★ {ev.rating}</p>}
-                            <p className="text-zinc-400 text-[10px] font-black uppercase tracking-widest mt-2">→ Orari & Arene</p>
-                          </div>
+              {activeCategory === 'ARENE ESTIVE' ? (() => {
+                const todayStr = new Date().toISOString().split('T')[0];
+                const dateChips = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(); d.setDate(d.getDate() + i);
+                  return d.toISOString().split('T')[0];
+                });
+                const ARENE_LABELS = { adua: 'Arena Adua', argentina: 'Arena Argentina', corsaro: 'Arena Corsaro', moderno: 'Arena Moderno' };
+                const visibleArenas = selectedArena === 'TUTTE'
+                  ? ARENA_CINEMA_IDS.filter(id => arenaFilms[id]?.length)
+                  : (arenaFilms[selectedArena]?.length ? [selectedArena] : []);
+                return (
+                  <>
+                    {/* selettore giorno */}
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-1 px-6">
+                      {dateChips.map(d => {
+                        const date = new Date(d + 'T12:00:00');
+                        const isSel = d === arenaDate;
+                        const isToday = d === todayStr;
+                        return (
+                          <button key={d} onClick={() => setArenaDate(d)}
+                            className={`flex-shrink-0 flex flex-col items-center px-4 py-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 ${isSel ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
+                            <span>{isToday ? 'OGGI' : date.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase().replace('.', '')}</span>
+                            <span className="text-[10px] font-black">{date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {/* film per arena */}
+                    <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
+                      {loadingArena ? (
+                        <div className="flex justify-center py-24"><div className="w-8 h-8 border-2 border-[#D4AF37] border-t-transparent rounded-full animate-spin" /></div>
+                      ) : visibleArenas.length === 0 ? (
+                        <div className="text-center py-24 flex flex-col items-center gap-6 opacity-30"><Film size={48} /><p className="italic font-black uppercase text-[10px]">Nessuna programmazione disponibile</p></div>
+                      ) : visibleArenas.map(arenaId => (
+                        <div key={arenaId}>
+                          {selectedArena === 'TUTTE' && (
+                            <p className="text-[#D4AF37] font-black uppercase tracking-widest text-[10px] mb-3 px-1">{ARENE_LABELS[arenaId]}</p>
+                          )}
+                          {arenaFilms[arenaId].map((film, i) => (
+                            <div key={i} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 mb-6">
+                              <div className="relative overflow-hidden">
+                                {film.backdropUrl || film.posterUrl
+                                  ? <img src={film.backdropUrl || film.posterUrl} alt={film.title} className="w-full aspect-video object-cover transition-transform duration-[3s] group-hover:scale-105" />
+                                  : <div className="w-full aspect-video bg-zinc-900 flex items-center justify-center"><Film size={48} className="text-zinc-700" /></div>
+                                }
+                                <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent pointer-events-none" />
+                              </div>
+                              <div className="p-6">
+                                <h3 className="text-2xl font-black italic uppercase leading-none text-white tracking-tighter mb-4">{film.title}</h3>
+                                <div className="flex flex-wrap gap-2">
+                                  {film.times.map(t => (
+                                    <span key={t} className="bg-zinc-900 border border-white/10 text-[#D4AF37] font-black text-xs px-3 py-1.5 rounded-full">{t}</span>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
                       ))}
                     </div>
-                  )}
-                </div>
-              ) : (
+                  </>
+                );
+              })() : (
               <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
                 {(() => {
                   const base = getFilteredEvents();
