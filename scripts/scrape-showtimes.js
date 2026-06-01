@@ -33,8 +33,7 @@ const MYMOVIES_CINEMA_MAP = {
   '20562': 'cinestar',
   '21433': 'ucicentrosicilia',
   '5379':  'corsaro',
-  '5701':  'adua',
-  '5702':  'argentina',
+  // adua (5701) e argentina (5702) → scraped da siti dedicati (vedi scrapeAreneCustom)
   // '24660': Sala Karol Caltagirone — non nel nostro elenco
 };
 
@@ -186,6 +185,163 @@ async function scrapeDay(date, isToday) {
   return showtimes;
 }
 
+// ── Scraper arene (siti dedicati) ─────────────────────────────────────────────
+
+const ITALIAN_MONTHS = {
+  gennaio:1, febbraio:2, marzo:3, aprile:4, maggio:5, giugno:6,
+  luglio:7, agosto:8, settembre:9, ottobre:10, novembre:11, dicembre:12,
+};
+
+// Parser per cinemamodernomascalucia.com/cinema-arena-adua/
+// Formato: "Venerdì 29 Maggio ore 21:00 "TITOLO""
+function parseArenaAduaText(text, year) {
+  const result = {};
+
+  for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
+    const low = line.toLowerCase();
+    if (!/^(luned[iì]|marted[iì]|mercoled[iì]|gioved[iì]|venerd[iì]|sabato|domenica)/i.test(low)) continue;
+
+    const monthKey = Object.keys(ITALIAN_MONTHS).find(m => low.includes(m));
+    if (!monthKey) continue;
+    const month = ITALIAN_MONTHS[monthKey];
+
+    // tutti i numeri 1-31 nella riga = giorni (escludi quelli seguiti da ":" = ore)
+    const dayNums = [...line.matchAll(/\b(\d{1,2})\b(?!:\d)/g)]
+      .map(m => parseInt(m[1])).filter(d => d >= 1 && d <= 31);
+    if (!dayNums.length) continue;
+
+    const timeM = line.match(/ore\s+(\d{1,2}[:.]\d{2})/i);
+    const time = timeM ? timeM[1].replace('.', ':') : '21:00';
+
+    // titolo: preferisce testo tra virgolette
+    let title = '';
+    const quoted = line.match(/"([^"]+)"/);
+    if (quoted) {
+      title = quoted[1].trim();
+    } else {
+      title = line
+        .replace(/(Lunedì|Martedì|Mercoledì|Giovedì|Venerdì|Sabato|Domenica)/gi, '')
+        .replace(/\b\d{1,2}\b/g, '')
+        .replace(new RegExp(monthKey, 'gi'), '')
+        .replace(/\bore\s+\d{1,2}:\d{2}\b/gi, '')
+        .replace(/\be\b/gi, ' ')
+        .replace(/\([^)]+\)/g, '')
+        .replace(/Regia:.*$/i, '')
+        .replace(/con\s+.*/i, '')
+        .replace(/[–—-]\s*.*/i, '')
+        .trim().replace(/^[^a-zA-ZÀ-ɏ]+/, '').trim();
+    }
+    if (!title || title.length < 2) continue;
+
+    for (const day of dayNums) {
+      const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+      if (!result[dateStr]) result[dateStr] = [];
+      if (!result[dateStr].some(f => normalizeTitle(f.title) === normalizeTitle(title)))
+        result[dateStr].push({ title, times: [time], siteImgUrl: null });
+    }
+  }
+  return result;
+}
+
+// Parser per cinestudio.eu/programma-argentina-ANNO/
+// Formato: "Sabato 23: TITOLO, Director, Paese Anno, HH:MM"
+// Multi-proiezione: "Venerdì 29: FILM1, ..., 20:45 + FILM2, ..., 22:15"
+function parseArenaArgentinaText(text, year) {
+  const result = {};
+  const today = new Date();
+  let ctxMonth = today.getMonth() + 1;
+  let lastDay = 0;
+
+  for (const line of text.split('\n').map(l => l.trim()).filter(Boolean)) {
+    // Aggiorna mese di contesto da intestazioni (es. "MAGGIO – GIUGNO")
+    if (!line.match(/^(?:Luned[iì]|Marted[iì]|Mercoled[iì]|Gioved[iì]|Venerd[iì]|Sabato|Domenica)\s+\d+/i)) {
+      const hdr = Object.keys(ITALIAN_MONTHS).find(m => line.toLowerCase().includes(m));
+      if (hdr) { ctxMonth = ITALIAN_MONTHS[hdr]; lastDay = 0; }
+      continue;
+    }
+
+    // Riga evento: estrae i giorni SOLO prima del ":" per evitare false catture dagli orari
+    const colonIdx = line.indexOf(':');
+    if (colonIdx < 0) continue;
+    const prefix = line.slice(0, colonIdx);
+    const prefixNums = [...prefix.matchAll(/\b(\d{1,2})\b/g)].map(x => parseInt(x[1])).filter(d => d >= 1 && d <= 31);
+    if (!prefixNums.length) continue;
+    const startDay = prefixNums[0];
+    const endDay = prefixNums[prefixNums.length - 1];
+
+    // Cambio mese quando il giorno torna indietro
+    if (startDay < lastDay - 5) ctxMonth = ctxMonth === 12 ? 1 : ctxMonth + 1;
+    lastDay = Math.max(lastDay, endDay);
+
+    const content = line.slice(line.indexOf(':') + 1).trim();
+
+    // Separa proiezioni multiple (" + " prima di lettera maiuscola)
+    const screenings = content.split(/\s+\+\s+(?=[A-ZÀÈÌÒÙ])/);
+
+    for (const screening of screenings) {
+      const timeM = screening.match(/(\d{1,2}:\d{2})(?:\s*-[^,+]*)?$/);
+      if (!timeM) continue;
+      const time = timeM[1];
+      const title = screening.split(',')[0].trim();
+      if (!title || title.length < 2) continue;
+
+      // Range di giorni (gestisce confine mese: es. 30→1)
+      let mo = ctxMonth;
+      for (let day = startDay; day <= endDay; day++) {
+        if (day > 31) break; // sicurezza
+        const dateStr = `${year}-${String(mo).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+        if (!result[dateStr]) result[dateStr] = [];
+        if (!result[dateStr].some(f => normalizeTitle(f.title) === normalizeTitle(title) && f.times.includes(time)))
+          result[dateStr].push({ title, times: [time], siteImgUrl: null });
+        // se il giorno supera i giorni del mese, passa al mese successivo
+        const daysInMonth = new Date(year, mo, 0).getDate();
+        if (day >= daysInMonth && day < endDay) { mo = mo === 12 ? 1 : mo + 1; day = 0; }
+      }
+    }
+  }
+  return result;
+}
+
+async function scrapeAreneCustom(allDaysData) {
+  const year = new Date().getFullYear();
+  console.log('\n=== Scraping arene (siti dedicati) ===\n');
+
+  // Arena Adua
+  try {
+    process.stdout.write('  [adua] cinemamodernomascalucia.com... ');
+    const html = await fetchHtml('https://cinemamodernomascalucia.com/cinema-arena-adua/');
+    const $ = cheerio.load(html);
+    const text = $('.entry-content, .post-content, main, article').first().text() || $('body').text();
+    const data = parseArenaAduaText(text, year);
+    let count = 0;
+    for (const [date, films] of Object.entries(data)) {
+      if (!allDaysData[date]) allDaysData[date] = {};
+      allDaysData[date].adua = films;
+      count += films.length;
+    }
+    console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
+  } catch (e) { console.log(`✗ ${e.message}`); }
+
+  await delay(800);
+
+  // Arena Argentina
+  try {
+    process.stdout.write('  [argentina] cinestudio.eu... ');
+    const url = `https://www.cinestudio.eu/programma-argentina-${year}/`;
+    const html = await fetchHtml(url);
+    const $ = cheerio.load(html);
+    const text = $('.entry-content, .post-content, main, article').first().text() || $('body').text();
+    const data = parseArenaArgentinaText(text, year);
+    let count = 0;
+    for (const [date, films] of Object.entries(data)) {
+      if (!allDaysData[date]) allDaysData[date] = {};
+      allDaysData[date].argentina = films;
+      count += films.length;
+    }
+    console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
+  } catch (e) { console.log(`✗ ${e.message}`); }
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 async function main() {
   const today = new Date().toISOString().split('T')[0];
@@ -209,6 +365,9 @@ async function main() {
     if (i < dates.length - 1) await delay(600); // rispetta rate limit MYmovies
   }
 
+  // ── Arene (siti dedicati: Adua + Argentina) ───────────────────────────────
+  await scrapeAreneCustom(allDaysData);
+
   // ── Arricchimento TMDB (una sola volta per tutti i giorni) ────────────────
   const uniqueTitles = new Map(); // norm → {title, siteImgUrl}
   for (const showtimes of Object.values(allDaysData)) {
@@ -229,7 +388,7 @@ async function main() {
       process.stdout.write(`  [${info.title}] `);
       const tmdb = await enrichWithTmdb(info.title);
       if (tmdb) {
-        metadataMap.set(norm, { posterUrl: tmdb.posterUrl || info.siteImgUrl, backdropUrl: tmdb.backdropUrl, tmdbId: tmdb.tmdbId, trailerKey: tmdb.trailerKey, description: tmdb.description });
+        metadataMap.set(norm, { posterUrl: tmdb.posterUrl || info.siteImgUrl, backdropUrl: tmdb.backdropUrl, tmdbId: tmdb.tmdbId, trailerKey: tmdb.trailerKey, description: tmdb.description, rating: tmdb.rating || null });
         console.log(`✓ TMDB${tmdb.trailerKey ? ' + trailer' : ''}`);
       } else {
         metadataMap.set(norm, { posterUrl: info.siteImgUrl || null, backdropUrl: null, tmdbId: null, trailerKey: null, description: null });
