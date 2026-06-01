@@ -50,8 +50,8 @@ const HEADERS = {
 
 const delay = ms => new Promise(r => setTimeout(r, ms));
 
-async function fetchHtml(url) {
-  const res = await fetch(url, { headers: HEADERS });
+async function fetchHtml(url, extraHeaders = {}) {
+  const res = await fetch(url, { headers: { ...HEADERS, ...extraHeaders } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.text();
 }
@@ -215,21 +215,23 @@ function parseArenaAduaText(text, year) {
 
     // titolo: preferisce testo tra virgolette
     let title = '';
-    const quoted = line.match(/"([^"]+)"/);
+    // supporta virgolette dritte " e curve „"" (WordPress auto-converte)
+    const quoted = line.match(/[“„"](.*?)[”“"]/u);
     if (quoted) {
       title = quoted[1].trim();
     } else {
       title = line
-        .replace(/(Lunedì|Martedì|Mercoledì|Giovedì|Venerdì|Sabato|Domenica)/gi, '')
-        .replace(/\b\d{1,2}\b/g, '')
+        .replace(/(Luned[iì]|Marted[iì]|Mercoled[iì]|Gioved[iì]|Venerd[iì]|Sabato|Domenica)/gi, '')
+        .replace(/\b\d{1,2}\b(?!:\d)/g, '')
         .replace(new RegExp(monthKey, 'gi'), '')
-        .replace(/\bore\s+\d{1,2}:\d{2}\b/gi, '')
+        .replace(/ore\s+\d{1,2}[:.]\d{2}/gi, '')
         .replace(/\be\b/gi, ' ')
         .replace(/\([^)]+\)/g, '')
         .replace(/Regia:.*$/i, '')
         .replace(/con\s+.*/i, '')
-        .replace(/[–—-]\s*.*/i, '')
-        .trim().replace(/^[^a-zA-ZÀ-ɏ]+/, '').trim();
+        .replace(/[–—\-]\s*.*/i, '')
+        .replace(/[“”„""]/g, '')
+        .trim().replace(/^[^a-zA-ZÀ-ɏ0-9]+/, '').trim();
     }
     if (!title || title.length < 2) continue;
 
@@ -328,7 +330,7 @@ async function scrapeAreneCustom(allDaysData) {
   try {
     process.stdout.write('  [argentina] cinestudio.eu... ');
     const url = `https://www.cinestudio.eu/programma-argentina-${year}/`;
-    const html = await fetchHtml(url);
+    const html = await fetchHtml(url, { Referer: 'https://www.cinestudio.eu/', 'Cache-Control': 'no-cache' });
     const $ = cheerio.load(html);
     const text = $('.entry-content, .post-content, main, article').first().text() || $('body').text();
     const data = parseArenaArgentinaText(text, year);
