@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 15/05/2026 — commit `4ec564c`**
+> **Ultimo aggiornamento: 01/06/2026 — commit `f42411b`**
 
 ---
 
@@ -52,6 +52,7 @@ Ordine attuale nel grid:
 8. ALTRO (id: `TUTTI`)
 
 `EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE']` — dati da API/scraper, non da Firestore eventi.
+ARENE ESTIVE non è in EXTERNAL_CATS: carica da `showtimes/{data}` via `selectedDate` (scroll wheel globale).
 
 ---
 
@@ -78,10 +79,34 @@ Ordine attuale nel grid:
 
 ## Sezione ARENE ESTIVE (`Home.jsx`)
 
-- Dati da Firestore `events` con `category: 'ARENE ESTIVE'`
-- Selettore arena compatto (`<select>`) — appare solo in questa categoria
-- Arene hardcoded: Arena Adua, Arena Argentina, Arena Corsaro, Villa Bellini, Arena Moderno, Arena Giardino
-- Filtro per `ev.location.toLowerCase().includes(arenaId)` — l'admin imposta il campo Luogo nell'evento
+Dati da Firestore `showtimes/{data}.cinemas.{arenaId}` — stessa struttura cinema, aggiornati dallo scraper notturno.
+
+**Selettore data**: usa `selectedDate` (scroll wheel globale, stesso delle altre categorie) — cambio giorno → ricarica automatica.
+
+**Selettore arena**: `<select>` compatto — "Tutte le Arene" o singola arena. Se "TUTTE", mostra header arena sopra ogni gruppo.
+
+**Card film** (per ogni arena):
+- Backdrop/poster TMDB + pulsante ▶ trailer (overlay YouTube fullscreen)
+- Orari come pill gold
+- Pulsante "▼ TRAMA" + stelle critica a destra (rating TMDB 0-10 → 0-5 stelle)
+- Pulsante "🎟 Biglietteria — prossimamente" (grigio) → diventa gold quando `ticketUrl` impostato in `cataniaCinemas.js`
+
+**Arene attive** (`ARENA_CINEMA_IDS = ['adua','argentina','corsaro','moderno']`):
+
+| Arena | Fonte dati | Copertura |
+|---|---|---|
+| Arena Adua | `cinemamodernomascalucia.com/cinema-arena-adua/` | calendario mensile |
+| Arena Argentina | `cinestudio.eu/programma-argentina-{anno}/` (curl, Cloudflare blocca Node fetch) | calendario mensile |
+| Arena Corsaro | mymovies.it ID 5379 | 7 giorni |
+| Arena Moderno | mymovies.it ID 5006 | 7 giorni |
+
+**`src/constants/cataniaCinemas.js`**: arene hanno `isArena: true` e `ticketUrl: null` (da compilare previo accordo).
+
+**Scraper** (`scripts/scrape-showtimes.js`):
+- GitHub Actions `scrape-showtimes.yml`: `0 5 * * *` (07:00 IT) — aggiorna mymovies + Arena Adua ogni notte
+- Arena Argentina: usa `curl` (TLS nativo bypassa Cloudflare). GH Actions fallisce con 403 → dati preservati da Firestore
+- Per aggiornare Argentina localmente: `FIREBASE_SERVICE_ACCOUNT=$(cat ~/Downloads/discoapp-f2388-*.json) TMDB_API_KEY=$(grep VITE_TMDB_API_KEY .env | cut -d= -f2) node scripts/scrape-showtimes.js`
+- Ogni film salvato con: `title, times, posterUrl, backdropUrl, tmdbId, trailerKey, description, rating`
 
 ---
 
