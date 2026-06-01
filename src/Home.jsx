@@ -461,6 +461,7 @@ const Home = () => {
   const [sagreProvince, setSagreProvince] = useState('TUTTI');
   const [sagreCity, setSagreCity] = useState('TUTTI');
   const [selectedArena, setSelectedArena] = useState('TUTTE');
+  const [arenaDate, setArenaDate] = useState(new Date().toISOString().split('T')[0]);
   const [arenaFilms, setArenaFilms] = useState({});
   const [loadingArena, setLoadingArena] = useState(false);
   const [arenaTrailerKey, setArenaTrailerKey] = useState(null);
@@ -519,8 +520,7 @@ const Home = () => {
   useEffect(() => {
     if (activeCategory !== 'ARENE ESTIVE') return;
     setLoadingArena(true);
-    const today = new Date().toISOString().split('T')[0];
-    getDoc(doc(db, 'showtimes', today)).then(snap => {
+    getDoc(doc(db, 'showtimes', arenaDate)).then(snap => {
       if (!snap.exists()) { setArenaFilms({}); setLoadingArena(false); return; }
       const cinemas = snap.data().cinemas || {};
       const data = {};
@@ -530,7 +530,7 @@ const Home = () => {
       setArenaFilms(data);
       setLoadingArena(false);
     }).catch(() => { setArenaFilms({}); setLoadingArena(false); });
-  }, [activeCategory]);
+  }, [activeCategory, arenaDate]);
 
   const fetchEvents = async () => {
     try {
@@ -1431,8 +1431,28 @@ const Home = () => {
                 const visibleArenas = selectedArena === 'TUTTE'
                   ? ARENA_CINEMA_IDS.filter(id => arenaFilms[id]?.length)
                   : (arenaFilms[selectedArena]?.length ? [selectedArena] : []);
+                const todayArena = new Date().toISOString().split('T')[0];
+                const dateChips = Array.from({ length: 7 }, (_, i) => {
+                  const d = new Date(); d.setDate(d.getDate() + i);
+                  return d.toISOString().split('T')[0];
+                });
                 return (
                   <>
+                    {/* selettore giorno */}
+                    <div className="flex gap-2 overflow-x-auto no-scrollbar mb-4 pb-1 px-6">
+                      {dateChips.map(d => {
+                        const date = new Date(d + 'T12:00:00');
+                        const isSel = d === arenaDate;
+                        const isToday = d === todayArena;
+                        return (
+                          <button key={d} onClick={() => setArenaDate(d)}
+                            className={`flex-shrink-0 flex flex-col items-center px-4 py-2 rounded-2xl font-black uppercase text-[9px] tracking-wider transition-all active:scale-95 ${isSel ? 'bg-[#D4AF37] text-black' : 'bg-zinc-900 text-zinc-500 border border-white/5'}`}>
+                            <span>{isToday ? 'OGGI' : date.toLocaleDateString('it-IT', { weekday: 'short' }).toUpperCase().replace('.', '')}</span>
+                            <span className="text-[10px] font-black">{date.toLocaleDateString('it-IT', { day: '2-digit', month: 'short' }).replace('.', '')}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                     {/* film per arena */}
                     <div className="px-6 flex flex-col gap-6 max-w-2xl mx-auto">
                       {loadingArena ? (
@@ -1465,41 +1485,43 @@ const Home = () => {
                               </div>
                               <div className="p-6">
                                 <h3 className="text-2xl font-black italic uppercase leading-none text-white tracking-tighter mb-3">{film.title}</h3>
-                                {/* stelle critica */}
-                                {film.rating && (() => {
-                                  const stars = film.rating / 2;
-                                  const full = Math.floor(stars);
-                                  const half = (stars - full) >= 0.5;
-                                  const empty = 5 - full - (half ? 1 : 0);
-                                  return (
-                                    <div className="flex items-center gap-1 mb-3">
-                                      {Array.from({ length: full }).map((_, k) => <span key={`f${k}`} className="text-[#D4AF37] text-sm">★</span>)}
-                                      {half && <span className="text-[#D4AF37] text-sm">½</span>}
-                                      {Array.from({ length: empty }).map((_, k) => <span key={`e${k}`} className="text-zinc-700 text-sm">★</span>)}
-                                      <span className="text-zinc-500 text-[10px] font-black ml-1">{stars.toFixed(1)}/5</span>
-                                    </div>
-                                  );
-                                })()}
                                 {/* orari */}
                                 <div className="flex flex-wrap gap-2 mb-4">
                                   {film.times.map(t => (
                                     <span key={t} className="bg-zinc-900 border border-white/10 text-[#D4AF37] font-black text-xs px-3 py-1.5 rounded-full">{t}</span>
                                   ))}
                                 </div>
-                                {/* trama espandibile */}
+                                {/* trama + stelle sulla stessa riga */}
                                 {film.description && (() => {
                                   const key = `${arenaId}-${i}`;
                                   const open = expandedArenaDescs.has(key);
+                                  const starsEl = film.rating ? (() => {
+                                    const stars = film.rating / 2;
+                                    const full = Math.floor(stars);
+                                    const half = (stars - full) >= 0.5;
+                                    const empty = 5 - full - (half ? 1 : 0);
+                                    return (
+                                      <div className="flex items-center gap-0.5 ml-auto">
+                                        {Array.from({ length: full }).map((_, k) => <span key={`f${k}`} className="text-[#D4AF37] text-xs">★</span>)}
+                                        {half && <span className="text-[#D4AF37] text-xs">½</span>}
+                                        {Array.from({ length: empty }).map((_, k) => <span key={`e${k}`} className="text-zinc-700 text-xs">★</span>)}
+                                        <span className="text-zinc-500 text-[10px] font-black ml-1">{stars.toFixed(1)}/5</span>
+                                      </div>
+                                    );
+                                  })() : null;
                                   return (
                                     <div className="mb-4">
-                                      <button onClick={() => setExpandedArenaDescs(prev => {
-                                        const s = new Set(prev);
-                                        open ? s.delete(key) : s.add(key);
-                                        return s;
-                                      })} className="flex items-center gap-1 text-zinc-400 font-black uppercase text-[10px] tracking-widest mb-2 active:opacity-60">
-                                        <span>{open ? '▲' : '▼'}</span> TRAMA
-                                      </button>
-                                      {open && <p className="text-zinc-300 text-xs leading-relaxed">{film.description}</p>}
+                                      <div className="flex items-center gap-2">
+                                        <button onClick={() => setExpandedArenaDescs(prev => {
+                                          const s = new Set(prev);
+                                          open ? s.delete(key) : s.add(key);
+                                          return s;
+                                        })} className="flex items-center gap-1 text-zinc-400 font-black uppercase text-[10px] tracking-widest active:opacity-60">
+                                          <span>{open ? '▲' : '▼'}</span> TRAMA
+                                        </button>
+                                        {starsEl}
+                                      </div>
+                                      {open && <p className="text-zinc-300 text-xs leading-relaxed mt-2">{film.description}</p>}
                                     </div>
                                   );
                                 })()}
