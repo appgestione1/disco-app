@@ -1,5 +1,5 @@
 ﻿// ─────────────────────────────────────────────────────────────────────────────
-// CINEMA CATANIA E PROVINCIA — fonte: ComingSoon.it (16 cinema)
+// CINEMA CATANIA E PROVINCIA — fonte: ComingSoon.it (16 cinema) + arene estive
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CATANIA_CINEMAS = [
@@ -88,6 +88,45 @@ export const CATANIA_CINEMAS = [
     mapsUrl: 'https://maps.google.com/?q=The+Space+Cinema+Etnapolis+Belpasso',
     ticketSearchUrl: 'https://www.thespacecinema.it/cinema/belpasso/al-cinema',
     partnerId: null,
+  },
+
+  // ── ARENE ESTIVE (stagionali, giugno-settembre) ────────────────────────────
+
+  {
+    id: 'adua',
+    name: 'Arena Adua',
+    area: 'Catania',
+    address: 'Via San Niccolò al Borgo, Catania',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/arena-adua/5701/',
+    mapsUrl: 'https://maps.google.com/?q=Arena+Adua+Catania',
+    ticketUrl: null,
+    partnerId: null,
+    isArena: true,
+  },
+  {
+    id: 'argentina',
+    name: 'Arena Argentina',
+    area: 'Catania',
+    address: 'Via Vanasco, Catania',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/arena-argentina/5702/',
+    mapsUrl: 'https://maps.google.com/?q=Arena+Argentina+Catania',
+    ticketUrl: null,
+    partnerId: null,
+    isArena: true,
+  },
+  {
+    id: 'corsaro',
+    name: 'Arena Corsaro',
+    area: 'Catania',
+    address: 'Catania',
+    website: null,
+    programUrl: 'https://www.mymovies.it/cinema/catania/arena-corsaro/5379/',
+    mapsUrl: 'https://maps.google.com/?q=Arena+Corsaro+Catania',
+    ticketUrl: null,
+    partnerId: null,
+    isArena: true,
   },
 
   // ── ACIREALE ───────────────────────────────────────────────────────────────
@@ -198,7 +237,7 @@ export const CATANIA_CINEMAS = [
 
   {
     id: 'moderno',
-    name: 'Cinema Moderno',
+    name: 'Arena Moderno',
     area: 'Mascalucia (CT)',
     address: 'Mascalucia (CT)',
     website: null,
@@ -206,6 +245,7 @@ export const CATANIA_CINEMAS = [
     mapsUrl: 'https://maps.google.com/?q=Cinema+Moderno+Mascalucia',
     ticketUrl: null,
     partnerId: null,
+    isArena: true,
   },
 
   // ── MISTERBIANCO ───────────────────────────────────────────────────────────

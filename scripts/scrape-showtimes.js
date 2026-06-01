@@ -32,6 +32,9 @@ const MYMOVIES_CINEMA_MAP = {
   '20169': 'thespaceetnapolis',
   '20562': 'cinestar',
   '21433': 'ucicentrosicilia',
+  '5379':  'corsaro',
+  '5701':  'adua',
+  '5702':  'argentina',
   // '24660': Sala Karol Caltagirone — non nel nostro elenco
 };
 
