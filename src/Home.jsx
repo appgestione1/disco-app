@@ -464,6 +464,7 @@ const Home = () => {
   const [arenaFilms, setArenaFilms] = useState({});
   const [loadingArena, setLoadingArena] = useState(false);
   const [arenaTrailerKey, setArenaTrailerKey] = useState(null);
+  const [expandedArenaDescs, setExpandedArenaDescs] = useState(new Set());
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -1463,17 +1464,55 @@ const Home = () => {
                                 )}
                               </div>
                               <div className="p-6">
-                                <h3 className="text-2xl font-black italic uppercase leading-none text-white tracking-tighter mb-4">{film.title}</h3>
+                                <h3 className="text-2xl font-black italic uppercase leading-none text-white tracking-tighter mb-3">{film.title}</h3>
+                                {/* stelle critica */}
+                                {film.rating && (() => {
+                                  const stars = film.rating / 2;
+                                  const full = Math.floor(stars);
+                                  const half = (stars - full) >= 0.5;
+                                  const empty = 5 - full - (half ? 1 : 0);
+                                  return (
+                                    <div className="flex items-center gap-1 mb-3">
+                                      {Array.from({ length: full }).map((_, k) => <span key={`f${k}`} className="text-[#D4AF37] text-sm">★</span>)}
+                                      {half && <span className="text-[#D4AF37] text-sm">½</span>}
+                                      {Array.from({ length: empty }).map((_, k) => <span key={`e${k}`} className="text-zinc-700 text-sm">★</span>)}
+                                      <span className="text-zinc-500 text-[10px] font-black ml-1">{stars.toFixed(1)}/5</span>
+                                    </div>
+                                  );
+                                })()}
+                                {/* orari */}
                                 <div className="flex flex-wrap gap-2 mb-4">
                                   {film.times.map(t => (
                                     <span key={t} className="bg-zinc-900 border border-white/10 text-[#D4AF37] font-black text-xs px-3 py-1.5 rounded-full">{t}</span>
                                   ))}
                                 </div>
-                                {arenaCinema?.ticketUrl && (
+                                {/* trama espandibile */}
+                                {film.description && (() => {
+                                  const key = `${arenaId}-${i}`;
+                                  const open = expandedArenaDescs.has(key);
+                                  return (
+                                    <div className="mb-4">
+                                      <button onClick={() => setExpandedArenaDescs(prev => {
+                                        const s = new Set(prev);
+                                        open ? s.delete(key) : s.add(key);
+                                        return s;
+                                      })} className="flex items-center gap-1 text-zinc-400 font-black uppercase text-[10px] tracking-widest mb-2 active:opacity-60">
+                                        <span>{open ? '▲' : '▼'}</span> TRAMA
+                                      </button>
+                                      {open && <p className="text-zinc-300 text-xs leading-relaxed">{film.description}</p>}
+                                    </div>
+                                  );
+                                })()}
+                                {/* biglietto — sempre visibile */}
+                                {arenaCinema?.ticketUrl ? (
                                   <a href={arenaCinema.ticketUrl} target="_blank" rel="noopener noreferrer"
                                     className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-[#D4AF37] text-black font-black uppercase text-xs tracking-widest active:scale-95 transition-transform">
                                     🎟 Acquista biglietto
                                   </a>
+                                ) : (
+                                  <div className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-zinc-800 text-zinc-500 font-black uppercase text-xs tracking-widest border border-white/5 cursor-not-allowed">
+                                    🎟 Biglietteria — prossimamente
+                                  </div>
                                 )}
                               </div>
                             </div>

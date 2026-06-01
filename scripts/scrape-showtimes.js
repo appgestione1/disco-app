@@ -93,6 +93,7 @@ async function enrichWithTmdb(title) {
       tmdbId: m.id,
       trailerKey,
       description: m.overview || null,
+      rating: m.vote_average ? Math.round(m.vote_average * 10) / 10 : null,
     };
   } catch (e) {
     console.log(`    ⚠ TMDB: ${e.message}`);
@@ -261,6 +262,7 @@ async function main() {
           tmdbId: meta.tmdbId || null,
           trailerKey: meta.trailerKey || null,
           description: meta.description || null,
+          rating: meta.rating || null,
           trailerSearchUrl: meta.trailerKey ? null
             : `https://www.youtube.com/results?search_query=${encodeURIComponent(f.title + ' trailer italiano')}`,
         };
