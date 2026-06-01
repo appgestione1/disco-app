@@ -354,17 +354,21 @@ async function scrapeAreneCustom(allDaysData) {
     }
     console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
   } catch (e) {
-    console.log(`✗ ${e.message} — mantengo dati Argentina esistenti in Firestore`);
-    // Su errore: recupera i dati argentina già in Firestore per non sovrascriverli
+    console.log(`✗ ${e.message} — recupero dati Argentina da Firestore`);
+    // Legge i docs esistenti per preservare i dati argentina già salvati
     try {
-      const today = new Date().toISOString().split('T')[0];
-      const snap = await db.collection('showtimes').doc(today).get();
-      if (snap.exists && snap.data().cinemas?.argentina?.length) {
-        for (const [date, dayData] of Object.entries(allDaysData)) {
-          if (!dayData.argentina) dayData.argentina = snap.data().cinemas.argentina;
+      const refs = Object.keys(allDaysData).map(d => db.collection('showtimes').doc(d));
+      const snaps = await db.getAll(...refs);
+      let preserved = 0;
+      for (const snap of snaps) {
+        if (snap.exists && snap.data().cinemas?.argentina?.length) {
+          if (allDaysData[snap.id] && !allDaysData[snap.id].argentina) {
+            allDaysData[snap.id].argentina = snap.data().cinemas.argentina;
+            preserved++;
+          }
         }
-        console.log(`  ↩ dati Argentina recuperati da Firestore (${snap.data().cinemas.argentina.length} film)`);
       }
+      if (preserved) console.log(`  ↩ preservati dati Argentina per ${preserved} date`);
     } catch (_) {}
   }
 }
