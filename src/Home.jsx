@@ -463,6 +463,7 @@ const Home = () => {
   const [selectedArena, setSelectedArena] = useState('TUTTE');
   const [arenaFilms, setArenaFilms] = useState({});
   const [loadingArena, setLoadingArena] = useState(false);
+  const [arenaTrailerKey, setArenaTrailerKey] = useState(null);
   const [showPrAccess, setShowPrAccess] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [showPrPasswordModal, setShowPrPasswordModal] = useState(false);
@@ -764,6 +765,26 @@ const Home = () => {
   };
 
   const availablePriveTypes = selectedEvent?.priveTypes?.filter(t => t.available !== false) || [];
+
+  // ── OVERLAY TRAILER ARENA ──
+  if (arenaTrailerKey) {
+    return (
+      <div className="fixed inset-0 z-50 bg-black flex flex-col">
+        <button onClick={() => setArenaTrailerKey(null)}
+          className="flex items-center gap-2 text-zinc-500 uppercase text-[10px] tracking-widest font-black p-6 self-start">
+          <ChevronLeft size={16} /> CHIUDI
+        </button>
+        <div className="flex-1 flex items-center justify-center px-4">
+          <iframe
+            src={`https://www.youtube.com/embed/${arenaTrailerKey}?rel=0&autoplay=1`}
+            className="w-full aspect-video rounded-2xl"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+            allowFullScreen
+          />
+        </div>
+      </div>
+    );
+  }
 
   // ── VISTA FILM CINEMA ──
   if (selectedFilm) {
@@ -1422,25 +1443,42 @@ const Home = () => {
                           {selectedArena === 'TUTTE' && (
                             <p className="text-[#D4AF37] font-black uppercase tracking-widest text-[10px] mb-3 px-1">{ARENE_LABELS[arenaId]}</p>
                           )}
-                          {arenaFilms[arenaId].map((film, i) => (
-                            <div key={i} className="group relative w-full rounded-[3rem] overflow-hidden active:scale-[0.98] transition-all duration-500 shadow-2xl bg-[#080808] border border-white/5 mb-6">
+                          {arenaFilms[arenaId].map((film, i) => {
+                            const arenaCinema = CATANIA_CINEMAS.find(c => c.id === arenaId);
+                            return (
+                            <div key={i} className="group relative w-full rounded-[3rem] overflow-hidden shadow-2xl bg-[#080808] border border-white/5 mb-6">
                               <div className="relative overflow-hidden">
                                 {film.backdropUrl || film.posterUrl
                                   ? <img src={film.backdropUrl || film.posterUrl} alt={film.title} className="w-full aspect-video object-cover transition-transform duration-[3s] group-hover:scale-105" />
                                   : <div className="w-full aspect-video bg-zinc-900 flex items-center justify-center"><Film size={48} className="text-zinc-700" /></div>
                                 }
                                 <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent pointer-events-none" />
+                                {film.trailerKey && (
+                                  <button onClick={() => setArenaTrailerKey(film.trailerKey)}
+                                    className="absolute inset-0 flex items-center justify-center active:bg-black/20 transition-all">
+                                    <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center shadow-2xl active:scale-90 transition-transform">
+                                      <div className="w-0 h-0 border-t-[9px] border-t-transparent border-l-[16px] border-l-black border-b-[9px] border-b-transparent ml-1" />
+                                    </div>
+                                  </button>
+                                )}
                               </div>
                               <div className="p-6">
                                 <h3 className="text-2xl font-black italic uppercase leading-none text-white tracking-tighter mb-4">{film.title}</h3>
-                                <div className="flex flex-wrap gap-2">
+                                <div className="flex flex-wrap gap-2 mb-4">
                                   {film.times.map(t => (
                                     <span key={t} className="bg-zinc-900 border border-white/10 text-[#D4AF37] font-black text-xs px-3 py-1.5 rounded-full">{t}</span>
                                   ))}
                                 </div>
+                                {arenaCinema?.ticketUrl && (
+                                  <a href={arenaCinema.ticketUrl} target="_blank" rel="noopener noreferrer"
+                                    className="flex items-center justify-center gap-2 w-full py-3 rounded-2xl bg-[#D4AF37] text-black font-black uppercase text-xs tracking-widest active:scale-95 transition-transform">
+                                    🎟 Acquista biglietto
+                                  </a>
+                                )}
                               </div>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       ))}
                     </div>

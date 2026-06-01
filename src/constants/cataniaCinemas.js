@@ -100,7 +100,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.mymovies.it/cinema/catania/arena-adua/5701/',
     mapsUrl: 'https://maps.google.com/?q=Arena+Adua+Catania',
-    ticketUrl: null,
+    ticketUrl: null,   // da impostare previo accordo
     partnerId: null,
     isArena: true,
   },
@@ -112,7 +112,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.mymovies.it/cinema/catania/arena-argentina/5702/',
     mapsUrl: 'https://maps.google.com/?q=Arena+Argentina+Catania',
-    ticketUrl: null,
+    ticketUrl: null,   // da impostare previo accordo
     partnerId: null,
     isArena: true,
   },
@@ -124,7 +124,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.mymovies.it/cinema/catania/arena-corsaro/5379/',
     mapsUrl: 'https://maps.google.com/?q=Arena+Corsaro+Catania',
-    ticketUrl: null,
+    ticketUrl: null,   // da impostare previo accordo
     partnerId: null,
     isArena: true,
   },
@@ -243,7 +243,7 @@ export const CATANIA_CINEMAS = [
     website: null,
     programUrl: 'https://www.comingsoon.it/cinema/catania/moderno-mascalucia/1292/',
     mapsUrl: 'https://maps.google.com/?q=Cinema+Moderno+Mascalucia',
-    ticketUrl: null,
+    ticketUrl: null,   // da impostare previo accordo
     partnerId: null,
     isArena: true,
   },
