@@ -296,7 +296,7 @@ async function scrapeAreneCustom(allDaysData) {
     process.stdout.write('  [argentina] cinestudio.eu... ');
     const url = `https://www.cinestudio.eu/programma-argentina-${year}/`;
     const html = execSync(
-      `curl -s -L --max-time 15 ` +
+      `curl -s -L --compressed --max-time 15 ` +
       `-A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" ` +
       `-H "Accept-Language: it-IT,it;q=0.9" ` +
       `-H "Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8" ` +
@@ -311,7 +311,24 @@ async function scrapeAreneCustom(allDaysData) {
       allDaysData[date].argentina = films;
       count += films.length;
     }
-    console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
+    if (Object.keys(data).length === 0) {
+      // Risposta ricevuta ma 0 film parsati → preserva da Firestore
+      process.stdout.write('⚠ 0 film — recupero da Firestore... ');
+      const refs = Object.keys(allDaysData).map(d => db.collection('showtimes').doc(d));
+      const snaps = await db.getAll(...refs);
+      let preserved = 0;
+      for (const snap of snaps) {
+        if (snap.exists && snap.data().cinemas?.argentina?.length) {
+          if (allDaysData[snap.id] && !allDaysData[snap.id].argentina) {
+            allDaysData[snap.id].argentina = snap.data().cinemas.argentina;
+            preserved++;
+          }
+        }
+      }
+      console.log(preserved ? `↩ ${preserved} date` : 'nessun dato');
+    } else {
+      console.log(`✓ ${Object.keys(data).length} giorni, ${count} film`);
+    }
   } catch (e) {
     console.log(`✗ ${e.message} — recupero dati Argentina da Firestore`);
     // Legge i docs esistenti per preservare i dati argentina già salvati
