@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 01/06/2026 — commit `f42411b`**
+> **Ultimo aggiornamento: 02/06/2026 — commit `98ad553`**
 
 ---
 
@@ -104,7 +104,7 @@ Dati da Firestore `showtimes/{data}.cinemas.{arenaId}` — stessa struttura cine
 
 **Scraper** (`scripts/scrape-showtimes.js`):
 - GitHub Actions `scrape-showtimes.yml`: `0 5 * * *` (07:00 IT) — aggiorna mymovies + Arena Adua ogni notte
-- Arena Argentina: usa `curl` (TLS nativo bypassa Cloudflare). GH Actions fallisce con 403 → dati preservati da Firestore
+- Arena Argentina: usa `curl --compressed` (TLS nativo bypassa Cloudflare). Il flag `--compressed` è essenziale su GH Actions Linux: senza, la risposta gzip non viene decompressa e il parser trova 0 film. Fallback Firestore anche su 0 film (non solo su eccezione).
 - Per aggiornare Argentina localmente: `FIREBASE_SERVICE_ACCOUNT=$(cat ~/Downloads/discoapp-f2388-*.json) TMDB_API_KEY=$(grep VITE_TMDB_API_KEY .env | cut -d= -f2) node scripts/scrape-showtimes.js`
 - Ogni film salvato con: `title, times, posterUrl, backdropUrl, tmdbId, trailerKey, description, rating`
 
