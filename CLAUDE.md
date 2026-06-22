@@ -2,7 +2,7 @@
 
 > Questo file è la fonte di verità del progetto per Claude Code.
 > Aggiornarlo e committarlo ogni volta che lo stato cambia significativamente.
-> **Ultimo aggiornamento: 02/06/2026 — commit `98ad553`**
+> **Ultimo aggiornamento: 22/06/2026 — fix PWA: splash failsafe, icone PNG iOS, install banner in-app browser, Tailwind compilato (no CDN), service worker offline**
 
 ---
 
@@ -19,7 +19,10 @@ Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboar
 
 ## Stack
 
-- React 19, Vite, Tailwind CSS
+- React 19, Vite, Tailwind CSS **v3 compilato** (PostCSS — NON più dal CDN `cdn.tailwindcss.com`)
+  - Config: `tailwind.config.js` (content: `index.html` + `src/**/*.{js,jsx}`) + `postcss.config.js`
+  - Direttive in `src/index.css`. NON usare classi costruite dinamicamente (`\`bg-${x}\``): non vengono estratte → mettere in safelist
+  - `animate-in`/`slide-in-from-*` sono di `tailwindcss-animate` (non installato): erano inerti già col CDN, restano no-op
 - Firebase Firestore (database)
 - lucide-react, qrcode.react, html2canvas, html5-qrcode
 - GitHub Actions (scraper notturni)
@@ -307,8 +310,17 @@ Tutti i dati filtrati per `groupId`.
 ## PWA / Icona / Nome
 
 - Nome app: **EVENT** (manifest.json + apple-mobile-web-app-title)
-- Icona: `public/icon.svg` — stella 4 punte (sparkle) con bagliore dorato su sfondo nero
+- Icona sorgente: `public/icon.svg` — stella 4 punte (sparkle) con bagliore dorato su sfondo nero
 - Favicon: `public/favicon.svg` (identica a icon.svg)
+- **Icone PNG generate** da icon.svg (NON usare `logo.png` come icona: è il wordmark 741×317, non quadrato):
+  - `public/apple-touch-icon.png` (180×180) — referenziata in `index.html` (iOS ignora gli SVG come apple-touch-icon)
+  - `public/icon-192.png` / `public/icon-512.png` (purpose `any maskable`) — manifest Android
+  - Rigenerare con: `npm install --no-save sharp && node scripts/gen-icons.mjs`
+- **Splash failsafe** (`SplashScreen.jsx`): timeout di sicurezza a 4s che sblocca la splash anche se `getDoc(settings/splash_ad)` resta appeso (rete lenta/filtrata) — altrimenti l'app restava bloccata sul logo ("non si apre").
+- **InstallBanner** (`App.jsx`): bottone "Installa" solo su Android/Chrome (`beforeinstallprompt`). Su iOS mostra sempre istruzioni manuali. Rileva i browser in-app (WhatsApp/Instagram/FB) dove "Aggiungi a Home" non è disponibile → invita ad aprire in Safari/Chrome. `isIOSDevice()` gestisce anche iPad iPadOS (MacIntel + touch).
+- **Service worker** (`public/sw.js`, registrato in `main.jsx`): offline app shell + installabilità Android.
+  - Navigazioni: network-first → fallback `index.html` in cache. Asset hashati: cache-first. Firestore/TMDB/analytics/cross-origin: passano diretti (mai in cache).
+  - Auto-update: `skipWaiting` + `clients.claim` + pulizia cache vecchie su `activate`. **Incrementare `CACHE_VERSION`** a ogni modifica di `sw.js`.
 - `handleExit` in Home.jsx: resetta tutti gli overlay + tenta window.close() + fallback about:blank
 
 ---
@@ -358,5 +370,6 @@ cd C:/Users/stefa/disco-app
 npm run dev -- --host              # dev server (accessibile da cellulare/tablet)
 node scripts/scrape-showtimes.js   # run manuale scraper cinema
 node scripts/scrape-events.js      # run manuale scraper concerti/teatro/sagre
+npm install --no-save sharp && node scripts/gen-icons.mjs  # rigenera icone PNG da icon.svg
 gh workflow run scrape-events.yml --repo appgestione1/disco-app  # trigger GitHub Actions
 ```

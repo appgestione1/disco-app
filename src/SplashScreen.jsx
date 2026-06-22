@@ -31,12 +31,18 @@ export default function SplashScreen({ onDone }) {
 
     const t = setTimeout(() => { timerFired = true; decide(); }, 1800);
 
+    // Failsafe: se Firestore non risponde (rete lenta/filtrata, prima connessione)
+    // sblocca comunque la splash dopo 4s, altrimenti l'app resta bloccata sul logo.
+    const failsafe = setTimeout(() => {
+      if (!configLoaded) { configLoaded = true; decide(); }
+    }, 4000);
+
     getDoc(doc(db, 'settings', 'splash_ad'))
       .then(snap => { if (snap.exists()) loadedConfig = snap.data(); })
       .catch(() => {})
       .finally(() => { configLoaded = true; decide(); });
 
-    return () => clearTimeout(t);
+    return () => { clearTimeout(t); clearTimeout(failsafe); };
   }, []);
 
   useEffect(() => {
