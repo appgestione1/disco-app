@@ -12,7 +12,8 @@ Webapp gestionale per eventi/discoteca — portale eventi locale per Catania e p
 Nome app (PWA): **EVENT**
 Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboard PR, e mostrare cinema/concerti/teatro/sagre locali.
 
-**Deploy:** Vercel — repo `appgestione1/disco-app`, branch `main`
+**Deploy:** Vercel — repo `appgestione1/disco-app`, branch `main` (team `stefano-di-bellas-projects`)
+**Live produzione:** https://disco-app.vercel.app · deep-link Stasera: https://disco-app.vercel.app/?stasera=1
 **Dev server:** `npm run dev -- --host` → `http://192.168.1.86:5173` dal cellulare/tablet
 
 ---
@@ -235,6 +236,21 @@ Tutti i dati filtrati per `groupId`.
   - Toggle mostra/nascondi bottone "Salva Promo in Galleria"
   - Bottone TESTA POPUP (resetta cooldown localStorage)
   - Salva su `settings/popup`
+
+---
+
+## Sezione STASERA A CATANIA (`src/Stasera.jsx`)
+
+Aggregatore auto-aggiornante degli eventi di **oggi** — pensato per la distribuzione e la viralità (vedi pitch "Stasera a Catania").
+
+- **File isolato** `src/Stasera.jsx` (non tocca la logica di Home.jsx). Innesti in Home: import, stato `showStasera` (auto-apre se `?stasera=1`), early-return della vista dopo `selectedFilm` e prima di `selectedEvent`, pulsante hero in cima allo step 1.
+- **Fonti auto-aggiornanti:**
+  - Serate/discoteca → **tempo reale** da Firestore `events` via `onSnapshot` (nuovo evento admin/PR → compare senza refresh)
+  - Concerti/Teatro/Sagre → cache `external_events_cache/*_v6` (già aggiornate dagli scraper GitHub Actions)
+- **Filtro su oggi** (`dstr()` coerente con `getFilteredEvents`); se oggi è vuoto → **fallback ai prossimi ~8 eventi in arrivo** (entro 10gg) così la sezione non è mai vuota. Refresh automatico ogni 5 min.
+- **Monetizzazione:** gli eventi locali instradano al flusso di prenotazione esistente (`onSelectEvent` → `setSelectedEvent` → lista/privé con `PRIVE_ADVANCE_FEE`). Gli esterni aprono `externalUrl`.
+- **Virale:** pulsante "Condividi Stasera" → `/?stasera=1` (Web Share API + fallback copia link).
+- **TODO futuro:** pagamento carta/**Satispay** in-app (1% flat, ottimo per micro-importi) al posto del solo acconto manuale.
 
 ---
 
