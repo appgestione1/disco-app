@@ -4,6 +4,7 @@ import { db } from './firebase';
 import { fetchCinema, fetchConcerti, fetchTeatro, fetchSagre, fetchShowtimes, fetchLocalCinemaFilms } from './services/externalEvents';
 import { trackShare, trackCategoryView, trackFilmView, trackPageView } from './analytics';
 import { CATANIA_CINEMAS } from './constants/cataniaCinemas';
+import Stasera from './Stasera';
 
 const EXTERNAL_CATS = ['CINEMA', 'TEATRO', 'CONCERTI', 'SAGRE'];
 const ARENA_CINEMA_IDS = ['adua', 'argentina', 'corsaro', 'moderno'];
@@ -224,7 +225,7 @@ import html2canvas from 'html2canvas';
 import {
   ChevronLeft, ChevronDown, Star, Minus, Plus, Calendar, Crown, Lock, ArrowRight, ShieldCheck,
   Music, Theater, Film, Mic2, Sun, Utensils, LayoutGrid, Download, Send, Phone,
-  Users, Edit3, X, PlusCircle, Share2, Church, Power
+  Users, Edit3, X, PlusCircle, Share2, Church, Power, Flame
 } from 'lucide-react';
 
 // --- GRATTA E VINCI ---
@@ -421,6 +422,7 @@ const Home = () => {
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(1);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [showStasera, setShowStasera] = useState(searchParams.get('stasera') === '1');
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [bookingMode, setBookingMode] = useState(null);
@@ -792,6 +794,19 @@ const Home = () => {
     return <FilmDetail film={selectedFilm} onClose={() => setSelectedFilm(null)} />;
   }
 
+  // ── VISTA "STASERA A CATANIA" (aggregatore auto-aggiornante) ──
+  if (showStasera && !selectedEvent) {
+    return (
+      <Stasera
+        events={events}
+        prRef={prRef}
+        navigate={navigate}
+        onBack={() => setShowStasera(false)}
+        onSelectEvent={(ev) => { setShowStasera(false); setSelectedEvent(ev); }}
+      />
+    );
+  }
+
   // ── VISTA EVENTO SELEZIONATO ──
   if (selectedEvent) {
     return (
@@ -1125,6 +1140,19 @@ const Home = () => {
 
       {step === 1 && (
         <div className="px-6 space-y-6 animate-in fade-in max-w-2xl mx-auto">
+          <button
+            onClick={() => setShowStasera(true)}
+            className="w-full flex items-center justify-between gap-4 px-7 py-6 rounded-[2rem] border border-[#D4AF37]/40 bg-gradient-to-r from-[#D4AF37]/15 to-transparent text-white active:scale-[0.98] transition-all"
+          >
+            <div className="flex items-center gap-4">
+              <Flame size={26} className="text-[#D4AF37]" />
+              <div className="text-left">
+                <span className="block text-lg font-black uppercase italic tracking-tight leading-none">Stasera a Catania</span>
+                <span className="block text-[9px] font-black uppercase tracking-widest text-[#D4AF37] mt-1.5">Cosa si fa stasera · aggiornato live</span>
+              </div>
+            </div>
+            <ArrowRight size={18} className="text-[#D4AF37] flex-none" />
+          </button>
           <div className="flex items-center justify-center gap-4 mb-4 text-center">
             <div className="h-[1px] w-8 bg-[#D4AF37]/50" />
             <h1 className="text-zinc-300 font-black uppercase text-xs tracking-[0.4em] italic">Select Experience</h1>
