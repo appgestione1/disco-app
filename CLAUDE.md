@@ -13,7 +13,8 @@ Nome app (PWA): **EVENT**
 Obiettivo: gestire serate, prenotazioni lista/privé, scanner ingresso, dashboard PR, e mostrare cinema/concerti/teatro/sagre locali.
 
 **Deploy:** Vercel — repo `appgestione1/disco-app`, branch `main` (team `stefano-di-bellas-projects`)
-**Live produzione:** https://disco-app.vercel.app · deep-link Stasera: https://disco-app.vercel.app/?stasera=1
+**Live produzione:** https://disco-app-omega.vercel.app · deep-link Stasera: https://disco-app-omega.vercel.app/?stasera=1
+> NB: il dominio è `disco-app-omega.vercel.app` (title "EVENT"). `disco-app.vercel.app` e `disco.vercel.app` sono ALTRE app, non questa.
 **Dev server:** `npm run dev -- --host` → `http://192.168.1.86:5173` dal cellulare/tablet
 
 ---
